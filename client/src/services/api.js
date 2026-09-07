@@ -20,3 +20,9 @@ export function login(credentials) {
     body: JSON.stringify(credentials)
   });
 }
+
+export function getDashboard(token) {
+  return request('/dashboard', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}
