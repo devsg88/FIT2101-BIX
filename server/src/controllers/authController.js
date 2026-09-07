@@ -10,9 +10,10 @@ export async function loginController(req, res) {
   }
 
   try {
-    const user = await findUserByEmail(email);
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await findUserByEmail(normalizedEmail);
 
-    if (!user) {
+    if (!user || !user.password_hash) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
