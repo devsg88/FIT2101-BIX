@@ -10,8 +10,9 @@ const teams = [
   { name: 'Team Charlie', owner: '@Adam', project: 'Frontend Dashboard', progress: 90, status: 'On Track' }
 ];
 
-// TODO (US-02 commit 4/5): replace mock stats/teams with real GET /api/dashboard data
-export default function AdminDashboard() {
+// TODO: once dashboardController.js returns real org data, replace the mock
+// stats/teams arrays above with values read from the data prop
+export default function AdminDashboard({ data }) {
   return (
     <div className="admin-dashboard">
       <div className="admin-dashboard__header">

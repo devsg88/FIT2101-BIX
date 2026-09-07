@@ -18,9 +18,10 @@ const taskHistory = [
   }
 ];
 
-// TODO (US-02 commit 4/5): replace mock board/history data with real GET /api/dashboard data
+// TODO: once dashboardController.js returns real board/history data, replace
+// the mock arrays above with values read from the data prop
 // NOTE: drag/drop and task card interaction belong to US-06/US-08 (board team), out of scope here
-export default function DeveloperDashboard() {
+export default function DeveloperDashboard({ data }) {
   const [tab, setTab] = useState('history');
 
   return (
