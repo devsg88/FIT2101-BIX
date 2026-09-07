@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext.jsx';
+import { login } from '../../services/api.js';
 
 function validate(email, password) {
   const errors = {};
@@ -20,18 +23,31 @@ export default function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
+  const [serverError, setServerError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login: setSession } = useAuth();
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setServerError('');
 
     const validationErrors = validate(email, password);
     setErrors(validationErrors);
-
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
 
-    // TODO (US-01 commit 6): wire this up to the real auth API call
+    setIsSubmitting(true);
+    try {
+      const data = await login({ email, password });
+      setSession(data.user);
+      navigate('/dashboard');
+    } catch (err) {
+      setServerError(err.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -54,7 +70,11 @@ export default function LoginForm() {
       />
       {errors.password && <p role="alert">{errors.password}</p>}
 
-      <button type="submit">Log in</button>
+      {serverError && <p role="alert">{serverError}</p>}
+
+      <button type="submit" disabled={isSubmitting}>
+        {isSubmitting ? 'Logging in...' : 'Log in'}
+      </button>
     </form>
   );
 }
