@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 import { findUserByEmail } from '../models/userModel.js';
 
 export async function loginController(req, res) {
@@ -20,8 +21,15 @@ export async function loginController(req, res) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    // TODO (US-01 commit 5): sign JWT with role in payload and return it
-    return res.status(501).json({ message: 'Not implemented yet' });
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+
+    return res.json({
+      user: { id: user.id, name: user.name, role: user.role, token }
+    });
   } catch (err) {
     return res.status(500).json({ message: 'Login failed' });
   }
