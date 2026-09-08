@@ -309,3 +309,336 @@ input {
     padding: 40px 20px;
   }
 }
+
+/* =========================================================
+   Admin board
+   ========================================================= */
+
+.admin-board {
+  min-height: 100vh;
+  background: #fbf8d7;
+  color: #22221f;
+  overflow-x: auto;
+}
+
+.admin-team-tabs {
+  min-width: 1320px;
+  height: 62px;
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0 18px;
+  border-bottom: 1.5px solid #30302c;
+}
+
+.admin-team-tab {
+  min-width: 155px;
+  height: 42px;
+  padding: 0 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  border: 1.5px solid #34342f;
+  border-bottom: 0;
+  border-radius: 9px 9px 0 0;
+  background: #f2efd4;
+  color: #252521;
+  cursor: default;
+}
+
+.admin-team-tab--active {
+  background: #f7a839;
+}
+
+.admin-team-tab__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #6ab5b4;
+}
+
+.admin-team-tab__close {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.admin-board__workspace {
+  min-width: 1320px;
+  height: calc(100vh - 62px);
+  min-height: 650px;
+  display: grid;
+  grid-template-columns: 165px minmax(1010px, 1fr) 110px;
+  gap: 10px;
+  padding: 13px 18px 18px;
+}
+
+.admin-board__sidebar,
+.admin-recent {
+  background: #d5d5d5;
+  border-radius: 10px;
+}
+
+.admin-board__sidebar {
+  padding: 12px 10px;
+}
+
+.admin-board__sidebar-icon,
+.admin-recent__icon {
+  text-align: center;
+  font-size: 22px;
+  margin-bottom: 10px;
+}
+
+.admin-search {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 7px;
+  background: white;
+  border: 1.3px solid #353530;
+  border-radius: 5px;
+}
+
+.admin-search__icon {
+  font-size: 16px;
+}
+
+.admin-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 12px;
+}
+
+.admin-sidebar-label {
+  margin: 11px 0 7px;
+  font-size: 10px;
+  letter-spacing: 1.4px;
+  color: #65655e;
+}
+
+.admin-team-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.admin-team-list button {
+  padding: 4px 9px;
+  border: 1.3px solid #33332f;
+  border-radius: 4px;
+  background: #f7a839;
+  font-size: 11px;
+  cursor: default;
+}
+
+.admin-sidebar-divider {
+  height: 1px;
+  margin: 13px 0 6px;
+  background: #9d9d97;
+}
+
+.admin-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.admin-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border: 1.2px solid #343430;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
+.admin-tag--frontend {
+  background: #61b3b0;
+}
+
+.admin-tag--backend,
+.admin-tag--design,
+.admin-tag--qa,
+.admin-tag--infra {
+  background: #f5d799;
+}
+
+.admin-board__columns {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(150px, 1fr));
+  gap: 9px;
+  min-width: 1000px;
+}
+
+.admin-work-column {
+  position: relative;
+  min-width: 0;
+  padding: 10px 8px 50px;
+  border-radius: 10px;
+  background: #64b3b1;
+}
+
+.admin-work-column--light {
+  background: #a4d7d4;
+}
+
+.admin-work-column__top-card {
+  min-height: 60px;
+  padding: 9px;
+  border: 1.5px solid #32322e;
+  border-radius: 7px;
+  background: #f7a839;
+}
+
+.admin-work-column__top-card h2 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.admin-work-column__top-card span {
+  display: inline-block;
+  padding: 2px 7px;
+  border: 1px solid #34342f;
+  border-radius: 999px;
+  background: #fff8dd;
+  font-size: 9px;
+}
+
+.admin-progress-strip {
+  height: 7px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+  margin: 8px 0 5px;
+}
+
+.admin-progress-strip__step {
+  border: 1px solid #383833;
+  border-radius: 2px;
+  background: #f5d69a;
+}
+
+.admin-progress-strip__step--filled {
+  background: #20201d;
+}
+
+.admin-work-column__meta {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 9px;
+  color: #44443f;
+}
+
+.admin-task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.admin-task-card {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 7px;
+  border: 1.2px solid #393934;
+  border-radius: 5px;
+  background: #f7d69a;
+  font-size: 10px;
+}
+
+.admin-task-card--completed {
+  opacity: 0.65;
+  text-decoration: line-through;
+}
+
+.admin-task-checkbox {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 11px;
+  border: 1.2px solid #33332f;
+  border-radius: 2px;
+  background: #fff9dc;
+}
+
+.admin-task-card--completed .admin-task-checkbox {
+  background: #20201d;
+}
+
+.admin-add-step {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border: 1.3px dashed #3f6664;
+  border-radius: 5px;
+  background: transparent;
+  color: #416260;
+  font-size: 10px;
+  cursor: default;
+}
+
+.admin-delete-task {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 10px;
+  height: 31px;
+  border: 1.3px solid #3b3b36;
+  border-radius: 5px;
+  background: #e8aeb1;
+  font-size: 10px;
+  cursor: default;
+}
+
+.admin-recent {
+  padding: 13px 9px;
+}
+
+.admin-recent__icon {
+  font-size: 27px;
+}
+
+.admin-recent__list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.admin-recent-card {
+  padding: 8px 7px;
+  border: 1.2px solid #393934;
+  border-radius: 5px;
+  background: #f7d69a;
+}
+
+.admin-recent-card strong,
+.admin-recent-card span {
+  display: block;
+}
+
+.admin-recent-card strong {
+  margin-bottom: 3px;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.admin-recent-card span {
+  color: #77776f;
+  font-size: 8px;
+}
+
+/* Admin board: preserve Figma-like wide layout on smaller screens */
+@media (max-width: 1100px) {
+  .admin-board {
+    overflow-x: auto;
+  }
+}
