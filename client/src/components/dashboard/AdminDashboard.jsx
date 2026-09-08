@@ -96,7 +96,7 @@ const recentlyClosed = [
 
 export default function AdminDashboard({ data }) {
   return (
-    <div className="admin-board">
+    <div className="admin-dashboard admin-board">
       <div className="admin-team-tabs">
         {teamTabs.map((team, index) => (
           <button
