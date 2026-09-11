@@ -111,8 +111,22 @@ function MoveToSprintPlanningButton({ pbiId }) {
     setError(null);
     try {
       await movePbiStage(pbiId, 'sprint_planning');
+      // No local update on success either: movePbiStage only resolves once
+      // the board has been re-fetched and this PBI's card is already
+      // rendering from that fresh data (see BoardContext.jsx), so there is
+      // nothing left to do here.
     } catch (err) {
-      setError(err.message);
+      // Every rejection (an invalid move, an expired/missing login, a 403,
+      // a 404, a 500, or the network failing outright) reaches here as a
+      // thrown Error with a message - see the `request` helper in
+      // services/api.js, it never resolves on a failed request. The
+      // fallback below only matters if something ever threw a value that
+      // was not a proper Error, so this can never end up silently showing
+      // nothing while leaving the user unsure what happened.
+      setError(err?.message || 'Something went wrong moving this item. Please try again.');
+      // Deliberately not touching any board/PBI state here: the PBI is still
+      // showing whatever the last successful board load said, i.e. its
+      // stage before this attempt, so a failed move never moves the card.
     } finally {
       setIsMoving(false);
     }
