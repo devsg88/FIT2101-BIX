@@ -47,7 +47,11 @@ export function getBoard(projectId, token) {
 }
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
-// Backend handler is deferred (501) until US-08a / US-06.
+// Moves a PBI to a new stage. `stage` is the target stage's machine name
+// (e.g. 'sprint_planning'). Resolves with { pbi: <updated PBI> } on success,
+// or throws (see `request` above) with the backend's rejection message if
+// the move is not allowed by the workflow rules (US-06/US-08a), the PBI does
+// not exist, or the request otherwise fails.
 export function movePbi(projectId, pbiId, stage, token) {
   return request(`/projects/${projectId}/pbis/${pbiId}/stage`, {
     method: 'PATCH',
