@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
@@ -86,6 +87,49 @@ function TaskChecklist({ tasks }) {
   );
 }
 
+// The only PBI move this board currently offers. Only ever shown on a
+// Product Backlog card (see PbiCard below), which keeps the moves the UI
+// offers in step with the moves the backend actually allows
+// (server/src/constants/stageTransitions.js): the other two moves in that
+// map, into Active Sprint and into Completed, are not single-PBI actions
+// (Active Sprint is only reached in bulk via Start Sprint, not built yet;
+// Completed isn't offered here either, not built yet), so no button for them
+// exists yet.
+//
+// Note for design review: the Figma prototype does not show a button on
+// Product Backlog cards at all for this move (its Sprint Planning cards have
+// a "Move to Active Sprint" button instead, for a different transition).
+// Drag-and-drop is out of scope for now, so a plain button is the
+// functional stand-in until that's revisited.
+function MoveToSprintPlanningButton({ pbiId }) {
+  const { movePbiStage } = useBoard();
+  const [isMoving, setIsMoving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClick = async () => {
+    setIsMoving(true);
+    setError(null);
+    try {
+      await movePbiStage(pbiId, 'sprint_planning');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsMoving(false);
+    }
+  };
+
+  return (
+    <div className="project-board__card-action">
+      <button type="button" onClick={handleClick} disabled={isMoving}>
+        {isMoving ? 'Moving...' : 'Move to Sprint Planning ->'}
+      </button>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </div>
+  );
+}
+
 // One PBI card shown inside a column.
 function PbiCard({ pbi }) {
   return (
@@ -96,6 +140,9 @@ function PbiCard({ pbi }) {
       )}
       <PbiMeta pbi={pbi} />
       <TaskChecklist tasks={pbi.tasks} />
+      {pbi.stage === 'product_backlog' && (
+        <MoveToSprintPlanningButton pbiId={pbi.id} />
+      )}
     </article>
   );
 }
