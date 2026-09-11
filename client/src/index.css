@@ -7,3 +7,78 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   background: #f4f2e6;
 }
+
+/* Project board (Journey 3) - minimal scaffolding layout. */
+.project-board {
+  padding: 1rem;
+}
+
+.project-board__header h1 {
+  margin: 0 0 1rem;
+}
+
+.project-board__status {
+  padding: 1rem;
+}
+
+.project-board__columns {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.project-board__column {
+  background: #fffdf5;
+  border: 1px solid #e0dcc4;
+  border-radius: 6px;
+  padding: 0.75rem;
+}
+
+.project-board__column-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+}
+
+.project-board__empty {
+  margin: 0;
+  color: #8a8672;
+  font-size: 0.875rem;
+}
+
+.project-board__card {
+  background: #fff;
+  border: 1px solid #e0dcc4;
+  border-radius: 4px;
+  padding: 0.5rem 0.625rem;
+  margin-bottom: 0.5rem;
+}
+
+.project-board__card:last-child {
+  margin-bottom: 0;
+}
+
+.project-board__card-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+}
+
+.project-board__card-description {
+  margin: 0 0 0.375rem;
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.project-board__card-meta {
+  margin: 0;
+  display: flex;
+  gap: 0.75rem;
+  font-size: 0.75rem;
+  color: #8a8672;
+}
+
+@media (max-width: 800px) {
+  .project-board__columns {
+    grid-template-columns: 1fr;
+  }
+}
