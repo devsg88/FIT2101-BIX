@@ -120,7 +120,13 @@ function MoveToSprintPlanningButton({ pbiId }) {
 
   return (
     <div className="project-board__card-action">
-      <button type="button" onClick={handleClick} disabled={isMoving}>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isMoving}
+        aria-busy={isMoving}
+        title="Select this item for the next Sprint by moving it into Sprint Planning"
+      >
         {isMoving ? 'Moving...' : 'Move to Sprint Planning ->'}
       </button>
       {error && (
