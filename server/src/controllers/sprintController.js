@@ -10,6 +10,10 @@
 //
 // Also needs project-membership authorization (see requireProjectMembership in
 // ../middleware/authMiddleware.js) before it may change data.
+//
+// It must also validate each PBI's move with checkStageTransition
+// (../constants/stageTransitions.js), the same shared guard moveStageController
+// uses, rather than assuming every PBI in the sprint is safe to move.
 
 // POST /api/projects/:projectId/sprints/:sprintId/start
 export async function startSprintController(req, res) {

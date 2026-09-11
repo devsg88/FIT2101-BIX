@@ -12,6 +12,10 @@
 //
 // Both also need project-membership authorization (see requireProjectMembership
 // in ../middleware/authMiddleware.js) before they may change data.
+//
+// moveStageController specifically must validate the requested move with
+// checkStageTransition (../constants/stageTransitions.js) before touching the
+// database, and reject anything it does not allow with a 400.
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
 export async function moveStageController(req, res) {
