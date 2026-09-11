@@ -197,6 +197,33 @@ body {
   color: #555;
 }
 
+/* --- Card actions (e.g. Move to Sprint Planning) -------------------------- */
+
+.project-board__card-action {
+  margin-top: 0.5rem;
+}
+
+.project-board__card-action button {
+  width: 100%;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.project-board__card-action button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.project-board__card-error {
+  margin: 0.375rem 0 0;
+  color: #a3341c;
+  font-size: 0.75rem;
+}
+
 .project-board__checklist-item input[type='checkbox'] {
   margin: 0;
 }
