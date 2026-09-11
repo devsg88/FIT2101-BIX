@@ -8,13 +8,88 @@ body {
   background: #f4f2e6;
 }
 
-/* Project board (Journey 3) - minimal scaffolding layout. */
-.project-board {
-  padding: 1rem;
+/* TEMPORARY: styling for the dev-only "Open the BIX Platform board" link on
+   the dashboard (see Dashboard.jsx). Remove alongside that link. */
+.dev-board-link {
+  margin: 0;
+  padding: 0.5rem 1rem;
+  background: #fff3cd;
+  border-bottom: 1px solid #e0c67c;
+  font-size: 0.875rem;
 }
 
-.project-board__header h1 {
-  margin: 0 0 1rem;
+/* =========================================================================
+   Project board (Journey 3).
+   Styled to match the team's Figma prototype: a warm cream page, an orange
+   pill for each column header, a teal panel for each column body, and plain
+   white/cream cards. Uses its own project-board__ class names, on purpose,
+   so it does not affect the .board-column classes already used by the
+   dashboard mock-up.
+   ========================================================================= */
+
+.project-board {
+  min-height: 100vh;
+}
+
+/* --- Top bar: brand, current project, current user ---------------------- */
+
+.project-board__topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem 1.25rem;
+  background: #fdfaf0;
+  border-bottom: 1px solid #000;
+}
+
+.project-board__brand {
+  font-weight: 700;
+  font-size: 1.125rem;
+  color: #000;
+  text-decoration: none;
+}
+
+.project-board__brand:hover {
+  text-decoration: underline;
+}
+
+.project-board__project-pill {
+  background: #f0a860;
+  border: 1px solid #000;
+  border-radius: 999px;
+  padding: 0.25rem 0.875rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.project-board__user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.project-board__user-name {
+  font-size: 0.875rem;
+}
+
+.project-board__avatar {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: #6fbf73;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- Content area: loading / error / the four columns -------------------- */
+
+.project-board__content {
+  padding: 1.25rem;
 }
 
 .project-board__status {
@@ -29,29 +104,48 @@ body {
 }
 
 .project-board__column {
-  background: #fffdf5;
-  border: 1px solid #e0dcc4;
-  border-radius: 6px;
-  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.project-board__column-header {
+  background: #f0a860;
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  text-align: center;
 }
 
 .project-board__column-title {
-  margin: 0 0 0.75rem;
-  font-size: 1rem;
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
+.project-board__column-body {
+  background: #4f9ca6;
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 0.625rem;
+  min-height: 6rem;
+  flex: 1;
 }
 
 .project-board__empty {
   margin: 0;
-  color: #8a8672;
-  font-size: 0.875rem;
+  color: #f4f2e6;
+  font-size: 0.8125rem;
 }
 
+/* --- PBI card -------------------------------------------------------------- */
+
 .project-board__card {
-  background: #fff;
-  border: 1px solid #e0dcc4;
-  border-radius: 4px;
-  padding: 0.5rem 0.625rem;
-  margin-bottom: 0.5rem;
+  background: #fdfaf0;
+  border: 1px solid #000;
+  border-radius: 6px;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.625rem;
 }
 
 .project-board__card:last-child {
@@ -61,6 +155,7 @@ body {
 .project-board__card-title {
   margin: 0 0 0.25rem;
   font-size: 0.9375rem;
+  font-weight: 700;
 }
 
 .project-board__card-description {
@@ -69,16 +164,49 @@ body {
   color: #555;
 }
 
-.project-board__card-meta {
-  margin: 0;
-  display: flex;
-  gap: 0.75rem;
+.project-board__card-meta,
+.project-board__card-status {
+  margin: 0 0 0.375rem;
   font-size: 0.75rem;
-  color: #8a8672;
+  color: #555;
+}
+
+/* --- Task / sub-task checklist -------------------------------------------- */
+
+.project-board__checklist {
+  list-style: none;
+  margin: 0.375rem 0 0;
+  padding: 0;
+}
+
+.project-board__checklist--nested {
+  margin-top: 0.25rem;
+  padding-left: 1.25rem;
+}
+
+.project-board__checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  padding: 0.125rem 0;
+}
+
+.project-board__checklist--nested .project-board__checklist-item {
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.project-board__checklist-item input[type='checkbox'] {
+  margin: 0;
 }
 
 @media (max-width: 800px) {
   .project-board__columns {
     grid-template-columns: 1fr;
+  }
+
+  .project-board__user-name {
+    display: none;
   }
 }

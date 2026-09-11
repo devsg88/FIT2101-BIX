@@ -1,26 +1,101 @@
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext.jsx';
 import {
   BoardProvider,
   useBoard,
   STAGE_LABELS
 } from '../context/BoardContext.jsx';
 
+const MONTH_NAMES = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+];
+
+// Turns a "YYYY-MM-DD" (or a longer ISO string starting with one) into
+// something short like "Sep 15". Reads the digits directly instead of going
+// through `new Date(value)`, so a UTC-midnight date column can never shift to
+// the day before or after depending on the viewer's timezone.
+function formatShortDate(value) {
+  if (!value) {
+    return null;
+  }
+  const [year, month, day] = value.slice(0, 10).split('-');
+  return `${MONTH_NAMES[Number(month) - 1]} ${Number(day)}`;
+}
+
+// The "Est: 16h | Sep 15 - Sep 22" line, or "Status: Unestimated" when
+// Sprint Planning hasn't happened for this PBI yet (US-08b hasn't run).
+function PbiMeta({ pbi }) {
+  const hasEstimate = pbi.estimated_hours != null;
+  const start = formatShortDate(pbi.planned_start_date);
+  const end = formatShortDate(pbi.planned_end_date);
+
+  if (!hasEstimate && !start) {
+    return <p className="project-board__card-status">Status: Unestimated</p>;
+  }
+
+  const parts = [];
+  if (hasEstimate) {
+    // estimated_hours comes back from the database as a numeric string
+    // (e.g. "16.00"); Number(...) drops the trailing zeros for display.
+    parts.push(`Est: ${Number(pbi.estimated_hours)}h`);
+  }
+  if (start && end) {
+    parts.push(`${start} - ${end}`);
+  }
+
+  return <p className="project-board__card-meta">{parts.join(' | ')}</p>;
+}
+
+// One row in a task/sub-task checklist. Read-only: it shows whether the item
+// is done, it does not let you change it, there is no "toggle status" feature yet.
+function ChecklistRow({ item }) {
+  return (
+    <label className="project-board__checklist-item">
+      <input type="checkbox" checked={item.status === 'done'} disabled readOnly />
+      <span>{item.title}</span>
+    </label>
+  );
+}
+
+// Shows a PBI's tasks, and each task's sub-tasks nested underneath it. Renders
+// nothing if the PBI has no tasks yet, same as the design has no checklist on
+// a card with no tasks.
+function TaskChecklist({ tasks }) {
+  if (!tasks || tasks.length === 0) {
+    return null;
+  }
+
+  return (
+    <ul className="project-board__checklist">
+      {tasks.map((task) => (
+        <li key={task.id}>
+          <ChecklistRow item={task} />
+          {task.subTasks?.length > 0 && (
+            <ul className="project-board__checklist project-board__checklist--nested">
+              {task.subTasks.map((subTask) => (
+                <li key={subTask.id}>
+                  <ChecklistRow item={subTask} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // One PBI card shown inside a column.
 function PbiCard({ pbi }) {
-  const taskCount = pbi.tasks?.length ?? 0;
-
   return (
     <article className="project-board__card">
       <h3 className="project-board__card-title">{pbi.title}</h3>
       {pbi.description && (
         <p className="project-board__card-description">{pbi.description}</p>
       )}
-      <p className="project-board__card-meta">
-        {pbi.estimated_hours != null && (
-          <span>Est: {pbi.estimated_hours}h</span>
-        )}
-        {taskCount > 0 && <span>{taskCount} task{taskCount === 1 ? '' : 's'}</span>}
-      </p>
+      <PbiMeta pbi={pbi} />
+      <TaskChecklist tasks={pbi.tasks} />
     </article>
   );
 }
@@ -33,15 +108,40 @@ function BoardColumns() {
     <div className="project-board__columns">
       {stages.map((stage) => (
         <section className="project-board__column" key={stage}>
-          <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
-          {pbisByStage[stage].length === 0 ? (
-            <p className="project-board__empty">No items</p>
-          ) : (
-            pbisByStage[stage].map((pbi) => <PbiCard key={pbi.id} pbi={pbi} />)
-          )}
+          <div className="project-board__column-header">
+            <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
+          </div>
+          <div className="project-board__column-body">
+            {pbisByStage[stage].length === 0 ? (
+              <p className="project-board__empty">No items</p>
+            ) : (
+              pbisByStage[stage].map((pbi) => <PbiCard key={pbi.id} pbi={pbi} />)
+            )}
+          </div>
         </section>
       ))}
     </div>
+  );
+}
+
+// The bar across the top of the page: brand mark (links home), the current
+// project's name, and who is logged in. Shown in every state (loading, error,
+// ready) since none of it depends on the board having finished loading.
+function BoardTopBar({ project }) {
+  const { user } = useAuth();
+  const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?';
+
+  return (
+    <header className="project-board__topbar">
+      <Link to="/dashboard" className="project-board__brand">BIX</Link>
+      <span className="project-board__project-pill">
+        {project?.name ?? 'Project board'}
+      </span>
+      <div className="project-board__user">
+        <span className="project-board__user-name">{user?.name}</span>
+        <span className="project-board__avatar" aria-hidden="true">{initial}</span>
+      </div>
+    </header>
   );
 }
 
@@ -49,27 +149,26 @@ function BoardColumns() {
 function BoardView() {
   const { status, error, project, reloadBoard } = useBoard();
 
-  if (status === 'loading') {
-    return <p className="project-board__status">Loading board...</p>;
-  }
-
-  if (status === 'error') {
-    return (
-      <div className="project-board__status" role="alert">
-        <p>Couldn&apos;t load the board{error ? `: ${error}` : ''}.</p>
-        <button type="button" onClick={reloadBoard}>
-          Retry
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="project-board">
-      <header className="project-board__header">
-        <h1>{project?.name ?? 'Project board'}</h1>
-      </header>
-      <BoardColumns />
+      <BoardTopBar project={project} />
+
+      <main className="project-board__content">
+        {status === 'loading' && (
+          <p className="project-board__status">Loading board...</p>
+        )}
+
+        {status === 'error' && (
+          <div className="project-board__status" role="alert">
+            <p>Couldn&apos;t load the board{error ? `: ${error}` : ''}.</p>
+            <button type="button" onClick={reloadBoard}>
+              Retry
+            </button>
+          </div>
+        )}
+
+        {status === 'ready' && <BoardColumns />}
+      </main>
     </div>
   );
 }

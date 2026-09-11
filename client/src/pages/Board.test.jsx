@@ -63,7 +63,12 @@ describe('Board page', () => {
       sprints: [],
       pbis: [
         { id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] },
-        { id: 2, title: 'Upload photo', stage: 'sprint_planning', tasks: [{ id: 9 }] }
+        {
+          id: 2,
+          title: 'Upload photo',
+          stage: 'sprint_planning',
+          tasks: [{ id: 9, title: 'Build upload endpoint', status: 'todo', subTasks: [] }]
+        }
       ]
     });
 
@@ -75,7 +80,66 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Sprint Planning' })
       .closest('section');
     expect(planningColumn).toHaveTextContent('Upload photo');
-    expect(planningColumn).toHaveTextContent('1 task');
+    expect(planningColumn).toHaveTextContent('Build upload endpoint');
+  });
+
+  it('shows a PBI\'s task titles, and its sub-task titles nested under them', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [
+        {
+          id: 2,
+          title: 'Upload photo',
+          stage: 'sprint_planning',
+          estimated_hours: '16.00',
+          planned_start_date: '2026-09-15',
+          planned_end_date: '2026-09-22',
+          tasks: [
+            {
+              id: 1,
+              title: 'Build the upload API endpoint',
+              status: 'todo',
+              subTasks: [
+                { id: 1, title: 'Validate file size and type', status: 'done' }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+    expect(screen.getByText('Build the upload API endpoint')).toBeInTheDocument();
+    expect(screen.getByText('Validate file size and type')).toBeInTheDocument();
+    expect(screen.getByText('Est: 16h | Sep 15 - Sep 22')).toBeInTheDocument();
+
+    // The sub-task is marked done, the task is not, the checkboxes should
+    // reflect that (and never be interactive, there is no toggle feature yet).
+    const [taskCheckbox, subTaskCheckbox] = screen.getAllByRole('checkbox');
+    expect(taskCheckbox).not.toBeChecked();
+    expect(taskCheckbox).toBeDisabled();
+    expect(subTaskCheckbox).toBeChecked();
+    expect(subTaskCheckbox).toBeDisabled();
+  });
+
+  it('shows "Status: Unestimated" for a PBI with no planning info yet', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [
+        { id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }
+      ]
+    });
+
+    renderBoard();
+
+    await waitFor(() =>
+      expect(screen.getByText('Status: Unestimated')).toBeInTheDocument()
+    );
   });
 
   it('shows an error state with a retry button when the load fails', async () => {
