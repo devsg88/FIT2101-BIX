@@ -18,9 +18,10 @@ export const BOARD_STAGES = Object.freeze([
 
 const BOARD_STAGE_SET = new Set(BOARD_STAGES);
 
-// True if the given value is one of the four real stage names. Not used yet,
-// this is here ready for when a later story (US-08a) needs to validate a
-// stage a client is trying to move a PBI into.
+// True if the given value is one of the four real stage names. Used today by
+// the board endpoint to make sure every PBI lands in exactly one column, and
+// will also be used later by US-08a to validate a stage a client is trying to
+// move a PBI into.
 export function isBoardStage(value) {
   return BOARD_STAGE_SET.has(value);
 }

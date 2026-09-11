@@ -44,6 +44,52 @@ describe('groupPbisByStage', () => {
     expect(byStage.active_sprint).toEqual([]);
     expect(byStage.completed).toEqual([{ id: 4, stage: 'completed' }]);
   });
+
+  it('places every PBI in exactly one stage, none missing and none duplicated', () => {
+    const pbis = [
+      { id: 1, stage: 'product_backlog' },
+      { id: 2, stage: 'sprint_planning' },
+      { id: 3, stage: 'active_sprint' },
+      { id: 4, stage: 'completed' },
+      { id: 5, stage: 'completed' }
+    ];
+
+    const result = groupPbisByStage(pbis);
+    const allPbisInResult = result.flatMap((entry) => entry.pbis);
+
+    // Same PBIs, same count, nobody appears twice and nobody is missing.
+    expect(allPbisInResult).toHaveLength(pbis.length);
+    expect(allPbisInResult.map((p) => p.id).sort()).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('keeps a PBI\'s nested tasks and sub-tasks intact when sorting it into a stage', () => {
+    const pbiWithChildren = {
+      id: 2,
+      stage: 'sprint_planning',
+      title: 'User can upload a profile photo',
+      tasks: [
+        {
+          id: 1,
+          title: 'Build the upload API endpoint',
+          subTasks: [{ id: 1, title: 'Validate file size and type' }]
+        }
+      ]
+    };
+
+    const result = groupPbisByStage([pbiWithChildren]);
+    const planningEntry = result.find((e) => e.stage === 'sprint_planning');
+
+    expect(planningEntry.pbis).toEqual([pbiWithChildren]);
+    expect(planningEntry.pbis[0].tasks[0].subTasks[0].title).toBe(
+      'Validate file size and type'
+    );
+  });
+
+  it('throws instead of silently dropping a PBI with an unrecognised stage', () => {
+    const pbis = [{ id: 9, stage: 'archived' }];
+
+    expect(() => groupPbisByStage(pbis)).toThrow(/unrecognised stage/);
+  });
 });
 
 describe('getBoardController', () => {
@@ -144,5 +190,84 @@ describe('getBoardController', () => {
     expect(res.json).toHaveBeenCalledWith({
       message: 'Failed to load the project board'
     });
+  });
+
+  it('returns 500 without leaking details when a PBI has an unrecognised stage', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 1, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 1, title: 'Broken row', stage: 'archived', tasks: [] }]
+    });
+    const req = { params: { projectId: '1' } };
+    const res = mockRes();
+
+    await getBoardController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Failed to load the project board'
+    });
+  });
+
+  it('keeps a PBI\'s nested tasks and sub-tasks in the response, under its stage', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 1, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [
+        {
+          id: 2,
+          title: 'User can upload a profile photo',
+          stage: 'sprint_planning',
+          tasks: [
+            {
+              id: 1,
+              pbi_id: 2,
+              title: 'Build the upload API endpoint',
+              status: 'todo',
+              subTasks: [
+                { id: 1, task_id: 1, title: 'Validate file size and type', status: 'todo' }
+              ]
+            }
+          ]
+        }
+      ]
+    });
+    const req = { params: { projectId: '1' } };
+    const res = mockRes();
+
+    await getBoardController(req, res);
+
+    const [body] = res.json.mock.calls[0];
+    const planningEntry = body.stages.find((s) => s.stage === 'sprint_planning');
+
+    expect(planningEntry.pbis[0].tasks[0].subTasks[0].title).toBe(
+      'Validate file size and type'
+    );
+  });
+
+  it('keeps a PBI\'s id unchanged across two loads where only its stage differs', async () => {
+    // Simulates what should be true once moving a PBI is implemented: the
+    // database UPDATEs the stage column on the existing row, it never
+    // deletes and re-inserts the PBI. The read path here must reflect that
+    // faithfully, the same id must come back before and after a move.
+    getBoard.mockResolvedValue({
+      project: { id: 1, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 7, title: 'User can reset password', stage: 'product_backlog', tasks: [] }]
+    });
+    const beforeMove = mockRes();
+    await getBoardController({ params: { projectId: '1' } }, beforeMove);
+    const idBefore = beforeMove.json.mock.calls[0][0].pbis[0].id;
+
+    getBoard.mockResolvedValue({
+      project: { id: 1, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 7, title: 'User can reset password', stage: 'sprint_planning', tasks: [] }]
+    });
+    const afterMove = mockRes();
+    await getBoardController({ params: { projectId: '1' } }, afterMove);
+    const idAfter = afterMove.json.mock.calls[0][0].pbis[0].id;
+
+    expect(idAfter).toBe(idBefore);
   });
 });
