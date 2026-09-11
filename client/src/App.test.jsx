@@ -12,6 +12,10 @@ vi.mock('./pages/Dashboard.jsx', () => ({
   default: () => <div>Dashboard Page</div>
 }));
 
+vi.mock('./pages/Board.jsx', () => ({
+  default: () => <div>Board Page</div>
+}));
+
 function renderApp(initialPath, user) {
   useAuth.mockReturnValue({ user });
   return render(
@@ -35,5 +39,15 @@ describe('App redirect logic', () => {
   it('bounces an authenticated user away from /login to the dashboard', () => {
     renderApp('/login', { id: 1, role: 'developer', token: 'abc' });
     expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
+  });
+
+  it('renders the board route for an authenticated user', () => {
+    renderApp('/projects/7/board', { id: 1, role: 'developer', token: 'abc' });
+    expect(screen.getByText('Board Page')).toBeInTheDocument();
+  });
+
+  it('redirects an unauthenticated user from the board route to login', () => {
+    renderApp('/projects/7/board', null);
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
   });
 });
