@@ -16,8 +16,9 @@ export async function getProjectById(projectId) {
 
 // Loads everything needed to render one project's board and assembles the
 // nested shape (PBIs -> tasks -> sub-tasks). Returns null when the project does
-// not exist. The four workflow stages themselves are a fixed constant owned by
-// the controller / frontend, not stored per board.
+// not exist. The four workflow stages themselves are not stored per board;
+// they are the fixed list in ../constants/boardStages.js, applied to this
+// project's PBIs by the controller when it builds the response.
 export async function getBoard(projectId) {
   const [project, sprints, pbis, tasks, subTasks] = await Promise.all([
     getProjectById(projectId),
