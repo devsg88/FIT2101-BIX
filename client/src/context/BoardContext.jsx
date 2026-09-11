@@ -7,7 +7,7 @@ import {
   useState
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import { getBoard } from '../services/api.js';
+import { getBoard, movePbi } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
 // match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
@@ -67,6 +67,38 @@ export function BoardProvider({ projectId, children }) {
     loadBoard();
   }, [loadBoard]);
 
+  // Moves one PBI to a new stage. Sends exactly what the backend endpoint
+  // needs (the target stage, in the request body - see services/api.js), and
+  // on success patches just that PBI's `stage` in local state using the
+  // stage the SERVER confirms it set, not the one we asked for, so the UI
+  // reflects what actually happened rather than assuming the request worked
+  // exactly as sent.
+  //
+  // This intentionally does not refetch the whole board. The backend's move
+  // endpoint only ever changes the `stage` column (see updatePbiStage in
+  // server/src/models/pbiModel.js), every other field on the PBI, including
+  // its tasks and sub-tasks, is guaranteed unchanged, so there is nothing
+  // else here that needs refreshing from the server.
+  //
+  // Throws on failure (an unauthorised move, a PBI that no longer exists, a
+  // network error, ...) so the caller can show that error itself; this does
+  // not touch the whole-board `status`/`error` state, a failed move is a
+  // different kind of problem than a failed board load.
+  const movePbiStage = useCallback(
+    async (pbiId, targetStage) => {
+      const { pbi: updatedPbi } = await movePbi(projectId, pbiId, targetStage, token);
+
+      setPbis((current) =>
+        current.map((pbi) =>
+          pbi.id === updatedPbi.id ? { ...pbi, stage: updatedPbi.stage } : pbi
+        )
+      );
+
+      return updatedPbi;
+    },
+    [projectId, token]
+  );
+
   // We only keep one list of PBIs. The four columns are worked out from it
   // here, instead of being stored separately, so a PBI's stage can never
   // disagree with which column it shows up in.
@@ -91,9 +123,10 @@ export function BoardProvider({ projectId, children }) {
       stages: STAGES,
       status,
       error,
-      reloadBoard: loadBoard
+      reloadBoard: loadBoard,
+      movePbiStage
     }),
-    [projectId, project, pbis, pbisByStage, sprints, status, error, loadBoard]
+    [projectId, project, pbis, pbisByStage, sprints, status, error, loadBoard, movePbiStage]
   );
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>;
