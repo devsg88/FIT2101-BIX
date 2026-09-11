@@ -5,6 +5,7 @@ import {
   STAGE_LABELS
 } from '../context/BoardContext.jsx';
 
+// One PBI card shown inside a column.
 function PbiCard({ pbi }) {
   const taskCount = pbi.tasks?.length ?? 0;
 
@@ -24,6 +25,7 @@ function PbiCard({ pbi }) {
   );
 }
 
+// The four columns, one per stage, each showing its own PBIs (or an empty message).
 function BoardColumns() {
   const { stages, pbisByStage } = useBoard();
 
@@ -43,6 +45,7 @@ function BoardColumns() {
   );
 }
 
+// Picks what to show based on the board's current status: loading, error, or ready.
 function BoardView() {
   const { status, error, project, reloadBoard } = useBoard();
 
@@ -71,6 +74,8 @@ function BoardView() {
   );
 }
 
+// Page entry point. Reads the projectId straight from the URL, so this page
+// never has to hard-code which project it is showing.
 export default function Board() {
   const { projectId } = useParams();
 

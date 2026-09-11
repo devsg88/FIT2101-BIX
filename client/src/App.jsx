@@ -23,6 +23,7 @@ export default function App() {
           </ProtectedRoute>
         }
       />
+      {/* Project board (Journey 3). Same login check as the other pages. */}
       <Route
         path="/projects/:projectId/board"
         element={

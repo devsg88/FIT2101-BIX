@@ -9,8 +9,8 @@ import {
 import { useAuth } from './AuthContext.jsx';
 import { getBoard } from '../services/api.js';
 
-// The four workflow stages (US-06), in fixed order. Matches BOARD_STAGES on the
-// backend (server/src/controllers/boardController.js).
+// The four workflow stages from US-06, always in this order. This should
+// match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
 export const STAGES = [
   'product_backlog',
   'sprint_planning',
@@ -18,6 +18,7 @@ export const STAGES = [
   'completed'
 ];
 
+// Turns each stage's machine name into the text shown on screen.
 export const STAGE_LABELS = {
   product_backlog: 'Product Backlog',
   sprint_planning: 'Sprint Planning',
@@ -27,16 +28,20 @@ export const STAGE_LABELS = {
 
 const BoardContext = createContext(null);
 
+// Loads and holds the state for one project's board, and shares it with any
+// component inside it through useBoard().
 export function BoardProvider({ projectId, children }) {
   const { user } = useAuth();
   const token = user?.token;
 
   const [project, setProject] = useState(null);
-  const [pbis, setPbis] = useState([]); // single source of truth for PBIs
+  const [pbis, setPbis] = useState([]); // the one and only list of PBIs
   const [sprints, setSprints] = useState([]);
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null);
 
+  // Fetches the board from the API and updates all the state above.
+  // Also used as the "retry" action when loading fails.
   const loadBoard = useCallback(async () => {
     if (!projectId || !token) {
       return;
@@ -57,12 +62,14 @@ export function BoardProvider({ projectId, children }) {
     }
   }, [projectId, token]);
 
+  // Load the board once when this component mounts (or if projectId/token change).
   useEffect(() => {
     loadBoard();
   }, [loadBoard]);
 
-  // Per-column lists are derived from the single `pbis` array, never stored
-  // separately, so there is only one place a PBI's stage can be wrong.
+  // We only keep one list of PBIs. The four columns are worked out from it
+  // here, instead of being stored separately, so a PBI's stage can never
+  // disagree with which column it shows up in.
   const pbisByStage = useMemo(() => {
     const grouped = Object.fromEntries(STAGES.map((stage) => [stage, []]));
     for (const pbi of pbis) {
@@ -73,6 +80,7 @@ export function BoardProvider({ projectId, children }) {
     return grouped;
   }, [pbis]);
 
+  // Everything a board component might need, bundled together.
   const value = useMemo(
     () => ({
       projectId,
@@ -91,6 +99,8 @@ export function BoardProvider({ projectId, children }) {
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>;
 }
 
+// Lets any component read the board state without passing props down
+// through every level. Must be used inside a BoardProvider.
 export function useBoard() {
   const ctx = useContext(BoardContext);
   if (!ctx) {
