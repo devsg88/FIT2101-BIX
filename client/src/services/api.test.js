@@ -70,12 +70,12 @@ describe('board api helpers', () => {
       Promise.resolve({
         ok: false,
         status: 501,
-        json: () => Promise.resolve({ message: 'Starting a sprint is not implemented yet' })
+        json: () => Promise.resolve({ message: 'Cannot start an empty sprint' })
       })
     );
 
     await expect(startSprint(7, 3, 'tok-123')).rejects.toThrow(
-      'Starting a sprint is not implemented yet'
+      'Cannot start an empty sprint'
     );
   });
 });

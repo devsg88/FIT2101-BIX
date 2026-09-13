@@ -3,10 +3,15 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Board from './Board.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getBoard, movePbi } from '../services/api.js';
+import { getBoard, movePbi, startSprint, updatePbiPlanning } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({ getBoard: vi.fn(), movePbi: vi.fn() }));
+vi.mock('../services/api.js', () => ({
+  getBoard: vi.fn(),
+  movePbi: vi.fn(),
+  updatePbiPlanning: vi.fn(),
+  startSprint: vi.fn()
+}));
 
 function renderBoard(path = '/projects/7/board') {
   return render(
@@ -230,5 +235,101 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Product Backlog' })
       .closest('section');
     expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  it('saves estimate and dates for a Sprint Planning card', async () => {
+    const planningPbi = {
+      id: 2,
+      title: 'Upload photo',
+      stage: 'sprint_planning',
+      tasks: []
+    };
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [{ id: 3, name: 'Sprint 3', status: 'planning' }],
+        pbis: [planningPbi]
+      })
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [{ id: 3, name: 'Sprint 3', status: 'planning' }],
+        pbis: [{
+          ...planningPbi,
+          estimated_hours: '12.00',
+          planned_start_date: '2026-10-20',
+          planned_end_date: '2026-10-24'
+        }]
+      });
+    updatePbiPlanning.mockResolvedValue({ pbi: { id: 2 } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Story points / hours'), { target: { value: '12' } });
+    fireEvent.change(screen.getByLabelText('Start'), { target: { value: '2026-10-20' } });
+    fireEvent.change(screen.getByLabelText('End'), { target: { value: '2026-10-24' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save estimate' }));
+
+    await waitFor(() =>
+      expect(updatePbiPlanning).toHaveBeenCalledWith(
+        '7',
+        2,
+        {
+          planned_start_date: '2026-10-20',
+          planned_end_date: '2026-10-24',
+          estimated_hours: 12
+        },
+        'tok'
+      )
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText('Est: 12h | Oct 20 - Oct 24')).toBeInTheDocument()
+    );
+  });
+
+  it('moves Sprint Planning items into Active Sprint after Start Sprint', async () => {
+    const plannedPbi = {
+      id: 2,
+      title: 'Upload photo',
+      stage: 'sprint_planning',
+      estimated_hours: '16.00',
+      planned_start_date: '2026-09-15',
+      planned_end_date: '2026-09-22',
+      tasks: []
+    };
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [{ id: 3, name: 'Sprint 3', status: 'planning' }],
+        pbis: [plannedPbi]
+      })
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [{ id: 3, name: 'Sprint 3', status: 'active' }],
+        pbis: [{ ...plannedPbi, stage: 'active_sprint' }]
+      });
+    startSprint.mockResolvedValue({ sprint: { id: 3, status: 'active' }, pbis: [] });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Sprint' }));
+
+    expect(startSprint).toHaveBeenCalledWith('7', 3, 'tok');
+
+    await waitFor(() => {
+      const activeColumn = screen
+        .getByRole('heading', { name: 'Active Sprint' })
+        .closest('section');
+      expect(activeColumn).toHaveTextContent('Upload photo');
+    });
+
+    const planningColumn = screen
+      .getByRole('heading', { name: 'Sprint Planning' })
+      .closest('section');
+    expect(planningColumn).not.toHaveTextContent('Upload photo');
   });
 });

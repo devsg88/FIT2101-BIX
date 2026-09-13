@@ -60,9 +60,10 @@ export function movePbi(projectId, pbiId, stage, token) {
   });
 }
 
-// PATCH /api/projects/:projectId/pbis/:pbiId/planning
-// Backend handler is deferred (501) until US-08b.
-// `planning` is expected to carry { planned_start_date, planned_end_date, estimated_hours }.
+// PATCH /api/projects/:projectId/pbis/:pbiId/planning  (US-08b — Yichi Zhang)
+// `planning` is { planned_start_date, planned_end_date, estimated_hours }.
+// Resolves with { pbi: <updated PBI> } on success, or throws with the
+// backend's rejection message (invalid dates, hours, wrong stage, etc.).
 export function updatePbiPlanning(projectId, pbiId, planning, token) {
   return request(`/projects/${projectId}/pbis/${pbiId}/planning`, {
     method: 'PATCH',
@@ -71,8 +72,9 @@ export function updatePbiPlanning(projectId, pbiId, planning, token) {
   });
 }
 
-// POST /api/projects/:projectId/sprints/:sprintId/start
-// Backend handler is deferred (501) until US-10.
+// POST /api/projects/:projectId/sprints/:sprintId/start  (US-10 — Yichi Zhang)
+// Moves every Sprint Planning PBI into Active Sprint together. Resolves with
+// { sprint, pbis } on success, or throws (empty sprint, missing estimates, ...).
 export function startSprint(projectId, sprintId, token) {
   return request(`/projects/${projectId}/sprints/${sprintId}/start`, {
     method: 'POST',
