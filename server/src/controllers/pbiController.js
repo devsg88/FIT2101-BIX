@@ -116,7 +116,7 @@ function parsePlanningPayload(body) {
 }
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/planning
-// US-08b — Yichi Zhang
+// US-08b Yichi Zhang
 // Saves planned_start_date, planned_end_date and estimated_hours on one PBI.
 // Stage, sprint_id, tasks, title and actual_hours are not touched. The PBI
 // must already be in Sprint Planning (US-08a); this endpoint does not move it.
