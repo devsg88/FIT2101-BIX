@@ -179,11 +179,18 @@ describe('Board page', () => {
   });
 
   it('moves the card to Sprint Planning after a successful move, using the server-confirmed stage', async () => {
-    getBoard.mockResolvedValue({
-      project: { id: 7, name: 'BIX Platform' },
-      sprints: [],
-      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
-    });
+    const pbi = { id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] };
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [pbi]
+      })
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ ...pbi, stage: 'sprint_planning' }]
+      });
     movePbi.mockResolvedValue({
       pbi: { id: 1, title: 'Reset password', stage: 'sprint_planning' }
     });
