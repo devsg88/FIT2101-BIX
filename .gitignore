@@ -5,3 +5,7 @@ build/
 .DS_Store
 *.log
 coverage/
+
+# Local-only throwaway dev data (e.g. server/db/local-only/dev-users.sql).
+# Not the real schema, never meant to be committed.
+server/db/local-only/
