@@ -5,7 +5,7 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { updatePbiStage } from './pbiModel.js';
+import { updatePbiPlanning, updatePbiStage } from './pbiModel.js';
 
 describe('updatePbiStage', () => {
   beforeEach(() => {
@@ -85,5 +85,38 @@ describe('updatePbiStage', () => {
 
     expect(result).toBeNull();
     expect(pool.query).toHaveBeenCalledWith(expect.any(String), ['sprint_planning', 2, 2]);
+  });
+});
+
+describe('updatePbiPlanning', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('updates only the planning columns, scoped to PBI id and project id', async () => {
+    pool.query.mockResolvedValue({
+      rows: [{
+        id: 2,
+        project_id: 1,
+        stage: 'sprint_planning',
+        planned_start_date: '2026-09-15',
+        planned_end_date: '2026-09-22',
+        estimated_hours: '16.00'
+      }]
+    });
+
+    await updatePbiPlanning(1, 2, {
+      planned_start_date: '2026-09-15',
+      planned_end_date: '2026-09-22',
+      estimated_hours: 16
+    });
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/UPDATE product_backlog_items/i);
+    expect(sql).toMatch(/planned_start_date = \$1/i);
+    expect(sql).toMatch(/planned_end_date = \$2/i);
+    expect(sql).toMatch(/estimated_hours = \$3/i);
+    expect(sql).not.toMatch(/SET stage/i);
+    expect(params).toEqual(['2026-09-15', '2026-09-22', 16, 2, 1]);
   });
 });

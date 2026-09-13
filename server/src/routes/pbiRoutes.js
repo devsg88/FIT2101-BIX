@@ -15,8 +15,9 @@ const router = Router();
 router.patch('/:projectId/pbis/:pbiId/stage', requireAuth, moveStageController);
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/planning
-// TODO(US-08b): insert requireProjectMembership after requireAuth and replace
-// the deferred controller with real planning capture + validation.
+// US-08b — Yichi Zhang. Saves estimate and planned dates; does not change stage.
+// TODO: insert requireProjectMembership after requireAuth once project
+// membership data exists (see authMiddleware.js).
 router.patch(
   '/:projectId/pbis/:pbiId/planning',
   requireAuth,

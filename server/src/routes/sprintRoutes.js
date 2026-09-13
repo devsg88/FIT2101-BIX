@@ -6,8 +6,9 @@ import { startSprintController } from '../controllers/sprintController.js';
 const router = Router();
 
 // POST /api/projects/:projectId/sprints/:sprintId/start
-// TODO(US-10): insert requireProjectMembership after requireAuth and replace
-// the deferred controller with real start-sprint logic.
+// US-10 — Yichi Zhang. Starts the planned sprint (bulk move into Active Sprint).
+// TODO: insert requireProjectMembership after requireAuth once project
+// membership data exists (see authMiddleware.js).
 router.post(
   '/:projectId/sprints/:sprintId/start',
   requireAuth,

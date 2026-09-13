@@ -3,7 +3,7 @@ import {
   moveStageController,
   updatePlanningController
 } from './pbiController.js';
-import { getPbiById, updatePbiStage } from '../models/pbiModel.js';
+import { getPbiById, updatePbiPlanning, updatePbiStage } from '../models/pbiModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
 // checkStageTransition is NOT mocked, the real workflow rules from
@@ -69,13 +69,26 @@ describe('moveStageController', () => {
     expect(updatePbiStage).not.toHaveBeenCalled();
   });
 
+  it('rejects moving a single PBI into Active Sprint, which is a Start Sprint action', async () => {
+    getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'sprint_planning' });
+    const res = mockRes();
+
+    await moveStageController(mockReq({ stage: 'active_sprint' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Cannot move a PBI into Active Sprint individually. Start the sprint instead.'
+    });
+    expect(updatePbiStage).not.toHaveBeenCalled();
+  });
+
   it('rejects a move the workflow does not allow, and never writes to the database', async () => {
     getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'product_backlog' });
     const res = mockRes();
 
-    // product_backlog -> active_sprint skips a stage, the transition map
+    // product_backlog -> completed skips stages, the transition map
     // (US-06/6.3) does not allow it.
-    await moveStageController(mockReq({ stage: 'active_sprint' }), res);
+    await moveStageController(mockReq({ stage: 'completed' }), res);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
@@ -135,15 +148,102 @@ describe('moveStageController', () => {
   });
 });
 
+function planningReq({
+  projectId = '1',
+  pbiId = '2',
+  body = {
+    planned_start_date: '2026-09-15',
+    planned_end_date: '2026-09-22',
+    estimated_hours: 16
+  }
+} = {}) {
+  return { params: { projectId, pbiId }, body };
+}
+
 describe('updatePlanningController', () => {
-  it('returns 501 with the standard error shape (still deferred to US-08b)', async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 400 when the end date is before the start date', async () => {
     const res = mockRes();
 
-    await updatePlanningController({ params: {}, body: {} }, res);
+    await updatePlanningController(
+      planningReq({
+        body: {
+          planned_start_date: '2026-09-22',
+          planned_end_date: '2026-09-15',
+          estimated_hours: 16
+        }
+      }),
+      res
+    );
 
-    expect(res.status).toHaveBeenCalledWith(501);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(updatePbiPlanning).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when estimated hours are not greater than 0', async () => {
+    const res = mockRes();
+
+    await updatePlanningController(
+      planningReq({
+        body: {
+          planned_start_date: '2026-09-15',
+          planned_end_date: '2026-09-22',
+          estimated_hours: 0
+        }
+      }),
+      res
+    );
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(updatePbiPlanning).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when the PBI is not in Sprint Planning', async () => {
+    getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'product_backlog' });
+    const res = mockRes();
+
+    await updatePlanningController(planningReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
-      message: 'Updating PBI planning details is not implemented yet'
+      message: 'Planning details can only be set while a PBI is in Sprint Planning'
     });
+    expect(updatePbiPlanning).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the PBI does not exist', async () => {
+    getPbiById.mockResolvedValue(null);
+    const res = mockRes();
+
+    await updatePlanningController(planningReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(updatePbiPlanning).not.toHaveBeenCalled();
+  });
+
+  it('saves dates and estimated hours without changing stage', async () => {
+    getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'sprint_planning' });
+    const updatedPbi = {
+      id: 2,
+      project_id: 1,
+      stage: 'sprint_planning',
+      planned_start_date: '2026-09-15',
+      planned_end_date: '2026-09-22',
+      estimated_hours: '16.00'
+    };
+    updatePbiPlanning.mockResolvedValue(updatedPbi);
+    const res = mockRes();
+
+    await updatePlanningController(planningReq(), res);
+
+    expect(updatePbiPlanning).toHaveBeenCalledWith(1, 2, {
+      planned_start_date: '2026-09-15',
+      planned_end_date: '2026-09-22',
+      estimated_hours: 16
+    });
+    expect(res.json).toHaveBeenCalledWith({ pbi: updatedPbi });
   });
 });

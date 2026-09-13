@@ -224,6 +224,63 @@ body {
   font-size: 0.75rem;
 }
 
+/* US-08b / US-10 — Yichi Zhang: planning form under the card, Start Sprint
+   in the Sprint Planning column (not an overlay). */
+
+.project-board__planning-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #000;
+}
+
+.project-board__planning-heading {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.project-board__planning-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  font-size: 0.75rem;
+  color: #555;
+}
+
+.project-board__planning-form input,
+.project-board__start-sprint button,
+.project-board__planning-form button {
+  width: 100%;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.project-board__planning-form button {
+  background: #f0a860;
+  cursor: pointer;
+}
+
+.project-board__planning-form button:disabled,
+.project-board__start-sprint button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.project-board__start-sprint {
+  margin-top: 0.625rem;
+}
+
+.project-board__start-sprint button {
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .project-board__checklist-item input[type='checkbox'] {
   margin: 0;
 }

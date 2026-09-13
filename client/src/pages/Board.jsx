@@ -20,12 +20,28 @@ function formatShortDate(value) {
   if (!value) {
     return null;
   }
-  const [year, month, day] = value.slice(0, 10).split('-');
+  const [year, month, day] = String(value).slice(0, 10).split('-');
   return `${MONTH_NAMES[Number(month) - 1]} ${Number(day)}`;
 }
 
+function dateInputValue(value) {
+  if (!value) {
+    return '';
+  }
+  return String(value).slice(0, 10);
+}
+
+// True once US-08b has stored hours and both planned dates on this PBI.
+function hasPlanningDetails(pbi) {
+  return (
+    pbi.estimated_hours != null &&
+    Boolean(pbi.planned_start_date) &&
+    Boolean(pbi.planned_end_date)
+  );
+}
+
 // The "Est: 16h | Sep 15 - Sep 22" line, or "Status: Unestimated" when
-// Sprint Planning hasn't happened for this PBI yet (US-08b hasn't run).
+// Sprint Planning (US-08b) has not stored hours/dates for this PBI yet.
 function PbiMeta({ pbi }) {
   const hasEstimate = pbi.estimated_hours != null;
   const start = formatShortDate(pbi.planned_start_date);
@@ -87,14 +103,12 @@ function TaskChecklist({ tasks }) {
   );
 }
 
-// The only PBI move this board currently offers. Only ever shown on a
+// The only single-PBI move this board offers. Only ever shown on a
 // Product Backlog card (see PbiCard below), which keeps the moves the UI
 // offers in step with the moves the backend actually allows
-// (server/src/constants/stageTransitions.js): the other two moves in that
-// map, into Active Sprint and into Completed, are not single-PBI actions
-// (Active Sprint is only reached in bulk via Start Sprint, not built yet;
-// Completed isn't offered here either, not built yet), so no button for them
-// exists yet.
+// (server/src/constants/stageTransitions.js). The other two moves in that
+// map are not single-PBI actions: Active Sprint is reached in bulk via
+// Start Sprint (US-10 — Yichi Zhang); Completed is not offered here yet.
 //
 // Note for design review: the Figma prototype does not show a button on
 // Product Backlog cards at all for this move (its Sprint Planning cards have
@@ -150,6 +164,140 @@ function MoveToSprintPlanningButton({ pbiId }) {
   );
 }
 
+// US-08b — Yichi Zhang.
+// Estimate and dates sit *below* the existing card content (title, meta,
+// checklist), not in an overlay. Saving does not change stage; Start Sprint
+// (US-10) is what moves the card into Active Sprint.
+function PlanningForm({ pbi }) {
+  const { savePbiPlanning } = useBoard();
+  const [estimatedHours, setEstimatedHours] = useState(
+    pbi.estimated_hours != null ? String(Number(pbi.estimated_hours)) : ''
+  );
+  const [startDate, setStartDate] = useState(dateInputValue(pbi.planned_start_date));
+  const [endDate, setEndDate] = useState(dateInputValue(pbi.planned_end_date));
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setError(null);
+    try {
+      await savePbiPlanning(pbi.id, {
+        planned_start_date: startDate,
+        planned_end_date: endDate,
+        estimated_hours: Number(estimatedHours)
+      });
+    } catch (err) {
+      setError(err?.message || 'Something went wrong saving planning details. Please try again.');
+      // Leave the form values as the user typed them so they can fix and retry.
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form className="project-board__planning-form" onSubmit={handleSubmit}>
+      <p className="project-board__planning-heading">Add estimate &amp; dates</p>
+      <label className="project-board__planning-label">
+        Story points / hours
+        <input
+          type="number"
+          min="0.01"
+          step="0.01"
+          required
+          value={estimatedHours}
+          onChange={(event) => setEstimatedHours(event.target.value)}
+          disabled={isSaving}
+        />
+      </label>
+      <label className="project-board__planning-label">
+        Start
+        <input
+          type="date"
+          required
+          value={startDate}
+          onChange={(event) => setStartDate(event.target.value)}
+          disabled={isSaving}
+        />
+      </label>
+      <label className="project-board__planning-label">
+        End
+        <input
+          type="date"
+          required
+          value={endDate}
+          onChange={(event) => setEndDate(event.target.value)}
+          disabled={isSaving}
+        />
+      </label>
+      <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+        {isSaving ? 'Saving...' : 'Save estimate'}
+      </button>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </form>
+  );
+}
+
+// US-10 — Yichi Zhang.
+// Lives at the bottom of the Sprint Planning column so it is not mistaken
+// for a per-card action. Disabled until every item in that column has
+// estimate + dates (US-08b) and a sprint still in status "planning" exists.
+function StartSprintButton() {
+  const { sprints, pbisByStage, startPlannedSprint } = useBoard();
+  const [isStarting, setIsStarting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const planningSprint = sprints.find((sprint) => sprint.status === 'planning');
+  const planningPbis = pbisByStage.sprint_planning;
+  const canStart =
+    Boolean(planningSprint) &&
+    planningPbis.length > 0 &&
+    planningPbis.every(hasPlanningDetails);
+
+  const handleClick = async () => {
+    if (!planningSprint) {
+      return;
+    }
+    setIsStarting(true);
+    setError(null);
+    try {
+      await startPlannedSprint(planningSprint.id);
+    } catch (err) {
+      setError(err?.message || 'Something went wrong starting the sprint. Please try again.');
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  if (!planningSprint && planningPbis.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="project-board__start-sprint">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={!canStart || isStarting}
+        aria-busy={isStarting}
+        title={
+          canStart
+            ? 'Move every Sprint Planning item into the Active Sprint together'
+            : 'Add estimate and dates to every Sprint Planning item first'
+        }
+      >
+        {isStarting ? 'Starting...' : 'Start Sprint'}
+      </button>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </div>
+  );
+}
+
 // One PBI card shown inside a column.
 function PbiCard({ pbi }) {
   return (
@@ -163,6 +311,7 @@ function PbiCard({ pbi }) {
       {pbi.stage === 'product_backlog' && (
         <MoveToSprintPlanningButton pbiId={pbi.id} />
       )}
+      {pbi.stage === 'sprint_planning' && <PlanningForm pbi={pbi} />}
     </article>
   );
 }
@@ -184,6 +333,7 @@ function BoardColumns() {
             ) : (
               pbisByStage[stage].map((pbi) => <PbiCard key={pbi.id} pbi={pbi} />)
             )}
+            {stage === 'sprint_planning' && <StartSprintButton />}
           </div>
         </section>
       ))}

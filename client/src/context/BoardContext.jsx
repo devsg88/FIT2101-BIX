@@ -7,7 +7,7 @@ import {
   useState
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import { getBoard, movePbi } from '../services/api.js';
+import { getBoard, movePbi, startSprint, updatePbiPlanning } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
 // match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
@@ -42,7 +42,8 @@ export function BoardProvider({ projectId, children }) {
 
   // Applies a board API response to state. The one place `project`/`pbis`/
   // `sprints` are ever set from server data, used both for the first load
-  // and for refreshing after a move, so both paths trust the data the same way.
+  // and for refreshing after a move / planning save / start sprint, so every
+  // path trusts the data the same way.
   const applyBoardData = useCallback((data) => {
     setProject(data.project ?? null);
     setPbis(Array.isArray(data.pbis) ? data.pbis : []);
@@ -112,6 +113,43 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, applyBoardData]
   );
 
+  const refreshBoardAfterSave = useCallback(
+    async (savedMessage) => {
+      try {
+        const data = await getBoard(projectId, token);
+        applyBoardData(data);
+      } catch (err) {
+        throw new Error(`${savedMessage}: ${err.message}`);
+      }
+    },
+    [projectId, token, applyBoardData]
+  );
+
+  // US-08b — Yichi Zhang. Same refresh-after-save pattern as movePbiStage:
+  // the board on screen is replaced with what the server actually stored,
+  // not a locally patched copy of the three planning fields.
+  const savePbiPlanning = useCallback(
+    async (pbiId, planning) => {
+      await updatePbiPlanning(projectId, pbiId, planning, token);
+      await refreshBoardAfterSave(
+        'The planning details were saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  // US-10 — Yichi Zhang. After a successful start, every former Sprint
+  // Planning card should reappear under Active Sprint from the fresh GET.
+  const startPlannedSprint = useCallback(
+    async (sprintId) => {
+      await startSprint(projectId, sprintId, token);
+      await refreshBoardAfterSave(
+        'The sprint was started, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // We only keep one list of PBIs. The four columns are worked out from it
   // here, instead of being stored separately, so a PBI's stage can never
   // disagree with which column it shows up in.
@@ -137,9 +175,23 @@ export function BoardProvider({ projectId, children }) {
       status,
       error,
       reloadBoard: loadBoard,
-      movePbiStage
+      movePbiStage,
+      savePbiPlanning,
+      startPlannedSprint
     }),
-    [projectId, project, pbis, pbisByStage, sprints, status, error, loadBoard, movePbiStage]
+    [
+      projectId,
+      project,
+      pbis,
+      pbisByStage,
+      sprints,
+      status,
+      error,
+      loadBoard,
+      movePbiStage,
+      savePbiPlanning,
+      startPlannedSprint
+    ]
   );
 
   return <BoardContext.Provider value={value}>{children}</BoardContext.Provider>;
