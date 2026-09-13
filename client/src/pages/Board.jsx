@@ -108,7 +108,7 @@ function TaskChecklist({ tasks }) {
 // offers in step with the moves the backend actually allows
 // (server/src/constants/stageTransitions.js). The other two moves in that
 // map are not single-PBI actions: Active Sprint is reached in bulk via
-// Start Sprint (US-10 — Yichi Zhang); Completed is not offered here yet.
+// Start Sprint (US-10 Yichi Zhang); Completed is not offered here yet.
 //
 // Note for design review: the Figma prototype does not show a button on
 // Product Backlog cards at all for this move (its Sprint Planning cards have
@@ -164,7 +164,7 @@ function MoveToSprintPlanningButton({ pbiId }) {
   );
 }
 
-// US-08b — Yichi Zhang.
+// US-08b  Yichi Zhang.
 // Estimate and dates sit *below* the existing card content (title, meta,
 // checklist), not in an overlay. Saving does not change stage; Start Sprint
 // (US-10) is what moves the card into Active Sprint.
@@ -241,7 +241,7 @@ function PlanningForm({ pbi }) {
   );
 }
 
-// US-10 — Yichi Zhang.
+// US-10  Yichi Zhang.
 // Lives at the bottom of the Sprint Planning column so it is not mistaken
 // for a per-card action. Disabled until every item in that column has
 // estimate + dates (US-08b) and a sprint still in status "planning" exists.
