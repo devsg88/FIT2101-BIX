@@ -173,15 +173,91 @@ describe('Board page', () => {
     ).toHaveLength(1);
   });
 
-  it('moves the card to Sprint Planning after a successful move, using the server-confirmed stage', async () => {
+  it('does not offer the move action on cards already past Product Backlog', async () => {
     getBoard.mockResolvedValue({
       project: { id: 7, name: 'BIX Platform' },
       sprints: [],
-      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+      pbis: [
+        { id: 1, title: 'In planning', stage: 'sprint_planning', tasks: [] },
+        { id: 2, title: 'In progress', stage: 'active_sprint', tasks: [] },
+        { id: 3, title: 'Done already', stage: 'completed', tasks: [] }
+      ]
     });
-    movePbi.mockResolvedValue({
-      pbi: { id: 1, title: 'Reset password', stage: 'sprint_planning' }
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('In planning')).toBeInTheDocument());
+
+    // None of the three, whichever later stage they are in, offer a way
+    // back into (or "into", for the already-planning one) Sprint Planning.
+    expect(
+      screen.queryByRole('button', { name: /Move to Sprint Planning/ })
+    ).not.toBeInTheDocument();
+  });
+
+  it('moves only the selected PBI, a sibling Product Backlog item is left alone', async () => {
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [
+          { id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] },
+          { id: 5, title: 'Onboarding flow', stage: 'product_backlog', tasks: [] }
+        ]
+      })
+      // The refreshed board after the move: fetched fresh from the server,
+      // this is what the columns must end up matching, not a local guess.
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [
+          { id: 1, title: 'Reset password', stage: 'sprint_planning', tasks: [] },
+          { id: 5, title: 'Onboarding flow', stage: 'product_backlog', tasks: [] }
+        ]
+      });
+    movePbi.mockResolvedValue({ pbi: { id: 1, stage: 'sprint_planning' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    // Two Product Backlog cards, two buttons; click the first PBI's.
+    const [firstButton] = screen.getAllByRole('button', {
+      name: /Move to Sprint Planning/
     });
+    fireEvent.click(firstButton);
+
+    // Only PBI 1 was requested to move, never PBI 5.
+    expect(movePbi).toHaveBeenCalledTimes(1);
+    expect(movePbi).toHaveBeenCalledWith('7', 1, 'sprint_planning', 'tok');
+
+    await waitFor(() => {
+      const planningColumn = screen
+        .getByRole('heading', { name: 'Sprint Planning' })
+        .closest('section');
+      expect(planningColumn).toHaveTextContent('Reset password');
+    });
+
+    const backlogColumn = screen
+      .getByRole('heading', { name: 'Product Backlog' })
+      .closest('section');
+    expect(backlogColumn).not.toHaveTextContent('Reset password');
+    expect(backlogColumn).toHaveTextContent('Onboarding flow');
+  });
+
+  it('re-fetches the board after a successful move and shows the moved PBI from that fresh data', async () => {
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+      })
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'sprint_planning', tasks: [] }]
+      });
+    movePbi.mockResolvedValue({ pbi: { id: 1, stage: 'sprint_planning' } });
 
     renderBoard('/projects/7/board');
 
@@ -190,6 +266,10 @@ describe('Board page', () => {
     fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
 
     expect(movePbi).toHaveBeenCalledWith('7', 1, 'sprint_planning', 'tok');
+
+    // The board asked the server for a fresh copy after the move succeeded,
+    // it did not just trust a locally patched guess.
+    await waitFor(() => expect(getBoard).toHaveBeenCalledTimes(2));
 
     await waitFor(() => {
       const planningColumn = screen
@@ -204,6 +284,68 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Product Backlog' })
       .closest('section');
     expect(backlogColumn).not.toHaveTextContent('Reset password');
+  });
+
+  it('shows whatever the refreshed board says, even if that disagreed with the move response', async () => {
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+      })
+      // The application's current board data, the source of truth: PBI 1 is
+      // in Sprint Planning here.
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'sprint_planning', tasks: [] }]
+      });
+    // Deliberately inconsistent with the refreshed board above, to prove the
+    // UI does not just trust this response and skip the refresh.
+    movePbi.mockResolvedValue({ pbi: { id: 1, stage: 'active_sprint' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    await waitFor(() => {
+      const planningColumn = screen
+        .getByRole('heading', { name: 'Sprint Planning' })
+        .closest('section');
+      expect(planningColumn).toHaveTextContent('Reset password');
+    });
+
+    const activeSprintColumn = screen
+      .getByRole('heading', { name: 'Active Sprint' })
+      .closest('section');
+    expect(activeSprintColumn).not.toHaveTextContent('Reset password');
+  });
+
+  it('reports a refresh failure separately from a move failure', async () => {
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+      })
+      // The move itself succeeds (movePbi below resolves), but refreshing
+      // the board afterward fails.
+      .mockRejectedValueOnce(new Error('network blip'));
+    movePbi.mockResolvedValue({ pbi: { id: 1, stage: 'sprint_planning' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'The move was saved, but the board could not be refreshed: network blip'
+      )
+    );
   });
 
   it('shows an error and leaves the card in place when the move is rejected', async () => {
@@ -223,6 +365,84 @@ describe('Board page', () => {
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Cannot move a PBI from "product_backlog" to "sprint_planning"'
+      )
+    );
+
+    const backlogColumn = screen
+      .getByRole('heading', { name: 'Product Backlog' })
+      .closest('section');
+    expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  it('shows a visible error and keeps the PBI put when the move is refused for an access reason', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+    });
+    // Matches what requireAuth / a future permission check would send back.
+    movePbi.mockRejectedValue(new Error('Invalid or expired token'));
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Invalid or expired token')
+    );
+
+    const backlogColumn = screen
+      .getByRole('heading', { name: 'Product Backlog' })
+      .closest('section');
+    expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  it('shows a visible error and keeps the PBI put on a general request failure (e.g. the network, or a 500)', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+    });
+    // A raw fetch/network failure, not an HTTP error response at all.
+    movePbi.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Failed to fetch')
+    );
+
+    const backlogColumn = screen
+      .getByRole('heading', { name: 'Product Backlog' })
+      .closest('section');
+    expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  it('never fails silently, even if something threw without a usable message', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+    });
+    // Deliberately not a real Error, to prove the fallback message kicks in
+    // rather than the error box just staying empty/absent.
+    movePbi.mockRejectedValue({});
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Something went wrong moving this item. Please try again.'
       )
     );
 
