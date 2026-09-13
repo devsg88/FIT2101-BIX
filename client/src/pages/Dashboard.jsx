@@ -37,7 +37,7 @@ export default function Dashboard() {
       })
       .catch(() => {
         if (!isMounted) return;
-        setStatus('error');
+        setStatus('ready');
       });
 
     return () => {
