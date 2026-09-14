@@ -65,3 +65,18 @@ export async function isProjectMember(projectId, userId) {
   );
   return rows.length > 0;
 }
+
+// The projects a given user is a member of - the reverse of
+// listProjectMembers (which goes project -> its members). Used by the
+// developer dashboard's "My Projects" count (US-02).
+export async function listProjectsForUser(userId) {
+  const { rows } = await pool.query(
+    `SELECT p.id, p.name
+       FROM project_members pm
+       JOIN projects p ON p.id = pm.project_id
+      WHERE pm.user_id = $1
+      ORDER BY p.name`,
+    [userId]
+  );
+  return rows;
+}

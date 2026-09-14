@@ -10,7 +10,8 @@ import {
   listAvailableDevelopersForProject,
   addProjectMember,
   removeProjectMember,
-  isProjectMember
+  isProjectMember,
+  listProjectsForUser
 } from './projectMembershipModel.js';
 
 describe('projectMembershipModel', () => {
@@ -83,5 +84,24 @@ describe('projectMembershipModel', () => {
     const result = await isProjectMember(1, 99);
 
     expect(result).toBe(false);
+  });
+
+  it('listProjectsForUser joins projects onto project_members for the given user', async () => {
+    pool.query.mockResolvedValue({
+      rows: [{ id: 1, name: 'BIX Platform' }]
+    });
+
+    const result = await listProjectsForUser(2);
+
+    expect(pool.query).toHaveBeenCalledWith(expect.stringMatching(/project_members/), [2]);
+    expect(result).toEqual([{ id: 1, name: 'BIX Platform' }]);
+  });
+
+  it('listProjectsForUser returns an empty array when the user has no projects', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    const result = await listProjectsForUser(999);
+
+    expect(result).toEqual([]);
   });
 });

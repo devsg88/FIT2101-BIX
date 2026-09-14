@@ -1539,16 +1539,6 @@ input {
   }
 }
 
-/* TEMPORARY: styling for the dev-only "Open the BIX Platform board" link on
-   the dashboard (see Dashboard.jsx). Remove alongside that link. */
-.dev-board-link {
-  margin: 0;
-  padding: 0.5rem 1rem;
-  background: #fff3cd;
-  border-bottom: 1px solid #e0c67c;
-  font-size: 0.875rem;
-}
-
 /* =========================================================================
    Project board (Journey 3).
    Styled to match the team's Figma prototype: a warm cream page, an orange
