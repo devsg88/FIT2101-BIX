@@ -13,7 +13,8 @@ plain `pg` pool against `DATABASE_URL`).
 | `seed.sql`   | Inserts a small, consistent set of sample rows for local development. |
 | `README.md`  | This document. |
 
-> **Status:** these scripts have **not** been executed against any database.
+> **Status:** these scripts have been successfully executed against a fresh
+> local PostgreSQL database and tested with the running application.
 > See [What was validated](#what-was-validated).
 
 ---
@@ -222,10 +223,10 @@ along with it, not block the delete the way losing real work data would.
 
 ## Running the scripts
 
-Run against your existing local database (the task refers to `bix_dev`; the
-committed `server/.env.example` uses `bix` — **confirm which name your setup
-uses** and substitute it below). The scripts do not name a database and do not
-contain credentials; they run against whatever database you connect to.
+Run against your configured local PostgreSQL database. The committed
+`server/.env.example` uses `bix` as the example database name, but another
+database name may be used as long as `DATABASE_URL` points to it. The scripts
+do not contain credentials; they run against whatever database you connect to.
 
 **Execution order: `schema.sql` first, then `seed.sql`.** `seed.sql` will fail
 with foreign-key / missing-table errors if the schema is not there yet.
@@ -330,7 +331,7 @@ Once agreed, the assignment columns are added in a follow-up migration as
 | 3 | **`sprints.status` default `'planning'`** | Same idea — a new sprint starts in planning. Confirm. |
 | 4 | **`started_at` vs `status`** | The schema does **not** force `started_at` to be non-null when `status = 'active'`, nor null when `status = 'planning'`. That cross-field rule was not in the spec; add it later if wanted. |
 | 5 | **`stage` vs `sprint_id` consistency** | The schema allows, e.g., `stage = 'active_sprint'` with `sprint_id IS NULL`. Keeping those two in step is currently the application's responsibility (the "workflow functions" from US-06). A `CHECK` could enforce it later; not added because it was not specified. |
-| 6 | **Database name** | Task says `bix_dev`; `server/.env.example` says `bix`. Not a schema issue — just confirm which the team uses locally. |
+| 6 | **Database name** | `server/.env.example` uses `bix` as the example database name. Other local database names are supported as long as `DATABASE_URL` matches. |
 | 7 | **`numeric(6,2)` for hours** | Allows up to `9999.99` hours with 2 decimal places. Adjust precision/scale if the team expects a different range or granularity. |
 | 8 | **No `team` ↔ `project` relationship, no per-team role (e.g. Product Owner)** | `teams` and `projects` are unrelated tables — nothing says which project(s) a team is currently working on, and `team_members` records only "on the team", not a role like Product Owner within it. This blocks populating the admin "Team Health & Active Sprints" table (current project, sprint progress, status, product owner per team) with real data; that table currently renders from mock data (`client/src/data/orgMockData.js`) for this reason. **Deferred to a later sprint** — none of the three required journeys (US-01/US-02, US-03/US-05, US-06/US-08a/US-08b/US-10) depend on this table; Journey 2's "admin assigns developer" flow uses `project_members` directly and is unaffected. When picked up, decide: does a project belong to one team or can several teams share a project (1:N vs N:N — a join table `team_projects` handles either), and is a team role (e.g. `team_members.role_on_team`) needed, or does "Product Owner" map to the existing global `admin`/`developer` role. |
 
@@ -362,6 +363,8 @@ Once agreed, the assignment columns are added in a follow-up migration as
   `project_members` rows reference project 1 (which exists in the existing
   PBI/sprint seed data).
 
-**Not done:** the scripts were **not executed** against any database. No
-database was created or modified. No `.env` file was read. Running the scripts
-and confirming the results is left to you.
+**Runtime validation completed:** `schema.sql` and `seed.sql` were executed
+successfully against a fresh local PostgreSQL database. The seeded Admin and
+Developer accounts were then authenticated through the running application,
+confirming the database setup, bcrypt authentication, JWT flow and role-based
+dashboards work together.
