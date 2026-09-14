@@ -160,10 +160,9 @@ CREATE TRIGGER trg_pbi_set_updated_at
 -- Resolves part of "PENDING: user assignment columns" below: the users
 -- table did not exist anywhere in the repo (server/db/README.md ->
 -- "Pending integration with login / users" flagged this). Its shape matches
--- exactly what server/src/models/userModel.js already queries
--- (SELECT * FROM users WHERE email = $1) and the DEMO_USERS fallback shape
--- in that same file (id, name, email, role, password_hash) - no new
--- contract, just the table that was always implied.
+-- exactly what server/src/models/userModel.js queries
+-- (SELECT * FROM users WHERE email = $1):
+-- id, name, email, role and password_hash.
 --
 -- Team membership (team_members) and project membership (project_members)
 -- are modeled as two independent tables, not a Developer -> Team -> Project

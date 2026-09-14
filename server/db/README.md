@@ -357,10 +357,10 @@ Once agreed, the assignment columns are added in a follow-up migration as
   `teams`, `team_members` or `project_members`.
 - **`users` / `teams` / `team_members` / `project_members` seed rows checked**
   against every constraint the same way as the tables above: the three seeded
-  users match the emails/roles/password hash already hardcoded as a fallback
-  in `userModel.js`'s `DEMO_USERS`, both developers' `team_members` rows
-  reference the one seeded team, and both `project_members` rows reference
-  project 1 (which exists in the existing PBI/sprint seed data).
+  users provide shared local-development accounts for authentication, both
+  developers' `team_members` rows reference the one seeded team, and both
+  `project_members` rows reference project 1 (which exists in the existing
+  PBI/sprint seed data).
 
 **Not done:** the scripts were **not executed** against any database. No
 database was created or modified. No `.env` file was read. Running the scripts

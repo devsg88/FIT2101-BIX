@@ -102,11 +102,9 @@ ON CONFLICT (id) DO NOTHING;
 
 -- -------------------------------------------------------------------------
 -- users
---   The three demo accounts already hardcoded as a fallback in
---   server/src/models/userModel.js (same ids, emails, roles and password
---   hash), so a real database behaves the same way as that fallback instead
---   of silently diverging from it. Plaintext password for all three is
---   whatever DEMO_USERS was already using — unchanged here.
+--   Shared demo accounts for local development and assessment.
+--   All three accounts use the same seeded bcrypt password hash.
+--   Demo login password: password123
 -- -------------------------------------------------------------------------
 INSERT INTO users (id, name, email, role, password_hash) VALUES
     (1, 'Pang',      'pang@bix.app',      'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
