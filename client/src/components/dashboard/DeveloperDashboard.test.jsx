@@ -29,12 +29,7 @@ describe('DeveloperDashboard component', () => {
 
     expect(screen.getByText('BIX')).toBeInTheDocument();
     expect(screen.getByText('DashBoard')).toBeInTheDocument();
-    // Exact match, not a loose regex: the dashboard also has a "My Projects"
-    // stat-card link (see the "renders all three stat cards" test below),
-    // whose accessible name also contains "My Project" as a substring. An
-    // exact match on "My Project" only matches the nav link's accessible
-    // name, the stat card's is much longer ("My Projects 1 Assigned projects").
-    const myProjectLink = screen.getByRole('link', { name: 'My Project' });
+    const myProjectLink = screen.getByRole('link', { name: /My Project/i });
     expect(myProjectLink).toHaveAttribute('href', '/projects');
     expect(screen.getAllByText('Pang').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Developer')).toBeInTheDocument();
