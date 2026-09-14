@@ -51,11 +51,12 @@ export default function App() {
         }
       />
       {/* Admin: one team's page, reached from the sidebar or the Team Health
-          table on the Organization Overview (AdminDashboard.jsx). */}
+          table on the Organization Overview (AdminDashboard.jsx). Admin-only,
+          not just any authenticated user - see ProtectedRoute's allowedRoles. */}
       <Route
         path="/teams/:teamId"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['admin']}>
             <TeamDetail />
           </ProtectedRoute>
         }
