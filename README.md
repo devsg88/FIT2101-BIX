@@ -4,7 +4,16 @@ FIT2101 S2 2026 group repository.
 
 ## Team
 
-Add your team members and roles here.
+Team name: Devengers
+
+| Name | Role |
+|---|---|
+| Devtej Singh Gill | Developer |
+| Yichi Zhang | Developer |
+| Pang Chee Hian | Proxy Product Owner / Developer |
+| Barathan | Developer |
+| Abdullah Saab | Scrum Master |
+| Ayodhia Massie | Developer |
 
 ## Getting Started
 
