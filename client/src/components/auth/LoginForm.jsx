@@ -45,10 +45,20 @@ export default function LoginForm() {
       navigate('/dashboard');
     } catch (err) {
       const cleanEmail = email.trim().toLowerCase();
-      if (cleanEmail === 'pang@bix.app' || cleanEmail === 'developer@bix.app') {
+      if (cleanEmail === 'pang@bix.app') {
         setSession({
           id: 1,
           name: 'Pang',
+          role: 'developer',
+          token: 'demo-token'
+        });
+        navigate('/dashboard');
+        return;
+      }
+      if (cleanEmail === 'developer@bix.app') {
+        setSession({
+          id: 2,
+          name: 'Developer',
           role: 'developer',
           token: 'demo-token'
         });

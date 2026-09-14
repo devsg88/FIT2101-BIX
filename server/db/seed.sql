@@ -101,14 +101,58 @@ INSERT INTO sub_tasks (id, task_id, title, status) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- -------------------------------------------------------------------------
+-- users
+--   The three demo accounts already hardcoded as a fallback in
+--   server/src/models/userModel.js (same ids, emails, roles and password
+--   hash), so a real database behaves the same way as that fallback instead
+--   of silently diverging from it. Plaintext password for all three is
+--   whatever DEMO_USERS was already using — unchanged here.
+-- -------------------------------------------------------------------------
+INSERT INTO users (id, name, email, role, password_hash) VALUES
+    (1, 'Pang',      'pang@bix.app',      'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (2, 'Developer', 'developer@bix.app', 'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (3, 'Admin',     'admin@bix.app',     'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm')
+ON CONFLICT (id) DO NOTHING;
+
+-- -------------------------------------------------------------------------
+-- teams
+-- -------------------------------------------------------------------------
+INSERT INTO teams (id, name) VALUES
+    (1, 'Team Alpha')
+ON CONFLICT (id) DO NOTHING;
+
+-- -------------------------------------------------------------------------
+-- team_members  (both developers are on Team Alpha; the admin is on no team)
+-- -------------------------------------------------------------------------
+INSERT INTO team_members (team_id, user_id) VALUES
+    (1, 1),
+    (1, 2)
+ON CONFLICT (team_id, user_id) DO NOTHING;
+
+-- -------------------------------------------------------------------------
+-- project_members
+--   Pang (1) and Developer (2) are assigned to BIX Platform (project 1).
+--   Neither is assigned to Mobile App (project 2), so it exercises the
+--   US-05 "not a member" path against a project with real seed data instead
+--   of only a non-existent id.
+-- -------------------------------------------------------------------------
+INSERT INTO project_members (project_id, user_id) VALUES
+    (1, 1),
+    (1, 2)
+ON CONFLICT (project_id, user_id) DO NOTHING;
+
+-- -------------------------------------------------------------------------
 -- Re-sync identity sequences so the next auto-generated id continues after
 -- the highest explicit id inserted above. GREATEST(..., 1) keeps this valid
--- even if a table somehow ended up empty.
+-- even if a table somehow ended up empty. team_members / project_members
+-- have no identity column (composite primary key), so nothing to re-sync.
 -- -------------------------------------------------------------------------
 SELECT setval(pg_get_serial_sequence('projects',              'id'), GREATEST((SELECT max(id) FROM projects),              1));
 SELECT setval(pg_get_serial_sequence('sprints',               'id'), GREATEST((SELECT max(id) FROM sprints),               1));
 SELECT setval(pg_get_serial_sequence('product_backlog_items', 'id'), GREATEST((SELECT max(id) FROM product_backlog_items), 1));
 SELECT setval(pg_get_serial_sequence('tasks',                 'id'), GREATEST((SELECT max(id) FROM tasks),                 1));
 SELECT setval(pg_get_serial_sequence('sub_tasks',             'id'), GREATEST((SELECT max(id) FROM sub_tasks),             1));
+SELECT setval(pg_get_serial_sequence('users',                 'id'), GREATEST((SELECT max(id) FROM users),                 1));
+SELECT setval(pg_get_serial_sequence('teams',                 'id'), GREATEST((SELECT max(id) FROM teams),                 1));
 
 COMMIT;

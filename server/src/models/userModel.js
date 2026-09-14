@@ -11,7 +11,7 @@ const DEMO_USERS = {
   },
   'developer@bix.app': {
     id: 2,
-    name: 'Pang',
+    name: 'Developer',
     email: 'developer@bix.app',
     role: 'developer',
     password_hash: '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'
@@ -34,4 +34,14 @@ export async function findUserByEmail(email) {
   }
 
   return DEMO_USERS[email] || null;
+}
+
+// All developers, org-wide - the base list an admin picks from before
+// narrowing to "available for this team/project" (see teamModel.js and
+// projectMembershipModel.js, which exclude users already assigned).
+export async function listDevelopers() {
+  const { rows } = await pool.query(
+    `SELECT id, name, email FROM users WHERE role = 'developer' ORDER BY name`
+  );
+  return rows;
 }

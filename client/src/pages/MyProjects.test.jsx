@@ -43,7 +43,7 @@ describe('MyProjects page', () => {
     expect(screen.getByPlaceholderText('Search projects')).toBeInTheDocument();
   });
 
-  it('renders all four filter buttons and project cards', () => {
+  it('renders all four filter buttons and the first page of project cards', () => {
     renderMyProjects();
 
     expect(screen.getByRole('button', { name: 'All' })).toHaveClass(
@@ -61,14 +61,17 @@ describe('MyProjects page', () => {
     expect(screen.getByText('Sprint 1')).toBeInTheDocument();
     expect(screen.getByText('@abc.pang')).toBeInTheDocument();
 
+    // Project Gamma (US-05: not assigned to this developer) still shows on
+    // page 1, but locked - no meta/team details and no board access.
     expect(screen.getByText('Project Gamma')).toBeInTheDocument();
-    expect(screen.getByText('@abc.eng')).toBeInTheDocument();
+    expect(screen.getByText('Not assigned')).toBeInTheDocument();
+    expect(screen.getByText('No access')).toBeInTheDocument();
+    expect(screen.queryByText('@abc.eng')).not.toBeInTheDocument();
 
     const openBoardBtns = screen.getAllByRole('link', { name: /Open Board/i });
-    expect(openBoardBtns).toHaveLength(3);
+    expect(openBoardBtns).toHaveLength(2);
     expect(openBoardBtns[0]).toHaveAttribute('href', '/projects/1/board');
     expect(openBoardBtns[1]).toHaveAttribute('href', '/projects/2/board');
-    expect(openBoardBtns[2]).toHaveAttribute('href', '/projects/3/board');
   });
 
   it('filters project cards when clicking status filter buttons', () => {
@@ -98,5 +101,62 @@ describe('MyProjects page', () => {
 
     expect(screen.getByText('1/2 pages')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Next page/i })).toBeInTheDocument();
+  });
+
+  it('navigates to page 2 and shows an empty state with no projects', () => {
+    renderMyProjects();
+
+    fireEvent.click(screen.getByRole('button', { name: /Next page/i }));
+
+    expect(screen.getByText('2/2 pages')).toBeInTheDocument();
+    expect(screen.queryByText('Project Alpha')).not.toBeInTheDocument();
+    expect(screen.queryByText('Project Beta')).not.toBeInTheDocument();
+    expect(screen.getByText('No projects to show on this page.')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', { name: /Open Board/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it('navigates back to page 1 with the previous page button', () => {
+    renderMyProjects();
+
+    fireEvent.click(screen.getByRole('button', { name: /Next page/i }));
+    expect(screen.getByText('2/2 pages')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /Previous page/i }));
+
+    expect(screen.getByText('1/2 pages')).toBeInTheDocument();
+    expect(screen.getByText('Project Alpha')).toBeInTheDocument();
+    expect(screen.getByText('Project Beta')).toBeInTheDocument();
+  });
+
+  it('shows the access-denied modal when clicking No access, and can close it', () => {
+    renderMyProjects();
+
+    fireEvent.click(screen.getByRole('button', { name: 'No access' }));
+
+    expect(
+      screen.getByText("You don't have access to this project")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/not currently assigned to Project Gamma/i)
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to my projects' }));
+
+    expect(
+      screen.queryByText("You don't have access to this project")
+    ).not.toBeInTheDocument();
+  });
+
+  it('closes the access-denied modal with the close button', () => {
+    renderMyProjects();
+
+    fireEvent.click(screen.getByRole('button', { name: 'No access' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+
+    expect(
+      screen.queryByText("You don't have access to this project")
+    ).not.toBeInTheDocument();
   });
 });

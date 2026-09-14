@@ -79,6 +79,53 @@ Each task belongs to exactly one PBI. A PBI may have no tasks.
 
 Each sub-task belongs to exactly one task. A task may have no sub-tasks.
 
+### `users`
+| Column          | Type | Notes |
+|-----------------|------|-------|
+| `id`            | `bigint` identity | Primary key. |
+| `name`          | `text` | `NOT NULL`. |
+| `email`         | `text` | `NOT NULL`, `UNIQUE`. |
+| `role`          | `text` | `NOT NULL`. `CHECK` in (`admin`, `developer`). |
+| `password_hash` | `text` | `NOT NULL`. bcrypt hash. |
+| `created_at`    | `timestamptz` | `NOT NULL`, default `now()`. |
+
+Resolves the "Pending integration with login / users" gap below this table
+was previously tracking: this is exactly the table `server/src/models/userModel.js`
+and `authController.js` already query (`SELECT * FROM users WHERE email = $1`),
+now actually defined.
+
+### `teams`
+| Column       | Type | Notes |
+|--------------|------|-------|
+| `id`         | `bigint` identity | Primary key. |
+| `name`       | `text` | `NOT NULL`, `UNIQUE`. |
+| `created_at` | `timestamptz` | `NOT NULL`, default `now()`. |
+
+A developer team, independent of any one project.
+
+### `team_members`
+| Column       | Type | Notes |
+|--------------|------|-------|
+| `team_id`    | `bigint` | `NOT NULL`. FK → `teams(id)`, `ON DELETE CASCADE`. |
+| `user_id`    | `bigint` | `NOT NULL`. FK → `users(id)`, `ON DELETE CASCADE`. |
+| `created_at` | `timestamptz` | `NOT NULL`, default `now()`. |
+
+`PRIMARY KEY (team_id, user_id)` — a user can be on a given team at most once.
+
+### `project_members`
+| Column       | Type | Notes |
+|--------------|------|-------|
+| `project_id` | `bigint` | `NOT NULL`. FK → `projects(id)`, `ON DELETE CASCADE`. |
+| `user_id`    | `bigint` | `NOT NULL`. FK → `users(id)`, `ON DELETE CASCADE`. |
+| `created_at` | `timestamptz` | `NOT NULL`, default `now()`. |
+
+`PRIMARY KEY (project_id, user_id)` — a user can be a member of a given
+project at most once. This is what US-05 project access is checked against
+(`server/src/models/projectMembershipModel.js`). **Deliberately independent
+of `team_members`** — a developer's team and the projects they can access
+are tracked separately, not derived from one another. See the comment block
+above the `users` table in `schema.sql` for the reasoning.
+
 ---
 
 ## Relationships
@@ -164,6 +211,13 @@ For `product_backlog_items.sprint_id`, an alternative worth discussing is
 that also needs the PBI's `stage` to be reconsidered at the same time, so it is
 left as `RESTRICT` pending a decision.
 
+**Exception: `team_members` and `project_members` use `ON DELETE CASCADE`.**
+Both of their foreign keys (to `teams`/`projects` and to `users`) cascade,
+unlike every table above. The reasoning is narrower than the tables above: a
+membership row is a pure link with no content of its own — deleting a team,
+project or user should simply remove the now-meaningless membership rows
+along with it, not block the delete the way losing real work data would.
+
 ---
 
 ## Running the scripts
@@ -229,19 +283,20 @@ Then re-run `schema.sql` and `seed.sql`.
 
 ## Pending integration with login / users
 
-Another developer owns the `users` table and all authentication. **These
-scripts create no user table, no accounts and no auth logic**, and they run
-without the `users` table present.
+**Update:** `users`, `teams`, `team_members` and `project_members` now exist
+(see the [Tables](#tables) section above) — this resolves points 1, 2 and
+half of point 3 below (a `project_members` table, item 3's second bullet).
+`server/src/models/userModel.js`'s `findUserByEmail` and the new
+`teamModel.js` / `projectMembershipModel.js` all use this same `users` table.
 
-The ERD's dotted lines (assignment of work to people) are therefore **not
-implemented**. Before they can be, the two developers need to agree on:
+What's still **not** implemented is per-work-item assignment — the ERD's
+dotted lines from a user to an individual PBI / task / sub-task (e.g. "who is
+working on this task"), as opposed to team/project *membership* (who can see
+a project at all), which is what was added. Before assignee columns are
+added, agree on:
 
-1. **User id type.** The tables here use `bigint` identity ids. Any assignment
-   column must match the `users` primary key type exactly (`bigint` vs `integer`
-   vs `uuid`) or the foreign key will not create.
-2. **Users table name and key.** Confirm it is `users` with primary key `id`
-   (that is what `server/src/models/userModel.js` and `authController.js` imply,
-   but it is not defined anywhere in this repo).
+1. ~~User id type.~~ Resolved: `bigint` identity, matching every other table.
+2. ~~Users table name and key.~~ Resolved: `users`, primary key `id`.
 3. **Which assignment fields are needed, and their names.** Candidates:
    - PBI owner / assignee — e.g. `product_backlog_items.assignee_id`
    - Task assignee — e.g. `tasks.assignee_id`
@@ -249,15 +304,15 @@ implemented**. Before they can be, the two developers need to agree on:
    - PBI author / reporter — e.g. `product_backlog_items.created_by`
    - Sprint owner / scrum master — e.g. `sprints.created_by`
 4. **Person vs role.** US-10 refers to "saved role information". Decide whether
-   work is assigned to a specific user, to a role, or both — and whether a
-   separate `project_members` / role table is required. (Out of scope for these
-   scripts; flagged only.)
+   work is assigned to a specific user, to a role, or both.
 5. **Nullability.** Assume unassigned work is allowed, i.e. the assignment
    columns are nullable? (Most likely yes.)
 6. **Delete behaviour for user foreign keys.** When a user is removed, should
    their assignments become `NULL` (`ON DELETE SET NULL`), be blocked
    (`RESTRICT`), or does the `users` table use soft-deletes so it never
-   happens?
+   happens? (`team_members` / `project_members` answered this for
+   *membership* with `CASCADE` — see "Deletion behaviour" above — but that
+   reasoning doesn't necessarily carry over to per-work-item assignment.)
 7. **One assignee or many** per work item.
 
 Once agreed, the assignment columns are added in a follow-up migration as
@@ -294,10 +349,17 @@ Once agreed, the assignment columns are added in a follow-up migration as
   `planned_start_date`.
 - **Repository check** for conflicting definitions: there are no other `.sql`
   files and no migration framework. The only DB-touching code is
-  `server/src/config/db.js` (connection pool), `server/src/models/userModel.js`
-  and `server/src/controllers/authController.js` (both `users`-table only).
-  Nothing else defines `projects`, `sprints`, `product_backlog_items`, `tasks`
-  or `sub_tasks`.
+  `server/src/config/db.js` (connection pool), `server/src/models/userModel.js`,
+  `server/src/models/teamModel.js`, `server/src/models/projectMembershipModel.js`
+  and `server/src/controllers/authController.js`. Nothing else defines
+  `projects`, `sprints`, `product_backlog_items`, `tasks`, `sub_tasks`, `users`,
+  `teams`, `team_members` or `project_members`.
+- **`users` / `teams` / `team_members` / `project_members` seed rows checked**
+  against every constraint the same way as the tables above: the three seeded
+  users match the emails/roles/password hash already hardcoded as a fallback
+  in `userModel.js`'s `DEMO_USERS`, both developers' `team_members` rows
+  reference the one seeded team, and both `project_members` rows reference
+  project 1 (which exists in the existing PBI/sprint seed data).
 
 **Not done:** the scripts were **not executed** against any database. No
 database was created or modified. No `.env` file was read. Running the scripts

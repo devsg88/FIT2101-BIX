@@ -1735,7 +1735,7 @@ input {
   transform: translateX(45px);
 }
 
-.pagination-next-btn {
+.pagination-nav-btn {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1750,8 +1750,140 @@ input {
   transition: all 0.15s ease;
 }
 
-.pagination-next-btn:hover {
+.pagination-nav-btn:hover {
   border-color: #38b6ff;
+}
+
+.my-projects-empty {
+  margin: 0;
+  padding: 40px 0;
+  text-align: center;
+  color: #8a887f;
+  font-size: 14px;
+}
+
+/* Locked project card (US-05: project the developer isn't assigned to) */
+.project-card-row--locked {
+  background: #e4e2d6;
+}
+
+.dev-status-pill--locked {
+  background: #dcdcda;
+  color: #686862;
+}
+
+.dev-status-pill--locked .dev-status-dot {
+  background: #787872;
+}
+
+.project-card-desc--locked {
+  margin-bottom: 0;
+  color: #75736a;
+}
+
+.project-card-right--locked {
+  justify-content: center;
+}
+
+.project-no-access-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 999px;
+  background: #c9c7bb;
+  color: #55534c;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.project-no-access-btn:hover {
+  background: #bdbbae;
+}
+
+/* "No access" modal */
+.access-denied-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 20, 15, 0.45);
+  z-index: 300;
+}
+
+.access-denied-modal {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  padding: 28px 24px 24px;
+  background: #fdf6d8;
+  border: 2px solid #20201d;
+  border-radius: 14px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.access-denied-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  font-size: 18px;
+  line-height: 1;
+  color: #1d1d1b;
+  cursor: pointer;
+}
+
+.access-denied-icon {
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #f5c6c6;
+  color: #c53030;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.access-denied-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #1d1d1b;
+}
+
+.access-denied-desc {
+  margin: 0 0 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: #6c6a61;
+}
+
+.access-denied-back {
+  width: 100%;
+  padding: 9px 0;
+  border: 1.5px solid #20201d;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d1d1b;
+  cursor: pointer;
+}
+
+.access-denied-back:hover {
+  background: #f7f5e8;
 }
 
 @media (max-width: 960px) {
