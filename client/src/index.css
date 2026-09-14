@@ -311,335 +311,708 @@ input {
 }
 
 /* =========================================================
-   Admin board
+   Admin dashboard — Organization Overview
    ========================================================= */
 
-.admin-board {
+.admin-dashboard {
   min-height: 100vh;
+  display: grid;
+  grid-template-columns: 260px 1fr;
   background: #fbf8d7;
-  color: #22221f;
-  overflow-x: auto;
+  color: #1d1d1b;
 }
 
-.admin-team-tabs {
-  min-width: 1320px;
-  height: 62px;
-  display: flex;
-  align-items: flex-end;
-  gap: 4px;
-  padding: 0 18px;
-  border-bottom: 1.5px solid #30302c;
-}
+/* --- Sidebar -------------------------------------------------------------- */
 
-.admin-team-tab {
-  min-width: 155px;
-  height: 42px;
-  padding: 0 12px;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 9px;
-  border: 1.5px solid #34342f;
-  border-bottom: 0;
-  border-radius: 9px 9px 0 0;
-  background: #f2efd4;
-  color: #252521;
-  cursor: default;
-}
-
-.admin-team-tab--active {
-  background: #f7a839;
-}
-
-.admin-team-tab__dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #6ab5b4;
-}
-
-.admin-team-tab__close {
-  font-size: 18px;
-  line-height: 1;
-}
-
-.admin-board__workspace {
-  min-width: 1320px;
-  height: calc(100vh - 62px);
-  min-height: 650px;
-  display: grid;
-  grid-template-columns: 165px minmax(1010px, 1fr) 110px;
-  gap: 10px;
-  padding: 13px 18px 18px;
-}
-
-.admin-board__sidebar,
-.admin-recent {
-  background: #d5d5d5;
-  border-radius: 10px;
-}
-
-.admin-board__sidebar {
-  padding: 12px 10px;
-}
-
-.admin-board__sidebar-icon,
-.admin-recent__icon {
-  text-align: center;
-  font-size: 22px;
-  margin-bottom: 10px;
-}
-
-.admin-search {
-  height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 7px;
-  background: white;
-  border: 1.3px solid #353530;
-  border-radius: 5px;
-}
-
-.admin-search__icon {
-  font-size: 16px;
-}
-
-.admin-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  font-size: 12px;
-}
-
-.admin-sidebar-label {
-  margin: 11px 0 7px;
-  font-size: 10px;
-  letter-spacing: 1.4px;
-  color: #65655e;
-}
-
-.admin-team-list {
+.admin-dashboard__sidebar {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 6px;
+  padding: 24px 18px;
+  background: #ececea;
+  border-right: 1px solid #d8d6c9;
 }
 
-.admin-team-list button {
-  padding: 4px 9px;
-  border: 1.3px solid #33332f;
-  border-radius: 4px;
-  background: #f7a839;
-  font-size: 11px;
-  cursor: default;
-}
-
-.admin-sidebar-divider {
-  height: 1px;
-  margin: 13px 0 6px;
-  background: #9d9d97;
-}
-
-.admin-tag-list {
+.admin-sidebar__logo {
+  margin: 0 0 20px;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  color: #1d1d1b;
+  text-decoration: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
+  align-items: center;
+  gap: 8px;
 }
 
-.admin-tag {
+.admin-sidebar__search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.admin-sidebar__search input {
+  width: 100%;
+  height: 38px;
+  padding: 0 14px 0 34px;
+  border: 1.5px solid #20201d;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13px;
+  outline: none;
+}
+
+.admin-sidebar__search-icon {
+  position: absolute;
+  left: 11px;
+  font-size: 14px;
+  color: #6c6a61;
+}
+
+.admin-sidebar__label {
+  margin: 10px 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #8a887f;
+}
+
+.admin-sidebar__org-link {
+  display: block;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #1c6d6a;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-sidebar__team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.admin-sidebar__team-btn {
+  display: block;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #f5e4c4;
+  color: #1d1d1b;
+  font-size: 13.5px;
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.admin-sidebar__team-btn--active {
+  background: #f7a839;
+}
+
+.admin-sidebar__bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-sidebar__settings,
+.admin-sidebar__signout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.admin-sidebar__settings {
+  color: #4a4941;
+}
+
+.admin-sidebar__signout {
+  color: #c53030;
+}
+
+.admin-sidebar__signout:hover {
+  background: #fee2e2;
+}
+
+/* --- Main content ----------------------------------------------------------- */
+
+.admin-dashboard__main {
+  padding: 32px 40px 60px;
+  max-width: 1200px;
+}
+
+.admin-dashboard__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.admin-dashboard__header h1 {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.admin-dashboard__header-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.admin-btn {
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-btn--outline {
+  border: 1.5px solid #1c6d6a;
+  background: transparent;
+  color: #1c6d6a;
+}
+
+.admin-btn--outline:hover {
+  background: #eaf5f4;
+}
+
+.admin-btn--solid {
+  border: none;
+  background: #1c6d6a;
+  color: #ffffff;
+}
+
+.admin-btn--solid:hover {
+  background: #175957;
+}
+
+.admin-btn--filter {
+  border: 1.5px solid #dfdac4;
+  background: #fffdf5;
+  color: #1d1d1b;
+}
+
+/* --- Stat cards --------------------------------------------------------------- */
+
+.admin-dashboard__stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+  margin-bottom: 28px;
+}
+
+.stat-card {
+  padding: 18px 22px;
+  border: 1.5px solid #20201d;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.stat-card__label {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #8a887f;
+}
+
+.stat-card__value {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 34px;
+  font-weight: 800;
+  color: #1d1d1b;
+}
+
+.stat-card__value--teal {
+  color: #1c8f8b;
+}
+
+.stat-card__value--orange {
+  color: #e2962e;
+}
+
+.stat-card__value--red {
+  color: #c0392b;
+}
+
+.stat-card__value-suffix {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8a887f;
+}
+
+/* --- Team health table -------------------------------------------------------- */
+
+.team-health-table {
+  border: 1.5px solid #20201d;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.team-health-table__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+}
+
+.team-health-table__header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.team-health-table__columns,
+.team-health-table__row {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr 1.3fr 1.3fr 0.9fr 32px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+}
+
+.team-health-table__columns {
+  border-top: 1px solid #eeecdd;
+  border-bottom: 1px solid #eeecdd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #8a887f;
+}
+
+.team-health-table__row {
+  border-bottom: 1px solid #f2f0e2;
+}
+
+.team-health-table__row:last-child {
+  border-bottom: none;
+}
+
+.team-health-table__name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d1d1b;
+  text-decoration: none;
+}
+
+.team-health-table__name:hover {
+  text-decoration: underline;
+  color: #1c6d6a;
+}
+
+.team-health-table__owner {
+  font-size: 13.5px;
+  color: #1c8f8b;
+  font-weight: 600;
+}
+
+.team-health-table__project {
+  font-size: 13.5px;
+  color: #4a4941;
+}
+
+.team-health-table__progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.team-health-table__progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: #eeecdd;
+  overflow: hidden;
+}
+
+.team-health-table__progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.team-health-table__progress-fill--on-track {
+  background: #1c8f8b;
+}
+
+.team-health-table__progress-fill--blocked {
+  background: #e2962e;
+}
+
+.team-health-table__progress-value {
+  font-size: 12.5px;
+  color: #6c6a61;
+  min-width: 30px;
+  text-align: right;
+}
+
+.admin-status-pill {
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
-  border: 1.2px solid #343430;
+  justify-content: center;
+  padding: 5px 12px;
   border-radius: 999px;
-  font-size: 10px;
-}
-
-.admin-tag--frontend {
-  background: #61b3b0;
-}
-
-.admin-tag--backend,
-.admin-tag--design,
-.admin-tag--qa,
-.admin-tag--infra {
-  background: #f5d799;
-}
-
-.admin-board__columns {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(150px, 1fr));
-  gap: 9px;
-  min-width: 1000px;
-}
-
-.admin-work-column {
-  position: relative;
-  min-width: 0;
-  padding: 10px 8px 50px;
-  border-radius: 10px;
-  background: #64b3b1;
-}
-
-.admin-work-column--light {
-  background: #a4d7d4;
-}
-
-.admin-work-column__top-card {
-  min-height: 60px;
-  padding: 9px;
-  border: 1.5px solid #32322e;
-  border-radius: 7px;
-  background: #f7a839;
-}
-
-.admin-work-column__top-card h2 {
-  margin: 0 0 6px;
+  border: 1px solid transparent;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
-.admin-work-column__top-card span {
-  display: inline-block;
-  padding: 2px 7px;
-  border: 1px solid #34342f;
-  border-radius: 999px;
-  background: #fff8dd;
-  font-size: 9px;
+.admin-status-pill--on-track {
+  background: #dff3f1;
+  border-color: #1c8f8b;
+  color: #1c8f8b;
 }
 
-.admin-progress-strip {
-  height: 7px;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 3px;
-  margin: 8px 0 5px;
+.admin-status-pill--blocked {
+  background: #fbe4e1;
+  border-color: #c0392b;
+  color: #c0392b;
 }
 
-.admin-progress-strip__step {
-  border: 1px solid #383833;
-  border-radius: 2px;
-  background: #f5d69a;
+.admin-status-pill--active {
+  background: #dcf5df;
+  border-color: #16a34a;
+  color: #16a34a;
 }
 
-.admin-progress-strip__step--filled {
-  background: #20201d;
-}
-
-.admin-work-column__meta {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  font-size: 9px;
-  color: #44443f;
-}
-
-.admin-task-list {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.admin-task-card {
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 6px 7px;
-  border: 1.2px solid #393934;
-  border-radius: 5px;
-  background: #f7d69a;
-  font-size: 10px;
-}
-
-.admin-task-card--completed {
-  opacity: 0.65;
-  text-decoration: line-through;
-}
-
-.admin-task-checkbox {
-  width: 11px;
-  height: 11px;
-  flex: 0 0 11px;
-  border: 1.2px solid #33332f;
-  border-radius: 2px;
-  background: #fff9dc;
-}
-
-.admin-task-card--completed .admin-task-checkbox {
-  background: #20201d;
-}
-
-.admin-add-step {
-  min-height: 32px;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 8px;
-  border: 1.3px dashed #3f6664;
-  border-radius: 5px;
+.team-health-table__menu {
+  border: none;
   background: transparent;
-  color: #416260;
-  font-size: 10px;
+  font-size: 14px;
+  color: #8a887f;
+  cursor: pointer;
+  justify-self: end;
+}
+
+/* --- Team Detail page (per-team members management) -------------------------- */
+
+.team-detail__header {
+  margin-bottom: 28px;
+}
+
+.team-detail__header h1 {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.team-detail__project {
+  margin: 0 0 14px;
+  font-size: 14.5px;
+  color: #4a4941;
+}
+
+.team-members-card {
+  border: 1.5px solid #20201d;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.team-members-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px;
+}
+
+.team-members-card__header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.team-members-card__header p {
+  margin: 0;
+  font-size: 13px;
+  color: #8a887f;
+}
+
+.team-members-table__columns,
+.team-members-table__row {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 0.9fr 0.9fr 32px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+}
+
+.team-members-table__columns {
+  border-top: 1px solid #eeecdd;
+  border-bottom: 1px solid #eeecdd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #8a887f;
+}
+
+.team-members-table__row {
+  border-bottom: 1px solid #f2f0e2;
+}
+
+.team-members-table__row:last-child {
+  border-bottom: none;
+}
+
+.team-members-table__name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.team-members-table__role {
+  font-size: 13.5px;
+  color: #4a4941;
+}
+
+.admin-status-pill {
+  width: fit-content;
+}
+
+.admin-remove-btn {
+  padding: 5px 14px;
+  border: 1.5px solid #c0392b;
+  border-radius: 999px;
+  background: #fbe4e1;
+  color: #c0392b;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-remove-btn:hover {
+  background: #f6cfc9;
+}
+
+/* --- Assign Developer modal --------------------------------------------------- */
+
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 20, 15, 0.45);
+  z-index: 300;
+}
+
+.admin-modal {
+  width: 100%;
+  max-width: 360px;
+  padding: 24px 24px 22px;
+  background: #fffdf5;
+  border: 2px solid #20201d;
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.admin-modal h2 {
+  margin: 0 0 16px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.admin-modal select {
+  width: 100%;
+  height: 42px;
+  padding: 0 10px;
+  border: 1.5px solid #20201d;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13.5px;
+}
+
+.admin-modal__empty {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  color: #6c6a61;
+}
+
+.admin-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* --- Assign Developer modal (larger variant, replaces the <select> above) --- */
+
+.admin-modal--assign {
+  max-width: 560px;
+  padding: 26px 28px 24px;
+  border: 1.5px solid #20201d;
+}
+
+.admin-modal__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-modal--assign h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.admin-modal__close {
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: #1d1d1b;
+  cursor: pointer;
+  padding: 2px;
+}
+
+.admin-modal__subtitle {
+  margin: 8px 0 16px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1d1d1b;
+}
+
+.admin-modal__search {
+  width: 100%;
+  height: 42px;
+  padding: 0 14px;
+  margin-bottom: 14px;
+  border: 1.5px solid #20201d;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 13.5px;
+  outline: none;
+}
+
+.admin-modal__search:focus {
+  border-color: #1c6d6a;
+}
+
+.admin-modal__list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1.5px solid #20201d;
+  border-radius: 10px;
+}
+
+.admin-modal__row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px;
+  border: none;
+  border-bottom: 1px solid #eeecdd;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-modal__list .admin-modal__row:last-child {
+  border-bottom: none;
+}
+
+.admin-modal__row:hover:not(:disabled) {
+  background: #f7f5e8;
+}
+
+.admin-modal__row--selected {
+  background: #eaf5f4;
+  box-shadow: inset 0 0 0 1.5px #1c6d6a;
+}
+
+.admin-modal__row:disabled {
   cursor: default;
 }
 
-.admin-delete-task {
-  position: absolute;
-  left: 8px;
-  right: 8px;
-  bottom: 10px;
-  height: 31px;
-  border: 1.3px solid #3b3b36;
-  border-radius: 5px;
-  background: #e8aeb1;
-  font-size: 10px;
-  cursor: default;
-}
-
-.admin-recent {
-  padding: 13px 9px;
-}
-
-.admin-recent__icon {
-  font-size: 27px;
-}
-
-.admin-recent__list {
+.admin-modal__row-info {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 2px;
 }
 
-.admin-recent-card {
-  padding: 8px 7px;
-  border: 1.2px solid #393934;
-  border-radius: 5px;
-  background: #f7d69a;
+.admin-modal__row-info strong {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: #1d1d1b;
 }
 
-.admin-recent-card strong,
-.admin-recent-card span {
-  display: block;
+.admin-modal__row-email {
+  font-size: 12.5px;
+  color: #1c6d6a;
+  text-decoration: underline;
 }
 
-.admin-recent-card strong {
-  margin-bottom: 3px;
-  font-size: 10px;
-  font-weight: 500;
-}
+@media (max-width: 960px) {
+  .admin-dashboard {
+    grid-template-columns: 1fr;
+  }
 
-.admin-recent-card span {
-  color: #77776f;
-  font-size: 8px;
-}
+  .admin-dashboard__sidebar {
+    border-right: none;
+    border-bottom: 1px solid #d8d6c9;
+  }
 
-/* Admin board: preserve Figma-like wide layout on smaller screens */
-@media (max-width: 1100px) {
-  .admin-board {
-    overflow-x: auto;
+  .admin-dashboard__main {
+    padding: 24px 16px 40px;
+  }
+
+  .admin-dashboard__stats {
+    grid-template-columns: 1fr;
+  }
+
+  .team-health-table__columns {
+    display: none;
+  }
+
+  .team-health-table__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 16px;
+  }
+
+  .team-members-table__columns {
+    display: none;
+  }
+
+  .team-members-table__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 16px;
+  }
+
+  .team-members-card__header {
+    flex-direction: column;
   }
 }
 
