@@ -29,7 +29,7 @@ describe('DeveloperDashboard component', () => {
 
     expect(screen.getByText('BIX')).toBeInTheDocument();
     expect(screen.getByText('DashBoard')).toBeInTheDocument();
-    const myProjectLink = screen.getByRole('link', { name: /My Project/i });
+    const myProjectLink = screen.getByRole('link', { name: /My Project$/i });
     expect(myProjectLink).toHaveAttribute('href', '/projects');
     expect(screen.getAllByText('Pang').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Developer')).toBeInTheDocument();
