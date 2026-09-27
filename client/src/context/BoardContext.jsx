@@ -7,7 +7,16 @@ import {
   useState
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import { getBoard, movePbi, startSprint, updatePbiPlanning } from '../services/api.js';
+import {
+  getBoard,
+  movePbi,
+  startSprint,
+  updatePbiPlanning,
+  updateTask as apiUpdateTask,
+  deleteTask as apiDeleteTask,
+  updateSubTask as apiUpdateSubTask,
+  deleteSubTask as apiDeleteSubTask
+} from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
 // match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
@@ -138,6 +147,51 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-04a / SCRUM-121-123. Edit/delete a task or sub-task, then refresh from
+  // the server - same "trust what got saved, not a local guess" pattern as
+  // movePbiStage/savePbiPlanning above. Every one of these can reject with
+  // the backend's 403 (non-admin), 409 (completed PBI, delete only), or 404;
+  // the caller (ChecklistRow in Board.jsx) shows whatever message comes back.
+  const editTask = useCallback(
+    async (pbiId, taskId, payload) => {
+      await apiUpdateTask(projectId, pbiId, taskId, payload, token);
+      await refreshBoardAfterSave(
+        'The task was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const deleteTask = useCallback(
+    async (pbiId, taskId) => {
+      await apiDeleteTask(projectId, pbiId, taskId, token);
+      await refreshBoardAfterSave(
+        'The task was deleted, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const editSubTask = useCallback(
+    async (pbiId, taskId, subTaskId, payload) => {
+      await apiUpdateSubTask(projectId, pbiId, taskId, subTaskId, payload, token);
+      await refreshBoardAfterSave(
+        'The sub-task was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const deleteSubTask = useCallback(
+    async (pbiId, taskId, subTaskId) => {
+      await apiDeleteSubTask(projectId, pbiId, taskId, subTaskId, token);
+      await refreshBoardAfterSave(
+        'The sub-task was deleted, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-10 — Yichi Zhang. After a successful start, every former Sprint
   // Planning card should reappear under Active Sprint from the fresh GET.
   const startPlannedSprint = useCallback(
@@ -177,7 +231,11 @@ export function BoardProvider({ projectId, children }) {
       reloadBoard: loadBoard,
       movePbiStage,
       savePbiPlanning,
-      startPlannedSprint
+      startPlannedSprint,
+      editTask,
+      deleteTask,
+      editSubTask,
+      deleteSubTask
     }),
     [
       projectId,
@@ -190,7 +248,11 @@ export function BoardProvider({ projectId, children }) {
       loadBoard,
       movePbiStage,
       savePbiPlanning,
-      startPlannedSprint
+      startPlannedSprint,
+      editTask,
+      deleteTask,
+      editSubTask,
+      deleteSubTask
     ]
   );
 

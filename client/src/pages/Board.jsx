@@ -64,21 +64,147 @@ function PbiMeta({ pbi }) {
   return <p className="project-board__card-meta">{parts.join(' | ')}</p>;
 }
 
-// One row in a task/sub-task checklist. Read-only: it shows whether the item
-// is done, it does not let you change it, there is no "toggle status" feature yet.
-function ChecklistRow({ item }) {
+// The title + status inline edit form shown in place of a checklist row's
+// normal display while it is being edited. Shared by both tasks and
+// sub-tasks (kind picks which board action gets called on save).
+function ChecklistEditForm({ item, onSave, onCancel }) {
+  const [title, setTitle] = useState(item.title);
+  const [status, setStatus] = useState(item.status);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSave({ title, status });
+      // No local reset of isEditing here - the parent (ChecklistRow) owns
+      // that state and closes the form on a successful save.
+    } catch (err) {
+      setError(err?.message || 'Something went wrong saving this item. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <label className="project-board__checklist-item">
-      <input type="checkbox" checked={item.status === 'done'} disabled readOnly />
-      <span>{item.title}</span>
-    </label>
+    <form className="project-board__checklist-edit" onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        disabled={isSaving}
+        aria-label="Title"
+        required
+      />
+      <select
+        value={status}
+        onChange={(event) => setStatus(event.target.value)}
+        disabled={isSaving}
+        aria-label="Status"
+      >
+        <option value="todo">To do</option>
+        <option value="in_progress">In progress</option>
+        <option value="done">Done</option>
+      </select>
+      <div className="project-board__checklist-edit-actions">
+        <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" onClick={onCancel} disabled={isSaving}>
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </form>
+  );
+}
+
+// One row in a task/sub-task checklist. Read-only display + checkbox always
+// shows (there is still no "toggle status" feature) - editing status happens
+// through Edit, not the checkbox. Edit/Delete controls (US-04a/SCRUM-123)
+// only render for an admin, matching the backend's requireRole('admin') on
+// every endpoint they call: a developer would only ever see the same 403
+// this component already knows how to display as an error, so the controls
+// are hidden rather than offered and then rejected.
+function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
+  const { editTask, deleteTask, editSubTask, deleteSubTask } = useBoard();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSave = async (payload) => {
+    if (kind === 'task') {
+      await editTask(pbiId, item.id, payload);
+    } else {
+      await editSubTask(pbiId, taskId, item.id, payload);
+    }
+    setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    // A real confirm dialog, not a custom one - deleting a task/sub-task is
+    // destructive and there is no undo (see taskController.js), so this
+    // deliberately interrupts rather than being one accidental click away.
+    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    setError(null);
+    try {
+      if (kind === 'task') {
+        await deleteTask(pbiId, item.id);
+      } else {
+        await deleteSubTask(pbiId, taskId, item.id);
+      }
+      // No local "removed" state to reset on success: the item is gone from
+      // the refreshed board and this component unmounts along with it.
+    } catch (err) {
+      setError(err?.message || 'Something went wrong deleting this item. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <ChecklistEditForm
+        item={item}
+        onSave={handleSave}
+        onCancel={() => setIsEditing(false)}
+      />
+    );
+  }
+
+  return (
+    <div className="project-board__checklist-row">
+      <label className="project-board__checklist-item">
+        <input type="checkbox" checked={item.status === 'done'} disabled readOnly />
+        <span>{item.title}</span>
+      </label>
+      {canManage && (
+        <span className="project-board__checklist-actions">
+          <button type="button" onClick={() => setIsEditing(true)}>
+            Edit
+          </button>
+          <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </span>
+      )}
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </div>
   );
 }
 
 // Shows a PBI's tasks, and each task's sub-tasks nested underneath it. Renders
 // nothing if the PBI has no tasks yet, same as the design has no checklist on
 // a card with no tasks.
-function TaskChecklist({ tasks }) {
+function TaskChecklist({ tasks, pbiId, canManage }) {
   if (!tasks || tasks.length === 0) {
     return null;
   }
@@ -87,12 +213,18 @@ function TaskChecklist({ tasks }) {
     <ul className="project-board__checklist">
       {tasks.map((task) => (
         <li key={task.id}>
-          <ChecklistRow item={task} />
+          <ChecklistRow item={task} kind="task" pbiId={pbiId} canManage={canManage} />
           {task.subTasks?.length > 0 && (
             <ul className="project-board__checklist project-board__checklist--nested">
               {task.subTasks.map((subTask) => (
                 <li key={subTask.id}>
-                  <ChecklistRow item={subTask} />
+                  <ChecklistRow
+                    item={subTask}
+                    kind="subTask"
+                    pbiId={pbiId}
+                    taskId={task.id}
+                    canManage={canManage}
+                  />
                 </li>
               ))}
             </ul>
@@ -298,8 +430,9 @@ function StartSprintButton() {
   );
 }
 
-// One PBI card shown inside a column.
-function PbiCard({ pbi }) {
+// One PBI card shown inside a column. canManage (true for an admin) gates
+// the task/sub-task Edit/Delete controls - see ChecklistRow.
+function PbiCard({ pbi, canManage }) {
   return (
     <article className="project-board__card">
       <h3 className="project-board__card-title">{pbi.title}</h3>
@@ -307,7 +440,7 @@ function PbiCard({ pbi }) {
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
-      <TaskChecklist tasks={pbi.tasks} />
+      <TaskChecklist tasks={pbi.tasks} pbiId={pbi.id} canManage={canManage} />
       {pbi.stage === 'product_backlog' && (
         <MoveToSprintPlanningButton pbiId={pbi.id} />
       )}
@@ -319,6 +452,10 @@ function PbiCard({ pbi }) {
 // The four columns, one per stage, each showing its own PBIs (or an empty message).
 function BoardColumns() {
   const { stages, pbisByStage } = useBoard();
+  // US-04a: only an admin can edit/delete Tasks/Sub-tasks (matches the
+  // backend's requireRole('admin') on every one of those endpoints).
+  const { user } = useAuth();
+  const canManage = user?.role === 'admin';
 
   return (
     <div className="project-board__columns">
@@ -331,7 +468,9 @@ function BoardColumns() {
             {pbisByStage[stage].length === 0 ? (
               <p className="project-board__empty">No items</p>
             ) : (
-              pbisByStage[stage].map((pbi) => <PbiCard key={pbi.id} pbi={pbi} />)
+              pbisByStage[stage].map((pbi) => (
+                <PbiCard key={pbi.id} pbi={pbi} canManage={canManage} />
+              ))
             )}
             {stage === 'sprint_planning' && <StartSprintButton />}
           </div>

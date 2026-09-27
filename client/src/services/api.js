@@ -81,3 +81,48 @@ export function startSprint(projectId, sprintId, token) {
     headers: authHeader(token)
   });
 }
+
+// --- Tasks and sub-tasks (US-04a, SCRUM-121/122) ----------------------------
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
+// `payload` is { title, status }. Admin-only on the backend (requireRole);
+// a non-admin caller gets the backend's 403 message back through `request`.
+export function updateTask(projectId, pbiId, taskId, payload, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify(payload)
+  });
+}
+
+// DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
+// Throws with the backend's message on a completed-PBI 409, a 404, etc.
+export function deleteTask(projectId, pbiId, taskId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
+export function updateSubTask(projectId, pbiId, taskId, subTaskId, payload, token) {
+  return request(
+    `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}`,
+    {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+// DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
+export function deleteSubTask(projectId, pbiId, taskId, subTaskId, token) {
+  return request(
+    `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}`,
+    {
+      method: 'DELETE',
+      headers: authHeader(token)
+    }
+  );
+}
