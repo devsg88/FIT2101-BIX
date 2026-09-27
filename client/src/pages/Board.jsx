@@ -123,6 +123,65 @@ function ChecklistEditForm({ item, onSave, onCancel }) {
   );
 }
 
+// Assignee dropdown (US-04a / SCRUM-124). Shown only when canManage (admin),
+// same gating as Edit/Delete - the backend's assign endpoints are also
+// requireRole('admin'). Sourced from the project's member list
+// (BoardContext's `members`, loaded via SCRUM-122's
+// GET /api/projects/:projectId/members). Changing the selection assigns
+// immediately, there is no separate Save step - a native <select> normally
+// works that way, and it keeps this control as a single click rather than
+// a mini-form.
+function AssigneeSelect({ item, kind, pbiId, taskId }) {
+  const { members, assignTask, assignSubTask } = useBoard();
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleChange = async (event) => {
+    const rawValue = event.target.value;
+    const assigneeId = rawValue === '' ? null : Number(rawValue);
+    setIsSaving(true);
+    setError(null);
+    try {
+      if (kind === 'task') {
+        await assignTask(pbiId, item.id, assigneeId);
+      } else {
+        await assignSubTask(pbiId, taskId, item.id, assigneeId);
+      }
+    } catch (err) {
+      setError(err?.message || 'Something went wrong saving the assignment. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // item.assignee_id comes back from the API as a string (Postgres bigint -
+  // see the identical note in server/src/controllers/taskController.js), so
+  // it is coerced to a string here too for a reliable <select> value match
+  // regardless of whether it arrived as a string or a number.
+  const currentValue = item.assignee_id == null ? '' : String(item.assignee_id);
+
+  return (
+    <span className="project-board__checklist-assignee">
+      <select
+        value={currentValue}
+        onChange={handleChange}
+        disabled={isSaving}
+        aria-label={`Assignee for ${item.title}`}
+      >
+        <option value="">Unassigned</option>
+        {members.map((member) => (
+          <option key={member.id} value={String(member.id)}>
+            {member.name}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </span>
+  );
+}
+
 // One row in a task/sub-task checklist. Read-only display + checkbox always
 // shows (there is still no "toggle status" feature) - editing status happens
 // through Edit, not the checkbox. Edit/Delete controls (US-04a/SCRUM-123)
@@ -184,6 +243,9 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
         <input type="checkbox" checked={item.status === 'done'} disabled readOnly />
         <span>{item.title}</span>
       </label>
+      {canManage && (
+        <AssigneeSelect item={item} kind={kind} pbiId={pbiId} taskId={taskId} />
+      )}
       {canManage && (
         <span className="project-board__checklist-actions">
           <button type="button" onClick={() => setIsEditing(true)}>

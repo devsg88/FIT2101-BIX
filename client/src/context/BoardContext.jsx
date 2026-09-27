@@ -15,7 +15,10 @@ import {
   updateTask as apiUpdateTask,
   deleteTask as apiDeleteTask,
   updateSubTask as apiUpdateSubTask,
-  deleteSubTask as apiDeleteSubTask
+  deleteSubTask as apiDeleteSubTask,
+  assignTask as apiAssignTask,
+  assignSubTask as apiAssignSubTask,
+  getProjectMembers
 } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
@@ -48,6 +51,14 @@ export function BoardProvider({ projectId, children }) {
   const [sprints, setSprints] = useState([]);
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null);
+  // US-04a / SCRUM-124. This project's members, for the assignee dropdown.
+  // Loaded alongside the board (see loadBoard below) rather than lazily on
+  // first dropdown render, so the dropdown never has to show its own
+  // separate loading state - by the time the board is 'ready', the members
+  // list is too. A failure here does not fail the whole board load (see
+  // loadBoard's Promise.all handling below): the board is still usable
+  // without assignee names, it would just be a worse dropdown.
+  const [members, setMembers] = useState([]);
 
   // Applies a board API response to state. The one place `project`/`pbis`/
   // `sprints` are ever set from server data, used both for the first load
@@ -76,6 +87,18 @@ export function BoardProvider({ projectId, children }) {
     } catch (err) {
       setError(err.message);
       setStatus('error');
+      return;
+    }
+
+    // Members are fetched after the board succeeds, and in their own
+    // try/catch: this list only feeds the assignee dropdown (SCRUM-124), so
+    // a failure here should not turn an otherwise-loadable board into an
+    // error page. It just leaves `members` empty until the next reload.
+    try {
+      const { members: loadedMembers } = await getProjectMembers(projectId, token);
+      setMembers(Array.isArray(loadedMembers) ? loadedMembers : []);
+    } catch (err) {
+      setMembers([]);
     }
   }, [projectId, token, applyBoardData]);
 
@@ -192,6 +215,29 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-04a / SCRUM-122/124. Same refresh-after-save pattern as edit/delete
+  // above. assigneeId may be null (unassign); the dropdown (Board.jsx) is
+  // what turns "" back into null before calling this.
+  const assignTask = useCallback(
+    async (pbiId, taskId, assigneeId) => {
+      await apiAssignTask(projectId, pbiId, taskId, assigneeId, token);
+      await refreshBoardAfterSave(
+        'The assignment was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const assignSubTask = useCallback(
+    async (pbiId, taskId, subTaskId, assigneeId) => {
+      await apiAssignSubTask(projectId, pbiId, taskId, subTaskId, assigneeId, token);
+      await refreshBoardAfterSave(
+        'The assignment was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-10 — Yichi Zhang. After a successful start, every former Sprint
   // Planning card should reappear under Active Sprint from the fresh GET.
   const startPlannedSprint = useCallback(
@@ -225,6 +271,7 @@ export function BoardProvider({ projectId, children }) {
       pbis,
       pbisByStage,
       sprints,
+      members,
       stages: STAGES,
       status,
       error,
@@ -235,7 +282,9 @@ export function BoardProvider({ projectId, children }) {
       editTask,
       deleteTask,
       editSubTask,
-      deleteSubTask
+      deleteSubTask,
+      assignTask,
+      assignSubTask
     }),
     [
       projectId,
@@ -243,6 +292,7 @@ export function BoardProvider({ projectId, children }) {
       pbis,
       pbisByStage,
       sprints,
+      members,
       status,
       error,
       loadBoard,
@@ -252,7 +302,9 @@ export function BoardProvider({ projectId, children }) {
       editTask,
       deleteTask,
       editSubTask,
-      deleteSubTask
+      deleteSubTask,
+      assignTask,
+      assignSubTask
     ]
   );
 

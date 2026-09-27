@@ -126,3 +126,33 @@ export function deleteSubTask(projectId, pbiId, taskId, subTaskId, token) {
     }
   );
 }
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/assignee  (SCRUM-122)
+// assigneeId may be null to unassign.
+export function assignTask(projectId, pbiId, taskId, assigneeId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/assignee`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ assignee_id: assigneeId })
+  });
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee
+export function assignSubTask(projectId, pbiId, taskId, subTaskId, assigneeId, token) {
+  return request(
+    `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}/assignee`,
+    {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ assignee_id: assigneeId })
+    }
+  );
+}
+
+// GET /api/projects/:projectId/members  (SCRUM-122's own endpoint, added so
+// this dropdown has something to source from). Resolves with { members }.
+export function getProjectMembers(projectId, token) {
+  return request(`/projects/${projectId}/members`, {
+    headers: authHeader(token)
+  });
+}
