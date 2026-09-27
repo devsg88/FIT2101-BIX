@@ -2,7 +2,8 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
 import {
   editSubTaskController,
-  deleteSubTaskController
+  deleteSubTaskController,
+  assignSubTaskController
 } from '../controllers/subTaskController.js';
 
 // Mounted at /api/projects (see app.js). Nested one level deeper than
@@ -27,6 +28,15 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   deleteSubTaskController
+);
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee
+// US-04a / SCRUM-122.
+router.patch(
+  '/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee',
+  requireAuth,
+  requireRole('admin'),
+  assignSubTaskController
 );
 
 export default router;

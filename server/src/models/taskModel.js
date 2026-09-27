@@ -51,3 +51,18 @@ export async function deleteTask(pbiId, taskId) {
   );
   return rowCount > 0;
 }
+
+// SCRUM-122. assigneeId may be null to unassign a task; a non-null value is
+// expected to already have been checked by the controller against the
+// project's member list (listProjectMembers in projectMembershipModel.js) -
+// this function does not re-check that, it only writes the column.
+export async function assignTask(pbiId, taskId, assigneeId) {
+  const { rows } = await pool.query(
+    `UPDATE tasks
+        SET assignee_id = $1
+      WHERE id = $2 AND pbi_id = $3
+      RETURNING ${TASK_COLUMNS}`,
+    [assigneeId, taskId, pbiId]
+  );
+  return rows[0] ?? null;
+}

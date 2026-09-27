@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
-import { editTaskController, deleteTaskController } from '../controllers/taskController.js';
+import {
+  editTaskController,
+  deleteTaskController,
+  assignTaskController
+} from '../controllers/taskController.js';
 
 // Mounted at /api/projects (see app.js), same base as pbiRoutes.js/boardRoutes.js.
 const router = Router();
@@ -27,6 +31,15 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   deleteTaskController
+);
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/assignee
+// US-04a / SCRUM-122. Same requireProjectResponsibility TODO as above.
+router.patch(
+  '/:projectId/pbis/:pbiId/tasks/:taskId/assignee',
+  requireAuth,
+  requireRole('admin'),
+  assignTaskController
 );
 
 export default router;

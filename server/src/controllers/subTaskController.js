@@ -1,7 +1,13 @@
 import { getPbiById } from '../models/pbiModel.js';
 import { getTaskById } from '../models/taskModel.js';
-import { getSubTaskById, updateSubTask, deleteSubTask } from '../models/subTaskModel.js';
+import {
+  getSubTaskById,
+  updateSubTask,
+  deleteSubTask,
+  assignSubTask
+} from '../models/subTaskModel.js';
 import { isTaskStatus, TASK_STATUSES } from '../constants/taskStatus.js';
+import { listProjectMembers } from '../models/projectMembershipModel.js';
 
 // Sub-task mutation endpoints for US-04a. Mirrors taskController.js one
 // level down: every check here goes PBI -> task -> sub-task, so a
@@ -140,5 +146,71 @@ export async function deleteSubTaskController(req, res) {
     return res.json({ message: 'Sub-task deleted', id: subTaskId });
   } catch (err) {
     return res.status(500).json({ message: 'Failed to delete the sub-task' });
+  }
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee
+// SCRUM-122. Same rules as taskController.assignTaskController: body is
+// { assignee_id: <userId> | null }, a non-null id must be a project member.
+export async function assignSubTaskController(req, res) {
+  const projectId = parsePositiveInt(req.params.projectId);
+  const pbiId = parsePositiveInt(req.params.pbiId);
+  const taskId = parsePositiveInt(req.params.taskId);
+  const subTaskId = parsePositiveInt(req.params.subTaskId);
+
+  if (!projectId) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+  if (!pbiId) {
+    return res.status(400).json({ message: 'A valid pbiId is required' });
+  }
+  if (!taskId) {
+    return res.status(400).json({ message: 'A valid taskId is required' });
+  }
+  if (!subTaskId) {
+    return res.status(400).json({ message: 'A valid subTaskId is required' });
+  }
+
+  if (!('assignee_id' in (req.body ?? {}))) {
+    return res.status(400).json({ message: 'assignee_id is required (use null to unassign)' });
+  }
+
+  const rawAssigneeId = req.body.assignee_id;
+  const isUnassigning = rawAssigneeId === null;
+  const assigneeId = isUnassigning ? null : parsePositiveInt(rawAssigneeId);
+
+  if (!isUnassigning && !assigneeId) {
+    return res.status(400).json({ message: 'assignee_id must be a positive integer, or null to unassign' });
+  }
+
+  try {
+    const { error } = await loadPbiAndTaskOr404(projectId, pbiId, taskId);
+    if (error) {
+      return res.status(error.status).json({ message: error.message });
+    }
+
+    const subTask = await getSubTaskById(taskId, subTaskId);
+    if (!subTask) {
+      return res.status(404).json({ message: 'Sub-task not found' });
+    }
+
+    if (assigneeId !== null) {
+      const members = await listProjectMembers(projectId);
+      // See the identical comment in taskController.assignTaskController:
+      // pg returns bigint columns as strings, so this coercion is required.
+      const isMember = members.some((member) => Number(member.id) === assigneeId);
+      if (!isMember) {
+        return res.status(400).json({ message: 'assignee_id must be a member of this project' });
+      }
+    }
+
+    const updatedSubTask = await assignSubTask(taskId, subTaskId, assigneeId);
+    if (!updatedSubTask) {
+      return res.status(404).json({ message: 'Sub-task not found' });
+    }
+
+    return res.json({ subTask: updatedSubTask });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to assign the sub-task' });
   }
 }

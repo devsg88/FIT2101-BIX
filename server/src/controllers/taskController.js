@@ -1,23 +1,21 @@
 import { getPbiById } from '../models/pbiModel.js';
-import { getTaskById, updateTask, deleteTask } from '../models/taskModel.js';
+import { getTaskById, updateTask, deleteTask, assignTask } from '../models/taskModel.js';
 import { deleteSubTasksByTaskId } from '../models/subTaskModel.js';
 import { isTaskStatus, TASK_STATUSES } from '../constants/taskStatus.js';
+import { listProjectMembers } from '../models/projectMembershipModel.js';
 
 // Task mutation endpoints for US-04a.
 //
-// editTaskController / deleteTaskController (SCRUM-121) are requireAuth +
-// requireRole('admin') only for now (see taskRoutes.js) - project-scoping
-// by "admin responsible for this project" is blocked on US-04d and
-// intentionally NOT built here (see the implementation prompt's "Known
-// gaps" #1). What IS enforced here is plain referential integrity: the PBI
-// must exist in the given project, and the task must belong to that PBI,
-// or the request 404s - a taskId that happens to belong to a different
-// PBI/project can never be reached through these endpoints. Once US-04d
-// lands, a requireProjectResponsibility guard gets added to the route chain
-// in taskRoutes.js; nothing here changes.
-//
-// assignTaskController (SCRUM-122) is added to this same file in a later
-// commit - it is still "the tasks resource", just a different action.
+// editTaskController / deleteTaskController (SCRUM-121) and
+// assignTaskController (SCRUM-122) are requireAuth + requireRole('admin')
+// only for now (see taskRoutes.js) - project-scoping by "admin responsible
+// for this project" is blocked on US-04d and intentionally NOT built here
+// (see the implementation prompt's "Known gaps" #1). What IS enforced here
+// is plain referential integrity: the PBI must exist in the given project,
+// and the task must belong to that PBI, or the request 404s - a taskId that
+// happens to belong to a different PBI/project can never be reached
+// through these endpoints. Once US-04d lands, a requireProjectResponsibility
+// guard gets added to the route chain in taskRoutes.js; nothing here changes.
 //
 // createTask/createSubTask are deliberately NOT added here - US-08c owns
 // task/sub-task creation. server/db/seed.sql already has enough tasks and
@@ -148,5 +146,77 @@ export async function deleteTaskController(req, res) {
     return res.json({ message: 'Task deleted', id: taskId });
   } catch (err) {
     return res.status(500).json({ message: 'Failed to delete the task' });
+  }
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/assignee
+// SCRUM-122. Body: { assignee_id: <userId> | null }. null unassigns.
+// A non-null assignee_id must be one of this project's members
+// (listProjectMembers, from US-05's projectMembershipModel.js) - assigning
+// work to someone who is not even a member of the project would be a
+// dead-end assignment, so it is rejected with 400 rather than silently
+// allowed.
+export async function assignTaskController(req, res) {
+  const projectId = parsePositiveInt(req.params.projectId);
+  const pbiId = parsePositiveInt(req.params.pbiId);
+  const taskId = parsePositiveInt(req.params.taskId);
+
+  if (!projectId) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+  if (!pbiId) {
+    return res.status(400).json({ message: 'A valid pbiId is required' });
+  }
+  if (!taskId) {
+    return res.status(400).json({ message: 'A valid taskId is required' });
+  }
+
+  // assignee_id is required in the body, but its value may legitimately be
+  // null (unassign), so "missing key" and "explicit null" are told apart
+  // instead of both falling through the same falsy check.
+  if (!('assignee_id' in (req.body ?? {}))) {
+    return res.status(400).json({ message: 'assignee_id is required (use null to unassign)' });
+  }
+
+  const rawAssigneeId = req.body.assignee_id;
+  const isUnassigning = rawAssigneeId === null;
+  const assigneeId = isUnassigning ? null : parsePositiveInt(rawAssigneeId);
+
+  if (!isUnassigning && !assigneeId) {
+    return res.status(400).json({ message: 'assignee_id must be a positive integer, or null to unassign' });
+  }
+
+  try {
+    const { error } = await loadPbiOr404(projectId, pbiId);
+    if (error) {
+      return res.status(error.status).json({ message: error.message });
+    }
+
+    const task = await getTaskById(pbiId, taskId);
+    if (!task) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    if (assigneeId !== null) {
+      const members = await listProjectMembers(projectId);
+      // pg returns bigint columns (users.id here) as strings, not numbers,
+      // to avoid silent precision loss above Number.MAX_SAFE_INTEGER - see
+      // https://github.com/brianc/node-pg-types. assigneeId is a JS number
+      // (from parsePositiveInt), so member.id must be coerced before the
+      // comparison, or every real assignment would wrongly 400 here.
+      const isMember = members.some((member) => Number(member.id) === assigneeId);
+      if (!isMember) {
+        return res.status(400).json({ message: 'assignee_id must be a member of this project' });
+      }
+    }
+
+    const updatedTask = await assignTask(pbiId, taskId, assigneeId);
+    if (!updatedTask) {
+      return res.status(404).json({ message: 'Task not found' });
+    }
+
+    return res.json({ task: updatedTask });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to assign the task' });
   }
 }

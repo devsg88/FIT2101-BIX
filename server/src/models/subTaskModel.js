@@ -49,3 +49,15 @@ export async function deleteSubTask(taskId, subTaskId) {
 export async function deleteSubTasksByTaskId(taskId) {
   await pool.query(`DELETE FROM sub_tasks WHERE task_id = $1`, [taskId]);
 }
+
+// SCRUM-122. subTaskId may be null to unassign - see taskModel.assignTask.
+export async function assignSubTask(taskId, subTaskId, assigneeId) {
+  const { rows } = await pool.query(
+    `UPDATE sub_tasks
+        SET assignee_id = $1
+      WHERE id = $2 AND task_id = $3
+      RETURNING ${SUB_TASK_COLUMNS}`,
+    [assigneeId, subTaskId, taskId]
+  );
+  return rows[0] ?? null;
+}
