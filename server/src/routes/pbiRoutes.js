@@ -15,7 +15,7 @@ const router = Router();
 router.patch('/:projectId/pbis/:pbiId/stage', requireAuth, moveStageController);
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/planning
-// US-08b — Yichi Zhang. Saves estimate and planned dates; does not change stage.
+// US-08b  Yichi Zhang. Saves estimate and planned dates; does not change stage.
 // TODO: insert requireProjectMembership after requireAuth once project
 // membership data exists (see authMiddleware.js).
 router.patch(

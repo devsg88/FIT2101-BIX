@@ -2,7 +2,7 @@ import { getPbisByStage } from '../models/pbiModel.js';
 import { getSprintById, startSprint } from '../models/sprintModel.js';
 import { checkStageTransition } from '../constants/stageTransitions.js';
 
-// US-10 — Yichi Zhang
+// US-10 Yichi Zhang
 //
 // startSprintController starts the planned sprint: every PBI currently in
 // Sprint Planning is moved into Active Sprint together, in one transaction,
@@ -11,7 +11,7 @@ import { checkStageTransition } from '../constants/stageTransitions.js';
 // checkStageTransition (the same shared guard moveStageController uses).
 //
 // Also needs project-membership authorization (see requireProjectMembership
-// in ../middleware/authMiddleware.js) before it may change data — right now
+// in ../middleware/authMiddleware.js) before it may change data right now
 // any authenticated user can start any project's sprint, same known gap as
 // the PBI mutation endpoints.
 

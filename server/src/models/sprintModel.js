@@ -31,7 +31,7 @@ const PBI_COLUMNS = `
   created_at, updated_at
 `;
 
-// Starts a planned sprint (US-10 — Yichi Zhang): marks the sprint active and
+// Starts a planned sprint (US-10  Yichi Zhang): marks the sprint active and
 // moves every PBI currently in Sprint Planning into Active Sprint in one
 // transaction. Planned dates, estimated hours, title, description, tasks and
 // sub-tasks are not rewritten here (tasks live on other tables and are
