@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   BoardProvider,
   useBoard,
   STAGE_LABELS
 } from '../context/BoardContext.jsx';
+import { getCompletedWork } from '../services/api.js';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -342,9 +343,10 @@ function BoardColumns() {
 }
 
 // The bar across the top of the page: brand mark (links home), the current
-// project's name, and who is logged in. Shown in every state (loading, error,
-// ready) since none of it depends on the board having finished loading.
-function BoardTopBar({ project }) {
+// project's name, a way into the completed-work history, and who is logged
+// in. Shown in every state (loading, error, ready) since none of it depends
+// on the board having finished loading.
+function BoardTopBar({ project, onOpenHistory }) {
   const { user } = useAuth();
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?';
 
@@ -354,6 +356,14 @@ function BoardTopBar({ project }) {
       <span className="project-board__project-pill">
         {project?.name ?? 'Project board'}
       </span>
+      <button
+        type="button"
+        className="project-board__history-button"
+        onClick={onOpenHistory}
+        title="View this project's completed work history"
+      >
+        {'Work History ->'}
+      </button>
       <div className="project-board__user">
         <span className="project-board__user-name">{user?.name}</span>
         <span className="project-board__avatar" aria-hidden="true">{initial}</span>
@@ -362,13 +372,176 @@ function BoardTopBar({ project }) {
   );
 }
 
+// One completed PBI's row in the history sidebar. Reuses TaskChecklist so the
+// PBI keeps showing exactly the same Tasks/Sub-tasks association it has on
+// the board itself (US-12: "a completed-work record remains associated with
+// its original PBI and its Tasks/Sub-tasks").
+function CompletedWorkItem({ pbi }) {
+  const hasHours = pbi.actual_hours != null;
+  // actual_hours is only ever populated once US-11 actually records it on
+  // completion (it is not written by the current move-to-Completed flow yet)
+  // - this label is honest about that rather than showing a fabricated 0h.
+  const hoursLabel = hasHours ? `Actual: ${Number(pbi.actual_hours)}h` : 'Actual: not recorded';
+  const taskCount = pbi.tasks?.length ?? 0;
+  // updated_at is the closest thing this schema has to a completion
+  // timestamp (there is no dedicated completed_at column yet); it is
+  // bumped by every edit to the PBI, so it is labelled "Updated", not
+  // "Completed on", to not overstate what it actually records.
+  const updated = formatShortDate(pbi.updated_at);
+
+  return (
+    <li className="completed-work__item">
+      <div className="completed-work__item-header">
+        <h3 className="completed-work__item-title">{pbi.title}</h3>
+        {updated && (
+          <span className="completed-work__item-date" title="Last updated">
+            {updated}
+          </span>
+        )}
+      </div>
+      <p className="completed-work__item-meta">
+        {hoursLabel}
+        {taskCount > 0 && ` | ${taskCount} task${taskCount === 1 ? '' : 's'}`}
+      </p>
+      <TaskChecklist tasks={pbi.tasks} />
+    </li>
+  );
+}
+
+// The Completed Work History sidebar (US-12). Pops out over the board rather
+// than being a separate page - see the design note on the /completed-work
+// route in App.jsx. Only fetches once opened: there is no reason to load
+// history data for a board the user may never open the sidebar on.
+//
+// 403 from the backend (not an admin, not an assigned member of this
+// project) is shown as a dedicated access-denied message, not folded into
+// the generic error state - the AC requires this page to never expose
+// another project's history to someone who is not permitted to see it, so
+// that case must read differently from "the server hiccuped, try again".
+function CompletedWorkSidebar({ projectId, token, isOpen, onClose }) {
+  const [status, setStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error' | 'forbidden'
+  const [error, setError] = useState(null);
+  const [historyProject, setHistoryProject] = useState(null);
+  const [pbis, setPbis] = useState([]);
+
+  const load = useCallback(async () => {
+    if (!projectId || !token) {
+      return;
+    }
+
+    setStatus('loading');
+    setError(null);
+
+    try {
+      const data = await getCompletedWork(projectId, token);
+      setHistoryProject(data.project ?? null);
+      setPbis(Array.isArray(data.pbis) ? data.pbis : []);
+      setStatus('ready');
+    } catch (err) {
+      // err.status comes from services/api.js's request() helper. A 403 here
+      // means the backend has already made the permission decision (admin,
+      // or an assigned project member, or neither) - the frontend just
+      // reflects it, it never decides access itself.
+      if (err?.status === 403) {
+        setStatus('forbidden');
+      } else {
+        setError(err?.message || 'Something went wrong loading the work history. Please try again.');
+        setStatus('error');
+      }
+    }
+  }, [projectId, token]);
+
+  useEffect(() => {
+    if (isOpen) {
+      load();
+    }
+  }, [isOpen, load]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return (
+    <div className="completed-work">
+      <button
+        type="button"
+        className="completed-work__backdrop"
+        aria-label="Dismiss work history"
+        onClick={onClose}
+      />
+      <aside className="completed-work__panel" role="dialog" aria-label="Completed work history">
+        <div className="completed-work__header">
+          <div>
+            <h2 className="completed-work__title">Work History</h2>
+            <p className="completed-work__subtitle">
+              {historyProject?.name ?? 'This project'} - completed tasks and logged effort
+            </p>
+          </div>
+          <button
+            type="button"
+            className="completed-work__close"
+            onClick={onClose}
+            aria-label="Close work history"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="completed-work__body">
+          {status === 'loading' && (
+            <p className="completed-work__status">Loading work history...</p>
+          )}
+
+          {status === 'forbidden' && (
+            <div className="completed-work__status" role="alert">
+              <p>You don&apos;t have permission to view this project&apos;s completed work.</p>
+            </div>
+          )}
+
+          {status === 'error' && (
+            <div className="completed-work__status" role="alert">
+              <p>Couldn&apos;t load work history{error ? `: ${error}` : ''}.</p>
+              <button type="button" onClick={load}>
+                Retry
+              </button>
+            </div>
+          )}
+
+          {status === 'ready' && pbis.length === 0 && (
+            <p className="completed-work__empty">Nothing has been completed on this project yet.</p>
+          )}
+
+          {status === 'ready' && pbis.length > 0 && (
+            <ul className="completed-work__list">
+              {pbis.map((pbi) => (
+                <CompletedWorkItem key={pbi.id} pbi={pbi} />
+              ))}
+            </ul>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
 // Picks what to show based on the board's current status: loading, error, or ready.
 function BoardView() {
-  const { status, error, project, reloadBoard } = useBoard();
+  const { status, error, project, projectId, reloadBoard } = useBoard();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // The history sidebar's open/closed state lives in the URL (see App.jsx),
+  // not in local component state: that is what makes it a real, bookmarkable/
+  // shareable route rather than just a UI toggle, and it means the browser's
+  // back button closes the sidebar the way a user would expect.
+  const isHistoryOpen = location.pathname.endsWith('/completed-work');
+  const openHistory = () => navigate(`/projects/${projectId}/completed-work`);
+  const closeHistory = () => navigate(`/projects/${projectId}/board`);
 
   return (
     <div className="project-board">
-      <BoardTopBar project={project} />
+      <BoardTopBar project={project} onOpenHistory={openHistory} />
 
       <main className="project-board__content">
         {status === 'loading' && (
@@ -386,6 +559,13 @@ function BoardView() {
 
         {status === 'ready' && <BoardColumns />}
       </main>
+
+      <CompletedWorkSidebar
+        projectId={projectId}
+        token={user?.token}
+        isOpen={isHistoryOpen}
+        onClose={closeHistory}
+      />
     </div>
   );
 }
