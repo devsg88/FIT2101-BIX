@@ -3,21 +3,32 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Board from './Board.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getBoard, movePbi, startSprint, updatePbiPlanning } from '../services/api.js';
+import {
+  getBoard,
+  movePbi,
+  startSprint,
+  updatePbiPlanning,
+  getCompletedWork
+} from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
 vi.mock('../services/api.js', () => ({
   getBoard: vi.fn(),
   movePbi: vi.fn(),
   updatePbiPlanning: vi.fn(),
-  startSprint: vi.fn()
+  startSprint: vi.fn(),
+  getCompletedWork: vi.fn()
 }));
 
+// Registers both routes App.jsx does for the board, since the Completed Work
+// History sidebar (US-12) is reached by navigating between them, not by a
+// separate page - see Board.jsx's BoardView (isHistoryOpen).
 function renderBoard(path = '/projects/7/board') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/projects/:projectId/board" element={<Board />} />
+        <Route path="/projects/:projectId/completed-work" element={<Board />} />
       </Routes>
     </MemoryRouter>
   );
@@ -482,5 +493,121 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Product Backlog' })
       .closest('section');
     expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  describe('Completed Work History sidebar (US-12)', () => {
+    beforeEach(() => {
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: []
+      });
+    });
+
+    it('is closed on the plain board route, and opens the completed-work route when clicked', async () => {
+      getCompletedWork.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, pbis: [] });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('BIX Platform')).toBeInTheDocument());
+      expect(screen.queryByRole('dialog', { name: 'Completed work history' })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Work History/ }));
+
+      await waitFor(() =>
+        expect(screen.getByRole('dialog', { name: 'Completed work history' })).toBeInTheDocument()
+      );
+    });
+
+    it('loads completed PBIs with actual hours, and keeps their tasks/sub-tasks nested', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            actual_hours: '10.50',
+            updated_at: '2026-08-07T16:00:00.000Z',
+            tasks: [
+              {
+                id: 5,
+                title: 'Wire the form to the auth API',
+                status: 'done',
+                subTasks: []
+              }
+            ]
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(getCompletedWork).toHaveBeenCalledWith('7', 'tok'));
+      expect(screen.getByText('Login page')).toBeInTheDocument();
+      expect(screen.getByText(/Actual: 10.5h/)).toBeInTheDocument();
+      expect(screen.getByText('Wire the form to the auth API')).toBeInTheDocument();
+    });
+
+    it('shows "not recorded" for actual hours when US-11 has not stored any yet', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [{ id: 4, title: 'Login page', stage: 'completed', actual_hours: null, tasks: [] }]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(screen.getByText(/Actual: not recorded/)).toBeInTheDocument());
+    });
+
+    it('shows a dedicated access-denied message on a 403, not the generic error state', async () => {
+      const forbidden = new Error("You do not have permission to view this project's completed work");
+      forbidden.status = 403;
+      getCompletedWork.mockRejectedValue(forbidden);
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByText(/don.t have permission to view this project/)).toBeInTheDocument();
+      // Not the generic "Couldn't load" / Retry treatment a plain failure gets.
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    });
+
+    it('shows a generic error with a Retry button on a non-403 failure', async () => {
+      getCompletedWork.mockRejectedValue(new Error('Failed to load completed work history'));
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByText(/Failed to load completed work history/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
+    it('shows an empty message rather than an error when nothing has been completed yet', async () => {
+      getCompletedWork.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, pbis: [] });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() =>
+        expect(screen.getByText('Nothing has been completed on this project yet.')).toBeInTheDocument()
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('closes the sidebar and returns to the board when the close button is clicked', async () => {
+      getCompletedWork.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, pbis: [] });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() =>
+        expect(screen.getByRole('dialog', { name: 'Completed work history' })).toBeInTheDocument()
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close work history' }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Completed work history' })).not.toBeInTheDocument()
+      );
+    });
   });
 });
