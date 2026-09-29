@@ -311,7 +311,7 @@ input {
 }
 
 /* =========================================================
-   Admin dashboard — Organization Overview
+   Admin dashboard  Organization Overview
    ========================================================= */
 
 .admin-dashboard {
@@ -1922,27 +1922,43 @@ input {
   padding: 0.75rem 0.875rem;
 }
 
-.completed-work__item-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-}
-
 .completed-work__item-title {
-  margin: 0;
+  margin: 0 0 0.5rem;
   font-size: 0.9375rem;
 }
 
-.completed-work__item-date {
-  font-size: 0.75rem;
-  color: #777;
-  white-space: nowrap;
+/* Sprint / Completed / Effort, shown as a small label-over-value grid so the
+   three fields this subtask requires read clearly and consistently across
+   every record, rather than as a run-on sentence. */
+.completed-work__item-fields {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
 }
 
-.completed-work__item-meta {
-  margin: 0.25rem 0 0;
+.completed-work__item-field {
+  min-width: 5rem;
+}
+
+.completed-work__item-field dt {
+  margin: 0;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #777;
+}
+
+.completed-work__item-field dd {
+  margin: 0.125rem 0 0;
   font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1d1d1b;
+}
+
+.completed-work__item-taskcount {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
   color: #555;
 }
 
