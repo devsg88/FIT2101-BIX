@@ -372,37 +372,53 @@ function BoardTopBar({ project, onOpenHistory }) {
   );
 }
 
-// One completed PBI's row in the history sidebar. Reuses TaskChecklist so the
-// PBI keeps showing exactly the same Tasks/Sub-tasks association it has on
-// the board itself (US-12: "a completed-work record remains associated with
-// its original PBI and its Tasks/Sub-tasks").
+// One completed PBI's row in the history sidebar. Shows the four fields this
+// subtask asks for - task name, Sprint, completion date, recorded effort -
+// as a small label/value grid, plus its Tasks/Sub-tasks underneath via the
+// same TaskChecklist the board itself uses (US-12: "a completed-work record
+// remains associated with its original PBI and its Tasks/Sub-tasks").
+//
+// Every value here is read straight off the backend's response, nothing is
+// computed or duplicated client-side: Sprint comes from sprint_name
+// (completedWorkModel.js joins it from sprint_id), effort from actual_hours
+// (US-11's completion data), completion date from updated_at (see the note
+// on that field below).
 function CompletedWorkItem({ pbi }) {
-  const hasHours = pbi.actual_hours != null;
-  // actual_hours is only ever populated once US-11 actually records it on
-  // completion (it is not written by the current move-to-Completed flow yet)
-  // - this label is honest about that rather than showing a fabricated 0h.
-  const hoursLabel = hasHours ? `Actual: ${Number(pbi.actual_hours)}h` : 'Actual: not recorded';
+  const sprintLabel = pbi.sprint_name ?? 'Not recorded';
+  const effortLabel = pbi.actual_hours != null ? `${Number(pbi.actual_hours)}h` : 'Not recorded';
   const taskCount = pbi.tasks?.length ?? 0;
   // updated_at is the closest thing this schema has to a completion
-  // timestamp (there is no dedicated completed_at column yet); it is
-  // bumped by every edit to the PBI, so it is labelled "Updated", not
-  // "Completed on", to not overstate what it actually records.
-  const updated = formatShortDate(pbi.updated_at);
+  // timestamp (there is no dedicated completed_at column yet); it is bumped
+  // by every edit to the PBI, not only a move to Completed. Shown as
+  // "Completed" per this subtask's requirement, with a tooltip noting what
+  // it actually is under the hood, rather than adding a column that does
+  // not exist.
+  const completedDate = formatShortDate(pbi.updated_at) ?? 'Not recorded';
 
   return (
     <li className="completed-work__item">
-      <div className="completed-work__item-header">
-        <h3 className="completed-work__item-title">{pbi.title}</h3>
-        {updated && (
-          <span className="completed-work__item-date" title="Last updated">
-            {updated}
-          </span>
-        )}
-      </div>
-      <p className="completed-work__item-meta">
-        {hoursLabel}
-        {taskCount > 0 && ` | ${taskCount} task${taskCount === 1 ? '' : 's'}`}
-      </p>
+      <h3 className="completed-work__item-title">{pbi.title}</h3>
+
+      <dl className="completed-work__item-fields">
+        <div className="completed-work__item-field">
+          <dt>Sprint</dt>
+          <dd>{sprintLabel}</dd>
+        </div>
+        <div className="completed-work__item-field">
+          <dt>Completed</dt>
+          <dd title="Recorded as this item's last-updated date">{completedDate}</dd>
+        </div>
+        <div className="completed-work__item-field">
+          <dt>Effort</dt>
+          <dd>{effortLabel}</dd>
+        </div>
+      </dl>
+
+      {taskCount > 0 && (
+        <p className="completed-work__item-taskcount">
+          {taskCount} task{taskCount === 1 ? '' : 's'}
+        </p>
+      )}
       <TaskChecklist tasks={pbi.tasks} />
     </li>
   );
