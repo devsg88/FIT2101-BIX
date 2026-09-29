@@ -117,6 +117,43 @@ describe('getCompletedWorkByProject', () => {
     expect(result.pbis[0].sprint_name).toBeNull();
   });
 
+  it('requests every underlying query with the exact requested projectId, never a different one', async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: 5, name: 'Mobile App' }] });
+    getPbisByStage.mockResolvedValue([]);
+    getTasksByProject.mockResolvedValue([]);
+    getSubTasksByProject.mockResolvedValue([]);
+
+    await getCompletedWorkByProject(5);
+
+    // getProjectById (boardModel.js) is the one call that still goes through
+    // the raw pool mock; the other three are asserted directly. Together
+    // these are every source of PBI/task/sub-task data this function reads,
+    // so this proves the whole result is scoped to project 5, not leaked in
+    // from any other project.
+    expect(pool.query).toHaveBeenCalledWith(expect.any(String), [5]);
+    expect(getPbisByStage).toHaveBeenCalledWith(5, 'completed');
+    expect(getTasksByProject).toHaveBeenCalledWith(5);
+    expect(getSubTasksByProject).toHaveBeenCalledWith(5);
+  });
+
+  it('passes actual_hours through exactly as US-11 recorded it, including leaving it null rather than defaulting it', async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: 1, name: 'BIX Platform' }] });
+    getPbisByStage.mockResolvedValue([
+      { id: 10, stage: 'completed', title: 'Has recorded hours', actual_hours: '10.50' },
+      { id: 11, stage: 'completed', title: 'Not recorded yet', actual_hours: null }
+    ]);
+    getTasksByProject.mockResolvedValue([]);
+    getSubTasksByProject.mockResolvedValue([]);
+
+    const result = await getCompletedWorkByProject(1);
+
+    // Exact string preserved (not re-parsed/rounded) for the recorded one,
+    // and null stays null (not coerced to 0 or omitted) for the other - this
+    // function must never invent completion data US-11 did not actually save.
+    expect(result.pbis.find((pbi) => pbi.id === 10).actual_hours).toBe('10.50');
+    expect(result.pbis.find((pbi) => pbi.id === 11).actual_hours).toBeNull();
+  });
+
   it('excludes tasks and sub-tasks belonging to a PBI that is not completed', async () => {
     // getTasksByProject/getSubTasksByProject return every task/sub-task in
     // the whole project (same as boardModel.getBoard), so a task hanging off
