@@ -32,26 +32,47 @@ describe('getCompletedWorkController', () => {
     expect(getCompletedWorkByProject).not.toHaveBeenCalled();
   });
 
-  it('lets an admin through without checking project membership', async () => {
-    getCompletedWorkByProject.mockResolvedValue({ project: { id: 1, name: 'BIX' }, pbis: [] });
+  it('lets a responsible admin retrieve the project\'s completed work, without checking project membership', async () => {
+    const completedWork = {
+      project: { id: 1, name: 'BIX Platform' },
+      pbis: [
+        {
+          id: 10,
+          title: 'User can reset password',
+          stage: 'completed',
+          actual_hours: '10.50',
+          tasks: []
+        }
+      ]
+    };
+    getCompletedWorkByProject.mockResolvedValue(completedWork);
     const res = mockRes();
 
     await getCompletedWorkController(mockReq({ role: 'admin' }), res);
 
     expect(isProjectMember).not.toHaveBeenCalled();
     expect(getCompletedWorkByProject).toHaveBeenCalledWith(1);
+    // A full success: no error/forbidden/not-found status was ever set, and
+    // the exact data the model returned is what the client receives.
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(completedWork);
   });
 
-  it('allows a developer who is an assigned member of the project', async () => {
+  it('allows an assigned developer to retrieve completed work for that project', async () => {
+    const completedWork = {
+      project: { id: 1, name: 'BIX Platform' },
+      pbis: [{ id: 10, title: 'User can reset password', stage: 'completed', tasks: [] }]
+    };
     isProjectMember.mockResolvedValue(true);
-    getCompletedWorkByProject.mockResolvedValue({ project: { id: 1, name: 'BIX' }, pbis: [] });
+    getCompletedWorkByProject.mockResolvedValue(completedWork);
     const res = mockRes();
 
     await getCompletedWorkController(mockReq({ role: 'developer', userId: 7 }), res);
 
     expect(isProjectMember).toHaveBeenCalledWith(1, 7);
     expect(getCompletedWorkByProject).toHaveBeenCalledWith(1);
-    expect(res.status).not.toHaveBeenCalledWith(403);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(completedWork);
   });
 
   it('returns 403 for a developer who is not assigned to the project, and never loads the data', async () => {
@@ -77,25 +98,30 @@ describe('getCompletedWorkController', () => {
     expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
   });
 
-  it('returns the completed work history as-is on success', async () => {
-    const completedWork = {
-      project: { id: 1, name: 'BIX Platform' },
-      pbis: [
-        {
-          id: 10,
-          title: 'User can reset password',
-          stage: 'completed',
-          actual_hours: '10.50',
-          tasks: []
-        }
-      ]
-    };
-    getCompletedWorkByProject.mockResolvedValue(completedWork);
+  it('returns an empty completed-work result successfully, not as an error, when the project has no completed history', async () => {
+    const emptyResult = { project: { id: 1, name: 'BIX Platform' }, pbis: [] };
+    getCompletedWorkByProject.mockResolvedValue(emptyResult);
     const res = mockRes();
 
     await getCompletedWorkController(mockReq({ role: 'admin' }), res);
 
-    expect(res.json).toHaveBeenCalledWith(completedWork);
+    // An empty pbis array is a legitimate result, not the null the model
+    // returns for a missing project - this must not be confused with 404,
+    // 403, or any other error status.
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(emptyResult);
+  });
+
+  it('returns an empty completed-work result for an assigned (non-admin) developer too', async () => {
+    isProjectMember.mockResolvedValue(true);
+    const emptyResult = { project: { id: 1, name: 'BIX Platform' }, pbis: [] };
+    getCompletedWorkByProject.mockResolvedValue(emptyResult);
+    const res = mockRes();
+
+    await getCompletedWorkController(mockReq({ role: 'developer', userId: 7 }), res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(emptyResult);
   });
 
   it('returns 500 without leaking the error when the membership check throws', async () => {
