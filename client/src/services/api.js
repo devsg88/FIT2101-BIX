@@ -37,6 +37,19 @@ export function getDashboard(token) {
   });
 }
 
+// POST /api/projects  (US-04d, Admin only)
+// Creates a project owned by the logged-in Admin. Only the name is sent; the
+// server takes the responsible Admin from the token, never from the body.
+// Resolves with { project } on success, or throws with the backend's
+// rejection message (missing/blank name, not an Admin, ...).
+export function createProject(name, token) {
+  return request('/projects', {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
