@@ -1,5 +1,6 @@
 import { getProjectById } from './boardModel.js';
 import { getPbisByStage, getTasksByProject, getSubTasksByProject } from './pbiModel.js';
+import { getSprintsByProject } from './sprintModel.js';
 
 // US-12: Completed Work History.
 //
@@ -17,21 +18,36 @@ import { getPbisByStage, getTasksByProject, getSubTasksByProject } from './pbiMo
 // server/db/README.md - so those are not fabricated here; they simply are
 // not part of this response until that data exists.
 //
+// sprint_name is resolved here (a join in JS, not SQL) purely so the history
+// list has a readable Sprint label to show instead of the bare sprint_id
+// foreign key that's already on each PBI row - it is not new completion data,
+// just an existing relationship (product_backlog_items.sprint_id ->
+// sprints.id) presented in a human-readable form.
+//
 // Nesting mirrors boardModel.getBoard (fetch flat lists per project, group in
 // JS with the same groupBy helper), but scoped to stage = 'completed' only
 // and shaped PBI-first rather than grouped by stage, since a completed
 // record has no further stage to move through.
 export async function getCompletedWorkByProject(projectId) {
-  const [project, completedPbis, tasks, subTasks] = await Promise.all([
+  const [project, completedPbis, tasks, subTasks, sprints] = await Promise.all([
     getProjectById(projectId),
     getPbisByStage(projectId, 'completed'),
     getTasksByProject(projectId),
-    getSubTasksByProject(projectId)
+    getSubTasksByProject(projectId),
+    getSprintsByProject(projectId)
   ]);
 
   if (!project) {
     return null;
   }
+
+  // Bigint columns (sprint_id, sprints.id) come back from the real database
+  // as strings, not numbers - String(...) on both sides keeps the lookup
+  // working the same way whether this runs against Postgres or against
+  // plain-number test fixtures.
+  const sprintNameById = new Map(sprints.map((sprint) => [String(sprint.id), sprint.name]));
+  const sprintNameFor = (pbi) =>
+    pbi.sprint_id == null ? null : sprintNameById.get(String(pbi.sprint_id)) ?? null;
 
   // getTasksByProject/getSubTasksByProject return every task/sub-task in the
   // project (same convention boardModel.getBoard relies on), so they are
@@ -56,6 +72,7 @@ export async function getCompletedWorkByProject(projectId) {
     project,
     pbis: completedPbis.map((pbi) => ({
       ...pbi,
+      sprint_name: sprintNameFor(pbi),
       tasks: tasksByPbi[pbi.id] ?? []
     }))
   };
