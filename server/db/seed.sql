@@ -7,6 +7,9 @@
 -- already exist are left untouched (they are NOT updated to match this file).
 -- This script contains no DELETE or TRUNCATE. To reload from scratch you must
 -- remove the rows yourself first - see server/db/README.md.
+-- The one UPDATE (project responsibility, after the users insert) only fills
+-- responsible_admin_id where it is still NULL, so it never overwrites an
+-- owner that has already been set.
 --
 -- Explicit ids are used so the foreign keys are easy to read. The identity
 -- sequences are re-synced at the end so future auto-generated ids continue
@@ -111,6 +114,26 @@ INSERT INTO users (id, name, email, role, password_hash) VALUES
     (2, 'Developer', 'developer@bix.app', 'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
     (3, 'Admin',     'admin@bix.app',     'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm')
 ON CONFLICT (id) DO NOTHING;
+
+-- -------------------------------------------------------------------------
+-- project responsibility  (US-04d)
+--   The seeded Admin is responsible for BIX Platform (project 1) only.
+--   Mobile App (project 2) is deliberately left with no responsible Admin
+--   (NULL), so the "Admin not responsible for this project" path can be
+--   exercised against real seed data, the same way project 2 already covers
+--   the US-05 "not a member" path below.
+--
+--   Done as an UPDATE here, not in the projects INSERT above, because the
+--   projects rows are inserted before users exist. The Admin is looked up by
+--   email and role rather than by a hard-coded id; if that account is
+--   missing, the subquery is NULL and the project simply stays unowned.
+-- -------------------------------------------------------------------------
+UPDATE projects
+   SET responsible_admin_id = (
+         SELECT id FROM users WHERE email = 'admin@bix.app' AND role = 'admin'
+       )
+ WHERE id = 1
+   AND responsible_admin_id IS NULL;
 
 -- -------------------------------------------------------------------------
 -- teams

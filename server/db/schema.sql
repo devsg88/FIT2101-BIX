@@ -191,6 +191,31 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 
 -- -------------------------------------------------------------------------
+-- projects.responsible_admin_id  (US-04d)
+--   The one Admin responsible for a project - set to the Admin who creates
+--   it. Related Admin stories (US-04a, US-04c) check this column to decide
+--   whether an Admin may manage a particular project.
+--
+--   Added here rather than inside CREATE TABLE projects above because users
+--   is created after projects in this file, so the foreign key cannot be
+--   declared any earlier. Existing databases get the same column from
+--   server/db/migrations/003_us04d_project_responsible_admin.sql.
+--
+--   Nullable: NULL means no Admin is responsible, so every Admin is denied
+--   project-scoped admin actions on that project. Deliberately separate from
+--   project_members, which is Developer access (US-05), not responsibility.
+--   ON DELETE RESTRICT, in line with "Deletion behaviour" in
+--   server/db/README.md: an Admin who is still responsible for a project
+--   cannot be deleted out from under it.
+-- -------------------------------------------------------------------------
+ALTER TABLE projects
+    ADD COLUMN IF NOT EXISTS responsible_admin_id bigint
+        REFERENCES users (id) ON DELETE RESTRICT;
+
+CREATE INDEX IF NOT EXISTS idx_projects_responsible_admin_id
+    ON projects (responsible_admin_id);
+
+-- -------------------------------------------------------------------------
 -- teams
 --   A developer team, independent of any one project - an admin can staff a
 --   team before it has any project work. See the note above on why project
