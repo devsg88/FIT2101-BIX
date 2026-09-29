@@ -4,7 +4,7 @@ import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import boardRoutes from './routes/boardRoutes.js';
 import pbiRoutes from './routes/pbiRoutes.js';
-import sprintRoutes from './routes/sprintRoutes.js';
+import taskRoutes from './routes/taskRoutes.js';
 
 const app = express();
 
@@ -18,6 +18,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/projects', boardRoutes);
 app.use('/api/projects', pbiRoutes);
 app.use('/api/projects', sprintRoutes);
+app.use('/api/projects', taskRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
