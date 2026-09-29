@@ -110,7 +110,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- CHECK and no default, pending a team decision. See server/db/README.md
     -- ("Open questions and flags"). Add a CHECK (...) via migration once the
     -- vocabulary is agreed.
-    status text
+    status text,
+    -- US-11 (Yichi Zhang): Actual Hours logged when the task is completed.
+    -- Separate from the parent PBI's estimated_hours (Sprint Planning).
+    -- NULL until completion. Must be > 0 when set. assignee_id is added
+    -- after the users table exists (see ALTER below).
+    actual_hours  numeric(6,2) CHECK (actual_hours IS NULL OR actual_hours > 0),
+    completed_at  timestamptz
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_pbi_id ON tasks (pbi_id);
@@ -243,6 +249,23 @@ CREATE TABLE IF NOT EXISTS project_members (
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members (user_id);
+
+-- US-11 (Yichi Zhang): assigned developer on a task. Added here because
+-- `tasks` is created before `users` in this file.
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS assignee_id bigint REFERENCES users (id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks (assignee_id);
+
+-- US-11 (Yichi Zhang): developers who contributed to a completed PBI.
+-- Source data for completed-work history (US-12) and analytics (US-13).
+CREATE TABLE IF NOT EXISTS pbi_collaborators (
+    pbi_id  bigint NOT NULL REFERENCES product_backlog_items (id) ON DELETE RESTRICT,
+    user_id bigint NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    PRIMARY KEY (pbi_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pbi_collaborators_user_id ON pbi_collaborators (user_id);
 
 COMMIT;
 

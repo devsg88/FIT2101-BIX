@@ -139,6 +139,10 @@ INSERT INTO project_members (project_id, user_id) VALUES
     (1, 2)
 ON CONFLICT (project_id, user_id) DO NOTHING;
 
+-- US-11 (Yichi Zhang): assign seed tasks after users exist.
+UPDATE tasks SET assignee_id = 1 WHERE id IN (1, 3, 4) AND assignee_id IS NULL;
+UPDATE tasks SET assignee_id = 2 WHERE id IN (2, 5) AND assignee_id IS NULL;
+
 -- -------------------------------------------------------------------------
 -- Re-sync identity sequences so the next auto-generated id continues after
 -- the highest explicit id inserted above. GREATEST(..., 1) keeps this valid
