@@ -519,7 +519,7 @@ describe('Board page', () => {
       );
     });
 
-    it('loads completed PBIs with actual hours, and keeps their tasks/sub-tasks nested', async () => {
+    it('shows task name, Sprint, completion date and effort for a completed PBI, and keeps its tasks/sub-tasks nested', async () => {
       getCompletedWork.mockResolvedValue({
         project: { id: 7, name: 'BIX Platform' },
         pbis: [
@@ -527,6 +527,7 @@ describe('Board page', () => {
             id: 4,
             title: 'Login page',
             stage: 'completed',
+            sprint_name: 'Sprint 1',
             actual_hours: '10.50',
             updated_at: '2026-08-07T16:00:00.000Z',
             tasks: [
@@ -544,20 +545,82 @@ describe('Board page', () => {
       renderBoard('/projects/7/completed-work');
 
       await waitFor(() => expect(getCompletedWork).toHaveBeenCalledWith('7', 'tok'));
-      expect(screen.getByText('Login page')).toBeInTheDocument();
-      expect(screen.getByText(/Actual: 10.5h/)).toBeInTheDocument();
-      expect(screen.getByText('Wire the form to the auth API')).toBeInTheDocument();
+      const item = screen.getByRole('heading', { name: 'Login page' }).closest('li');
+      expect(item).toHaveTextContent('Sprint');
+      expect(item).toHaveTextContent('Sprint 1');
+      expect(item).toHaveTextContent('Completed');
+      expect(item).toHaveTextContent('Aug 7');
+      expect(item).toHaveTextContent('Effort');
+      expect(item).toHaveTextContent('10.5h');
+      expect(item).toHaveTextContent('Wire the form to the auth API');
     });
 
-    it('shows "not recorded" for actual hours when US-11 has not stored any yet', async () => {
+    it('shows "Not recorded" for Sprint and Effort when that data has not been captured', async () => {
       getCompletedWork.mockResolvedValue({
         project: { id: 7, name: 'BIX Platform' },
-        pbis: [{ id: 4, title: 'Login page', stage: 'completed', actual_hours: null, tasks: [] }]
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: null,
+            actual_hours: null,
+            updated_at: null,
+            tasks: []
+          }
+        ]
       });
 
       renderBoard('/projects/7/completed-work');
 
-      await waitFor(() => expect(screen.getByText(/Actual: not recorded/)).toBeInTheDocument());
+      const item = await waitFor(() =>
+        screen.getByRole('heading', { name: 'Login page' }).closest('li')
+      );
+      // Three distinct fields, all missing for different reasons (no sprint
+      // link, US-11 has not recorded hours, no updated_at) - all read the
+      // same "Not recorded" rather than a blank or a misleading default.
+      expect(item.textContent.match(/Not recorded/g)).toHaveLength(3);
+    });
+
+    it('distinguishes multiple completed records, each showing its own Sprint/date/effort', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: 'Sprint 1',
+            actual_hours: '10.50',
+            updated_at: '2026-08-07T16:00:00.000Z',
+            tasks: []
+          },
+          {
+            id: 6,
+            title: 'Password reset flow',
+            stage: 'completed',
+            sprint_name: 'Sprint 2',
+            actual_hours: '4.00',
+            updated_at: '2026-08-20T09:00:00.000Z',
+            tasks: []
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      const firstItem = await waitFor(() =>
+        screen.getByRole('heading', { name: 'Login page' }).closest('li')
+      );
+      const secondItem = screen.getByRole('heading', { name: 'Password reset flow' }).closest('li');
+
+      expect(firstItem).toHaveTextContent('Sprint 1');
+      expect(firstItem).toHaveTextContent('10.5h');
+      expect(secondItem).toHaveTextContent('Sprint 2');
+      expect(secondItem).toHaveTextContent('4h');
+      // Each record's fields stay with its own card, not mixed into the other's.
+      expect(firstItem).not.toHaveTextContent('Sprint 2');
+      expect(secondItem).not.toHaveTextContent('Sprint 1');
     });
 
     it('shows a dedicated access-denied message on a 403, not the generic error state', async () => {
