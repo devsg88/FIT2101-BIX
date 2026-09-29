@@ -7,7 +7,7 @@ import {
   useState
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import { getBoard, movePbi, startSprint, updatePbiPlanning } from '../services/api.js';
+import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, completeSubTask, completePbi } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
 // match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
@@ -150,6 +150,38 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-11 — Yichi Zhang. Complete a task with actual hours, a sub-task, or
+  // the parent PBI (which moves it into Completed after hours/collaborators).
+  const completeAssignedTask = useCallback(
+    async (taskId, actualHours) => {
+      await completeTask(projectId, taskId, actualHours, token);
+      await refreshBoardAfterSave(
+        'The task was completed, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const completeAssignedSubTask = useCallback(
+    async (subTaskId) => {
+      await completeSubTask(projectId, subTaskId, token);
+      await refreshBoardAfterSave(
+        'The sub-task was completed, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const completeActivePbi = useCallback(
+    async (pbiId, payload) => {
+      await completePbi(projectId, pbiId, payload, token);
+      await refreshBoardAfterSave(
+        'The item was completed, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // We only keep one list of PBIs. The four columns are worked out from it
   // here, instead of being stored separately, so a PBI's stage can never
   // disagree with which column it shows up in.
@@ -177,7 +209,10 @@ export function BoardProvider({ projectId, children }) {
       reloadBoard: loadBoard,
       movePbiStage,
       savePbiPlanning,
-      startPlannedSprint
+      startPlannedSprint,
+      completeAssignedTask,
+      completeAssignedSubTask,
+      completeActivePbi
     }),
     [
       projectId,
@@ -190,7 +225,10 @@ export function BoardProvider({ projectId, children }) {
       loadBoard,
       movePbiStage,
       savePbiPlanning,
-      startPlannedSprint
+      startPlannedSprint,
+      completeAssignedTask,
+      completeAssignedSubTask,
+      completeActivePbi
     ]
   );
 
