@@ -55,10 +55,10 @@ export function getBoard(projectId, token) {
 
 // GET /api/projects/:projectId/completed-work  (US-12)
 // Resolves with { project, pbis: [...] } - pbis is every PBI moved to
-// Completed, each with its tasks/sub-tasks nested and whatever completion
-// data (actual_hours) US-11 has recorded. Throws (see `request` above) with
-// status 403 if the caller is not an admin or an assigned member of this
-// project, or 404 if the project does not exist.
+// Completed, each with sprint_name (joined from sprint_id), its tasks/sub-tasks
+// nested, and whatever completion data (actual_hours) US-11 has recorded.
+// Throws (see `request` above) with status 403 if the caller is not an admin
+// or an assigned member of this project, or 404 if the project does not exist.
 export function getCompletedWork(projectId, token) {
   return request(`/projects/${projectId}/completed-work`, {
     headers: authHeader(token)
@@ -79,7 +79,7 @@ export function movePbi(projectId, pbiId, stage, token) {
   });
 }
 
-// PATCH /api/projects/:projectId/pbis/:pbiId/planning  (US-08b — Yichi Zhang)
+// PATCH /api/projects/:projectId/pbis/:pbiId/planning  (US-08b  Yichi Zhang)
 // `planning` is { planned_start_date, planned_end_date, estimated_hours }.
 // Resolves with { pbi: <updated PBI> } on success, or throws with the
 // backend's rejection message (invalid dates, hours, wrong stage, etc.).
@@ -91,7 +91,7 @@ export function updatePbiPlanning(projectId, pbiId, planning, token) {
   });
 }
 
-// POST /api/projects/:projectId/sprints/:sprintId/start  (US-10 — Yichi Zhang)
+// POST /api/projects/:projectId/sprints/:sprintId/start  (US-10  Yichi Zhang)
 // Moves every Sprint Planning PBI into Active Sprint together. Resolves with
 // { sprint, pbis } on success, or throws (empty sprint, missing estimates, ...).
 export function startSprint(projectId, sprintId, token) {
