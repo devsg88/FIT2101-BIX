@@ -71,6 +71,25 @@ psql "postgresql://<username>:<password>@localhost:5432/<database>" -f server/db
 
 Run `schema.sql` first, followed by `seed.sql`.
 
+**Project responsibility (US-04d).** A fresh database set up with the current
+`schema.sql` (from US-04d onwards) already gets `projects.responsible_admin_id`,
+so migration 003 is not needed for that column on a fresh setup.
+
+A database set up before US-04d, where `projects` has no
+`responsible_admin_id` column, must run migration 003. Then re-run `seed.sql`
+if you need the standard demo ownership:
+
+```bash
+psql "postgresql://<username>:<password>@localhost:5432/<database>" -v ON_ERROR_STOP=1 -f server/db/migrations/003_us04d_project_responsible_admin.sql
+psql "postgresql://<username>:<password>@localhost:5432/<database>" -v ON_ERROR_STOP=1 -f server/db/seed.sql
+```
+
+Migration 003 adds the column, its foreign key and its index, but assigns no
+responsible Admin. When `seed.sql` is re-run, its `INSERT`s skip seeded rows
+that already exist, and its US-04d `UPDATE` assigns the seeded Admin to BIX
+Platform (project 1) only when `responsible_admin_id` is `NULL`. Mobile App
+(project 2) intentionally remains unowned.
+
 More database information is available in:
 
 ```text
