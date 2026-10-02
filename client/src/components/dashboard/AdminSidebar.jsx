@@ -57,6 +57,7 @@ export default function AdminSidebar() {
 
       <p className="admin-sidebar__label">Active teams ({allTeams.length})</p>
       <div className="admin-sidebar__team-list">
+        {/*loop that creates the clickable buttons for each team*/}
         {visibleTeams.map((team) => (
           <Link
             to={`/teams/${team.id}`}
