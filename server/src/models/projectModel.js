@@ -55,3 +55,19 @@ export async function getProjectResponsibility(projectId, adminId) {
   }
   return { isResponsible: rows[0].is_responsible };
 }
+
+// The projects a given Admin is responsible for (US-04c) - the list an Admin
+// navigates to their boards from. Matches on responsible_admin_id only, never
+// project_members, and returns just what navigation needs (id, name). ids are
+// left as pg returns them (bigint as string), the same as every other model.
+// An unowned project (NULL) never matches, so it appears in no Admin's list.
+export async function listProjectsForResponsibleAdmin(adminId) {
+  const { rows } = await pool.query(
+    `SELECT id, name
+       FROM projects
+      WHERE responsible_admin_id = $1
+      ORDER BY id`,
+    [adminId]
+  );
+  return rows;
+}

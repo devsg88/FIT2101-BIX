@@ -5,7 +5,11 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { createProject, getProjectResponsibility } from './projectModel.js';
+import {
+  createProject,
+  getProjectResponsibility,
+  listProjectsForResponsibleAdmin
+} from './projectModel.js';
 
 describe('projectModel', () => {
   beforeEach(() => {
@@ -97,6 +101,52 @@ describe('projectModel', () => {
       pool.query.mockRejectedValue(new Error('connection refused'));
 
       await expect(getProjectResponsibility(1, 3)).rejects.toThrow('connection refused');
+    });
+  });
+
+  describe('listProjectsForResponsibleAdmin (US-04c)', () => {
+    it('returns the projects whose responsible_admin_id is the given Admin, as id and name only', async () => {
+      pool.query.mockResolvedValue({
+        rows: [
+          { id: '1', name: 'BIX Platform' },
+          { id: '3', name: 'US-04d Validation Project' }
+        ]
+      });
+
+      const result = await listProjectsForResponsibleAdmin('3');
+
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toMatch(/SELECT id, name\s+FROM projects/);
+      expect(sql).toMatch(/WHERE responsible_admin_id = \$1/);
+      expect(sql).toMatch(/ORDER BY id/);
+      expect(params).toEqual(['3']);
+      expect(result).toEqual([
+        { id: '1', name: 'BIX Platform' },
+        { id: '3', name: 'US-04d Validation Project' }
+      ]);
+    });
+
+    it('scopes by responsibility only, never by project membership', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await listProjectsForResponsibleAdmin('3');
+
+      const [sql] = pool.query.mock.calls[0];
+      expect(sql).not.toMatch(/project_members/);
+    });
+
+    it('returns an empty list when the Admin is responsible for no projects', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+
+      const result = await listProjectsForResponsibleAdmin('7');
+
+      expect(result).toEqual([]);
+    });
+
+    it('propagates a database failure instead of swallowing it', async () => {
+      pool.query.mockRejectedValue(new Error('connection refused'));
+
+      await expect(listProjectsForResponsibleAdmin('3')).rejects.toThrow('connection refused');
     });
   });
 });

@@ -1,4 +1,4 @@
-import { createProject } from '../models/projectModel.js';
+import { createProject, listProjectsForResponsibleAdmin } from '../models/projectModel.js';
 
 // Project creation (US-04d / SCRUM-19).
 //
@@ -52,5 +52,21 @@ export async function createProjectController(req, res) {
     // Do not send the raw database error to the client, just a plain message,
     // the same convention the other controllers use.
     return res.status(500).json({ message: 'Failed to create the project' });
+  }
+}
+
+// GET /api/projects
+// US-04c / SCRUM-17. The projects the logged-in Admin is responsible for, so
+// they can find and open those boards. Admin-only (see projectRoutes.js), and
+// always scoped to req.user.id from the verified token - there is no way to
+// ask for another Admin's list, and an Admin never sees projects they are not
+// responsible for.
+export async function listResponsibleProjectsController(req, res) {
+  try {
+    const projects = await listProjectsForResponsibleAdmin(req.user.id);
+    return res.json({ projects });
+  } catch (err) {
+    // Do not send the raw database error to the client, just a plain message.
+    return res.status(500).json({ message: 'Failed to load your projects' });
   }
 }

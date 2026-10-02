@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import jwt from 'jsonwebtoken';
 import router from './projectRoutes.js';
 import app from '../app.js';
-import { createProject } from '../models/projectModel.js';
+import { createProject, listProjectsForResponsibleAdmin } from '../models/projectModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
 vi.mock('../models/projectModel.js');
@@ -26,6 +26,14 @@ describe('projectRoutes wiring', () => {
       'requireAuth',
       'roleGuard',
       'createProjectController'
+    ]);
+  });
+
+  it('guards GET / with requireAuth then requireRole(\'admin\') before the controller (US-04c)', () => {
+    expect(middlewareNamesFor('get', '/')).toEqual([
+      'requireAuth',
+      'roleGuard',
+      'listResponsibleProjectsController'
     ]);
   });
 });
@@ -109,5 +117,68 @@ describe('POST /api/projects', () => {
 
     expect(res.status).toBe(400);
     expect(createProject).not.toHaveBeenCalled();
+  });
+});
+
+// US-04c: the same end-to-end approach for the responsible-project list.
+describe('GET /api/projects (US-04c)', () => {
+  const TEST_SECRET = 'project-routes-test-secret';
+  let server;
+  let baseUrl;
+  let originalSecret;
+
+  function tokenFor(user) {
+    return jwt.sign(user, TEST_SECRET, { expiresIn: '5m' });
+  }
+
+  function getProjects(token) {
+    const headers = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    return fetch(`${baseUrl}/api/projects`, { headers });
+  }
+
+  beforeAll(async () => {
+    originalSecret = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = TEST_SECRET;
+    await new Promise((resolve) => {
+      server = app.listen(0, resolve);
+    });
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    process.env.JWT_SECRET = originalSecret;
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 with no token, and looks nothing up', async () => {
+    const res = await getProjects();
+
+    expect(res.status).toBe(401);
+    expect(listProjectsForResponsibleAdmin).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 for a Developer, and looks nothing up', async () => {
+    const res = await getProjects(tokenFor({ id: '2', role: 'developer' }));
+
+    expect(res.status).toBe(403);
+    expect(listProjectsForResponsibleAdmin).not.toHaveBeenCalled();
+  });
+
+  it('returns 200 with the Admin\'s own responsible projects', async () => {
+    const projects = [{ id: '1', name: 'BIX Platform' }];
+    listProjectsForResponsibleAdmin.mockResolvedValue(projects);
+
+    const res = await getProjects(tokenFor({ id: '3', role: 'admin' }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ projects });
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledWith('3');
   });
 });

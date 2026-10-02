@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createProjectController } from './projectController.js';
-import { createProject } from '../models/projectModel.js';
+import {
+  createProjectController,
+  listResponsibleProjectsController
+} from './projectController.js';
+import { createProject, listProjectsForResponsibleAdmin } from '../models/projectModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
 vi.mock('../models/projectModel.js');
@@ -112,5 +115,64 @@ describe('createProjectController', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'Failed to create the project' });
+  });
+});
+
+describe('listResponsibleProjectsController (US-04c)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the logged-in Admin\'s responsible projects, looked up by req.user.id', async () => {
+    const projects = [
+      { id: '1', name: 'BIX Platform' },
+      { id: '3', name: 'US-04d Validation Project' }
+    ];
+    listProjectsForResponsibleAdmin.mockResolvedValue(projects);
+    const req = { user: admin };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledWith('3');
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ projects });
+  });
+
+  it('ignores any admin id in the query string or body - only the token decides', async () => {
+    listProjectsForResponsibleAdmin.mockResolvedValue([]);
+    const req = {
+      user: admin,
+      query: { adminId: '7', responsible_admin_id: '7' },
+      body: { adminId: '7' }
+    };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledTimes(1);
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledWith('3');
+  });
+
+  it('returns an empty list when the Admin is responsible for no projects', async () => {
+    listProjectsForResponsibleAdmin.mockResolvedValue([]);
+    const req = { user: { id: '9', role: 'admin' } };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ projects: [] });
+  });
+
+  it('returns a generic 500 when the database fails, without leaking the database error', async () => {
+    listProjectsForResponsibleAdmin.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const req = { user: admin };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to load your projects' });
   });
 });
