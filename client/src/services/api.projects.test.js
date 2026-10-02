@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createProject } from './api.js';
+import { createProject, getResponsibleProjects } from './api.js';
 
 // Kept separate from api.test.js (the board helpers) so US-04d's API test
 // does not touch that shared file.
@@ -46,6 +46,37 @@ describe('project api helpers (US-04d)', () => {
 
     await expect(createProject('P', 'tok-dev')).rejects.toThrow(
       'You do not have permission to perform this action'
+    );
+  });
+
+  it('getResponsibleProjects sends GET /projects with the Bearer token and returns the list (US-04c)', async () => {
+    const projects = [
+      { id: '1', name: 'BIX Platform' },
+      { id: '3', name: 'US-04d Validation Project' }
+    ];
+    global.fetch.mockImplementation(() => okJson({ projects }));
+
+    const result = await getResponsibleProjects('tok-admin');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects');
+    expect(options.method).toBeUndefined();
+    expect(options.body).toBeUndefined();
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-admin' });
+    expect(result).toEqual({ projects });
+  });
+
+  it('getResponsibleProjects throws the server-provided message on failure (US-04c)', async () => {
+    global.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({ message: 'Failed to load your projects' })
+      })
+    );
+
+    await expect(getResponsibleProjects('tok-admin')).rejects.toThrow(
+      'Failed to load your projects'
     );
   });
 });

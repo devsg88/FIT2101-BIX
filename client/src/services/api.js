@@ -50,6 +50,17 @@ export function createProject(name, token) {
   });
 }
 
+// GET /api/projects  (US-04c, Admin only)
+// The projects the logged-in Admin is responsible for, as { projects: [{ id,
+// name }] }. The server decides which projects those are from the token -
+// nothing here says which Admin is asking. Throws with the backend's message
+// on failure, like every other call in this file.
+export function getResponsibleProjects(token) {
+  return request('/projects', {
+    headers: authHeader(token)
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
