@@ -4,6 +4,7 @@ import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import boardRoutes from './routes/boardRoutes.js';
 import pbiRoutes from './routes/pbiRoutes.js';
+import sprintRoutes from './routes/sprintRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 
 const app = express();
