@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { getProjectResponsibility } from '../models/projectModel.js';
 
 export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -58,4 +59,53 @@ export function requireProjectMembership(req, res, next) {
   return res
     .status(501)
     .json({ message: 'Project membership checks are not implemented yet' });
+}
+
+// Restrict a project-scoped route to the Admin responsible for that project
+// (US-04d - projects.responsible_admin_id, see server/db/schema.sql).
+//
+// Must be placed AFTER requireAuth and requireRole('admin'), which already
+// reject a missing token (401) and a non-Admin (403) before any database
+// lookup happens:
+//
+//   router.patch('/:projectId/...', requireAuth, requireRole('admin'),
+//                requireProjectResponsibility, handler)
+//
+// The project is taken from the route's :projectId only, never from the body
+// or query string, so a caller cannot point the check at a different project
+// from the one the route acts on. Responds 400 for an invalid id, 404 if the
+// project does not exist, and 403 if this Admin is not its responsible Admin
+// (including a project with no responsible Admin at all). It only knows about
+// projects - anything nested under a project (PBIs, tasks, ...) is for the
+// route's own controller to scope to that project.
+export async function requireProjectResponsibility(req, res, next) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  const projectId = Number(req.params?.projectId);
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+
+  try {
+    const responsibility = await getProjectResponsibility(projectId, req.user.id);
+
+    if (!responsibility) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    if (!responsibility.isResponsible) {
+      return res
+        .status(403)
+        .json({ message: 'You are not responsible for this project' });
+    }
+  } catch (err) {
+    // Do not send the raw database error to the client, just a plain message.
+    return res
+      .status(500)
+      .json({ message: 'Failed to check project responsibility' });
+  }
+
+  next();
 }
