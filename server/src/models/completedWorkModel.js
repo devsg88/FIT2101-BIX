@@ -1,6 +1,7 @@
 import { getProjectById } from './boardModel.js';
 import { getPbisByStage, getTasksByProject, getSubTasksByProject } from './pbiModel.js';
 import { getSprintsByProject } from './sprintModel.js';
+import { getCollaboratorsByProject } from './completionModel.js';
 
 // US-12: Completed Work History.
 //
@@ -10,13 +11,15 @@ import { getSprintsByProject } from './sprintModel.js';
 // associated with exactly the work items it was made of. Returns null when
 // the project does not exist, so the caller can turn that into a 404.
 //
-// Completion data recorded under US-11 (Actual Hours) rides along for free:
-// getPbisByStage already selects actual_hours via PBI_COLUMNS, so a completed
-// PBI's actual_hours comes back with it, whatever was last written for that
-// PBI. There is currently no schema for "collaborators" or a dedicated
-// completed-by/completed-at field (only the generic updated_at trigger) - see
-// server/db/README.md - so those are not fabricated here; they simply are
-// not part of this response until that data exists.
+// Completion data recorded under US-11 rides along for free: getPbisByStage
+// already selects actual_hours via PBI_COLUMNS, so a completed PBI's
+// actual_hours comes back with it, whatever was last written for that PBI.
+// collaborators is joined in from pbi_collaborators (also written by US-11's
+// completePbi, see completionModel.js) the same way sprint_name is joined in
+// below - neither is fabricated here, both simply reflect whatever US-11
+// actually recorded, which may still be nothing for an older completed PBI.
+// There is still no dedicated completed-at/completed-by column (only the
+// generic updated_at trigger) - see server/db/README.md.
 //
 // sprint_name is resolved here (a join in JS, not SQL) purely so the history
 // list has a readable Sprint label to show instead of the bare sprint_id
@@ -29,12 +32,13 @@ import { getSprintsByProject } from './sprintModel.js';
 // and shaped PBI-first rather than grouped by stage, since a completed
 // record has no further stage to move through.
 export async function getCompletedWorkByProject(projectId) {
-  const [project, completedPbis, tasks, subTasks, sprints] = await Promise.all([
+  const [project, completedPbis, tasks, subTasks, sprints, collaborators] = await Promise.all([
     getProjectById(projectId),
     getPbisByStage(projectId, 'completed'),
     getTasksByProject(projectId),
     getSubTasksByProject(projectId),
-    getSprintsByProject(projectId)
+    getSprintsByProject(projectId),
+    getCollaboratorsByProject(projectId)
   ]);
 
   if (!project) {
@@ -48,6 +52,11 @@ export async function getCompletedWorkByProject(projectId) {
   const sprintNameById = new Map(sprints.map((sprint) => [String(sprint.id), sprint.name]));
   const sprintNameFor = (pbi) =>
     pbi.sprint_id == null ? null : sprintNameById.get(String(pbi.sprint_id)) ?? null;
+
+  // Same grouping pattern as tasksByPbi below, just keyed off a different
+  // bulk, per-project query (getCollaboratorsByProject) instead of a loop
+  // calling getCollaboratorsForPbi once per completed PBI.
+  const collaboratorsByPbi = groupBy(collaborators, 'pbi_id');
 
   // getTasksByProject/getSubTasksByProject return every task/sub-task in the
   // project (same convention boardModel.getBoard relies on), so they are
@@ -73,6 +82,7 @@ export async function getCompletedWorkByProject(projectId) {
     pbis: completedPbis.map((pbi) => ({
       ...pbi,
       sprint_name: sprintNameFor(pbi),
+      collaborators: collaboratorsByPbi[pbi.id] ?? [],
       tasks: tasksByPbi[pbi.id] ?? []
     }))
   };
