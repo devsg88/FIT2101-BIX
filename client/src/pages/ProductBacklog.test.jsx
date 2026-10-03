@@ -3,13 +3,14 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ProductBacklog from './ProductBacklog.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { createPbi, getProjectPbis, updatePbi } from '../services/api.js';
+import { createPbi, deletePbi, getProjectPbis, updatePbi } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
 vi.mock('../services/api.js', () => ({
   getProjectPbis: vi.fn(),
   createPbi: vi.fn(),
-  updatePbi: vi.fn()
+  updatePbi: vi.fn(),
+  deletePbi: vi.fn()
 }));
 
 function renderBacklog(path = '/projects/1/backlog') {
@@ -187,5 +188,79 @@ describe('ProductBacklog page - create and edit (US-04b, SCRUM-101)', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(updatePbi).not.toHaveBeenCalled();
+  });
+});
+
+describe('ProductBacklog page - delete with confirmation (US-04b, SCRUM-102)', () => {
+  const BACKLOG = { id: 1, title: 'User can reset password', stage: 'product_backlog' };
+  const ACTIVE = { id: 3, title: 'Dashboard shows sprint burndown', stage: 'active_sprint' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', name: 'Admin', token: 'tok' } });
+  });
+
+  it('asks "Are you sure?" before deleting, and deletes nothing on Cancel', async () => {
+    getProjectPbis.mockResolvedValue({ pbis: [BACKLOG] });
+
+    renderBacklog();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete User can reset password' }));
+    expect(screen.getByText(/Are you sure you want to delete/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(deletePbi).not.toHaveBeenCalled();
+    expect(screen.getByText('User can reset password')).toBeInTheDocument();
+  });
+
+  it('removes the item from the refreshed list after a confirmed delete', async () => {
+    getProjectPbis
+      .mockResolvedValueOnce({ pbis: [BACKLOG] })
+      .mockResolvedValueOnce({ pbis: [] });
+    deletePbi.mockResolvedValue({ pbi: BACKLOG });
+
+    renderBacklog('/projects/1/backlog');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete User can reset password' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(
+      await screen.findByText('This project has no Product Backlog Items yet.')
+    ).toBeInTheDocument();
+    expect(deletePbi).toHaveBeenCalledWith('1', 1, 'tok');
+    expect(getProjectPbis).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+  });
+
+  it('disables Delete for an item in the Active Sprint', async () => {
+    getProjectPbis.mockResolvedValue({ pbis: [BACKLOG, ACTIVE] });
+
+    renderBacklog();
+
+    const activeDelete = await screen.findByRole('button', {
+      name: 'Delete Dashboard shows sprint burndown'
+    });
+    expect(activeDelete).toBeDisabled();
+    expect(activeDelete).toHaveAttribute('title', 'Items in the Active Sprint cannot be deleted');
+    expect(screen.getByRole('button', { name: 'Delete User can reset password' })).toBeEnabled();
+  });
+
+  it('keeps the item and shows why when the server refuses the delete', async () => {
+    const completed = { id: 4, title: 'Login page', stage: 'completed' };
+    getProjectPbis.mockResolvedValue({ pbis: [completed] });
+    deletePbi.mockRejectedValue(
+      new Error('Cannot delete a PBI that still has tasks. Remove its tasks first.')
+    );
+
+    renderBacklog();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Login page' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('still has tasks');
+    expect(getProjectPbis).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText('Login page').length).toBeGreaterThan(0);
   });
 });

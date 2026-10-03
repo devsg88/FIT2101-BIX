@@ -4,9 +4,11 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { STAGE_LABELS } from '../context/BoardContext.jsx';
 import { getProjectPbis } from '../services/api.js';
 import PbiFormModal from '../components/backlog/PbiFormModal.jsx';
+import DeletePbiDialog from '../components/backlog/DeletePbiDialog.jsx';
 
 // US-04b / SCRUM-151. The Admin's Product Backlog list for one project: every
-// PBI with its title, priority and status. Admin-only at the route level (see
+// PBI with its title, priority and status, plus create / edit (SCRUM-101) and
+// delete with confirmation (SCRUM-102). Admin-only at the route level (see
 // App.jsx); the backend additionally refuses an Admin who is not responsible
 // for this project, and that refusal is shown as the error message below.
 //
@@ -22,7 +24,11 @@ function formatPriority(priority) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function PbiRow({ pbi, onEdit }) {
+function PbiRow({ pbi, onEdit, onDelete }) {
+  // SCRUM-102: the backend refuses to delete a PBI in the Active Sprint, so
+  // the button is disabled there rather than offering a doomed action.
+  const inActiveSprint = pbi.stage === 'active_sprint';
+
   return (
     <li className="pbi-backlog__row">
       <span className="pbi-backlog__title">{pbi.title}</span>
@@ -38,6 +44,20 @@ function PbiRow({ pbi, onEdit }) {
           aria-label={`Edit ${pbi.title}`}
         >
           Edit
+        </button>
+        <button
+          type="button"
+          className="admin-btn admin-btn--danger-outline"
+          onClick={() => onDelete(pbi)}
+          disabled={inActiveSprint}
+          aria-label={`Delete ${pbi.title}`}
+          title={
+            inActiveSprint
+              ? 'Items in the Active Sprint cannot be deleted'
+              : 'Delete this item'
+          }
+        >
+          Delete
         </button>
       </span>
     </li>
@@ -55,6 +75,8 @@ export default function ProductBacklog() {
   // SCRUM-101: which form is open - null (none), { mode: 'create' }, or
   // { mode: 'edit', pbi }.
   const [form, setForm] = useState(null);
+  // SCRUM-102: the PBI awaiting delete confirmation, or null.
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   // Also used as the Retry action. `isCurrent` lets the effect below ignore
   // a response that arrives after this page has moved to another project.
@@ -84,18 +106,27 @@ export default function ProductBacklog() {
     };
   }, [loadPbis]);
 
-  // After a create or edit, re-fetch the list rather than patching it
-  // locally, so it shows exactly what the server saved (same approach as
-  // BoardContext). The current list stays on screen while it reloads.
-  const handleSaved = async () => {
-    setForm(null);
+  // After any create, edit or delete, re-fetch the list rather than patching
+  // it locally, so it shows exactly what the server now holds (same approach
+  // as BoardContext). The current list stays on screen while it reloads.
+  const refreshAfterChange = async (doneMessage) => {
     try {
       const data = await getProjectPbis(projectId, token);
       setPbis(Array.isArray(data.pbis) ? data.pbis : []);
     } catch (err) {
-      setError(`The item was saved, but the list could not be refreshed: ${err.message}`);
+      setError(`${doneMessage}, but the list could not be refreshed: ${err.message}`);
       setStatus('error');
     }
+  };
+
+  const handleSaved = () => {
+    setForm(null);
+    return refreshAfterChange('The item was saved');
+  };
+
+  const handleDeleted = () => {
+    setPendingDelete(null);
+    return refreshAfterChange('The item was deleted');
   };
 
   return (
@@ -151,7 +182,12 @@ export default function ProductBacklog() {
             </div>
             <ul className="pbi-backlog__list">
               {pbis.map((pbi) => (
-                <PbiRow key={pbi.id} pbi={pbi} onEdit={(item) => setForm({ mode: 'edit', pbi: item })} />
+                <PbiRow
+                  key={pbi.id}
+                  pbi={pbi}
+                  onEdit={(item) => setForm({ mode: 'edit', pbi: item })}
+                  onDelete={setPendingDelete}
+                />
               ))}
             </ul>
           </section>
@@ -164,6 +200,15 @@ export default function ProductBacklog() {
           pbi={form.mode === 'edit' ? form.pbi : null}
           onSaved={handleSaved}
           onClose={() => setForm(null)}
+        />
+      )}
+
+      {pendingDelete && (
+        <DeletePbiDialog
+          projectId={projectId}
+          pbi={pendingDelete}
+          onDeleted={handleDeleted}
+          onClose={() => setPendingDelete(null)}
         />
       )}
     </div>

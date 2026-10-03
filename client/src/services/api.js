@@ -91,6 +91,16 @@ export function updatePbi(projectId, pbiId, changes, token) {
   });
 }
 
+// DELETE /api/projects/:projectId/pbis/:pbiId  (US-04b, SCRUM-102)
+// Resolves with { pbi: <the deleted PBI> }, or throws with the backend's
+// message - e.g. the PBI is in the Active Sprint, or still has tasks.
+export function deletePbi(projectId, pbiId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
 // Moves a PBI to a new stage. `stage` is the target stage's machine name
 // (e.g. 'sprint_planning'). Resolves with { pbi: <updated PBI> } on success,

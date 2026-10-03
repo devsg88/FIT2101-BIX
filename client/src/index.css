@@ -2310,6 +2310,34 @@ input {
 .pbi-backlog__actions {
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Delete actions (SCRUM-102) - same shape as the other admin buttons. */
+.admin-btn--danger {
+  border: none;
+  background: #a62c2c;
+  color: #ffffff;
+}
+
+.admin-btn--danger:hover:not(:disabled) {
+  background: #8b2222;
+}
+
+.admin-btn--danger-outline {
+  border: 1.5px solid #a62c2c;
+  background: #fffdf5;
+  color: #a62c2c;
+}
+
+.admin-btn--danger-outline:hover:not(:disabled) {
+  background: #fbeaea;
+}
+
+.admin-btn--danger:disabled,
+.admin-btn--danger-outline:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .pbi-backlog__actions .admin-btn {
