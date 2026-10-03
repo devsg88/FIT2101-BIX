@@ -247,6 +247,53 @@ describe('editTaskController', () => {
     expect(res.json).toHaveBeenCalledWith({ task: updated });
   });
 
+  // Completion belongs to US-11's Complete action (actual hours, completed_at,
+  // its prerequisites): Edit may not mark a task done or reopen a done one,
+  // but may still retitle a done one.
+  it('returns 400 and writes nothing when Edit tries to mark the task done', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue(existingTask);
+    const res = mockRes();
+
+    await editTaskController(mockAdminReq({ body: { title: 'Build the thing', status: 'done' } }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'A task can only be marked done through the Complete action'
+    });
+    expect(updateTask).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 and writes nothing when Edit tries to reopen a done task', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue({ ...existingTask, status: 'done' });
+    const res = mockRes();
+
+    await editTaskController(mockAdminReq({ body: { title: 'Build the thing', status: 'in_progress' } }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'A completed task cannot be reopened through Edit'
+    });
+    expect(updateTask).not.toHaveBeenCalled();
+  });
+
+  it('still lets Edit retitle a done task while it stays done', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue({ ...existingTask, status: 'done' });
+    const updated = { ...existingTask, title: 'Build the thing (fixed typo)', status: 'done' };
+    updateTask.mockResolvedValue(updated);
+    const res = mockRes();
+
+    await editTaskController(
+      mockAdminReq({ body: { title: 'Build the thing (fixed typo)', status: 'done' } }),
+      res
+    );
+
+    expect(updateTask).toHaveBeenCalledWith(2, 3, { title: 'Build the thing (fixed typo)', status: 'done' });
+    expect(res.json).toHaveBeenCalledWith({ task: updated });
+  });
+
   it('returns 500 without leaking details when something unexpected throws', async () => {
     getPbiById.mockRejectedValue(new Error('connection terminated unexpectedly'));
     const res = mockRes();
@@ -442,6 +489,20 @@ describe('assignTaskController', () => {
     expect(listProjectMembers).not.toHaveBeenCalled();
     expect(assignTask).toHaveBeenCalledWith(2, 3, null);
     expect(res.json).toHaveBeenCalledWith({ task: unassigned });
+  });
+
+  it('still assigns a task that is already done - only Edit status changes into/out of done are restricted', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue({ ...existingTask, status: 'done' });
+    listProjectMembers.mockResolvedValue([{ id: '1', name: 'Pang' }]);
+    const assigned = { ...existingTask, status: 'done', assignee_id: 1 };
+    assignTask.mockResolvedValue(assigned);
+    const res = mockRes();
+
+    await assignTaskController(mockAdminReq({ body: { assignee_id: 1 } }), res);
+
+    expect(assignTask).toHaveBeenCalledWith(2, 3, 1);
+    expect(res.json).toHaveBeenCalledWith({ task: assigned });
   });
 
   it('returns 500 without leaking details when something unexpected throws', async () => {

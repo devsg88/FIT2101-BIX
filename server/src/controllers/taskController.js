@@ -11,7 +11,11 @@ import {
   assignTask
 } from '../models/taskModel.js';
 import { deleteSubTasksByTaskId } from '../models/subTaskModel.js';
-import { isTaskStatus, TASK_STATUSES } from '../constants/taskStatus.js';
+import {
+  isTaskStatus,
+  TASK_STATUSES,
+  editStatusTransitionError
+} from '../constants/taskStatus.js';
 import { listProjectMembers } from '../models/projectMembershipModel.js';
 
 function parsePositiveId(value) {
@@ -223,6 +227,13 @@ export async function editTaskController(req, res) {
     const task = await getTaskInPbi(pbiId, taskId);
     if (!task) {
       return res.status(404).json({ message: 'Task not found' });
+    }
+
+    // Completing (or reopening) a task belongs to US-11's Complete action -
+    // see editStatusTransitionError in ../constants/taskStatus.js.
+    const transitionError = editStatusTransitionError(task.status, parsed.task.status, 'task');
+    if (transitionError) {
+      return res.status(400).json({ message: transitionError });
     }
 
     const updatedTask = await updateTask(pbiId, taskId, parsed.task);

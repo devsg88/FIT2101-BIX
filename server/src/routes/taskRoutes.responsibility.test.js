@@ -36,7 +36,7 @@ const ROUTES = [
   { label: 'edit task', method: 'PATCH', path: TASK, body: { title: 'Renamed', status: 'in_progress' }, write: () => updateTask },
   { label: 'delete task', method: 'DELETE', path: TASK, write: () => deleteTask },
   { label: 'assign task', method: 'PATCH', path: `${TASK}/assignee`, body: { assignee_id: 2 }, write: () => assignTask },
-  { label: 'edit sub-task', method: 'PATCH', path: SUB_TASK, body: { title: 'Renamed', status: 'done' }, write: () => updateSubTask },
+  { label: 'edit sub-task', method: 'PATCH', path: SUB_TASK, body: { title: 'Renamed', status: 'in_progress' }, write: () => updateSubTask },
   { label: 'delete sub-task', method: 'DELETE', path: SUB_TASK, write: () => deleteSubTask },
   { label: 'assign sub-task', method: 'PATCH', path: `${SUB_TASK}/assignee`, body: { assignee_id: 2 }, write: () => assignSubTask }
 ];

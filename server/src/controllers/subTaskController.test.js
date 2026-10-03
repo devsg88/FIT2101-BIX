@@ -97,16 +97,65 @@ describe('editSubTaskController', () => {
     getPbiById.mockResolvedValue(openPbi);
     getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
-    const updated = { ...existingSubTask, title: 'Validate input (v2)', status: 'done' };
+    const updated = { ...existingSubTask, title: 'Validate input (v2)', status: 'in_progress' };
     updateSubTask.mockResolvedValue(updated);
     const res = mockRes();
 
     await editSubTaskController(
-      mockReq({ body: { title: 'Validate input (v2)', status: 'done' } }),
+      mockReq({ body: { title: 'Validate input (v2)', status: 'in_progress' } }),
       res
     );
 
-    expect(updateSubTask).toHaveBeenCalledWith(3, 4, { title: 'Validate input (v2)', status: 'done' });
+    expect(updateSubTask).toHaveBeenCalledWith(3, 4, { title: 'Validate input (v2)', status: 'in_progress' });
+    expect(res.json).toHaveBeenCalledWith({ subTask: updated });
+  });
+
+  // Completion belongs to US-11's Complete action: Edit may not mark a
+  // sub-task done or reopen a done one, but may still retitle a done one.
+  it('returns 400 and writes nothing when Edit tries to mark the sub-task done', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue(parentTask);
+    getSubTaskById.mockResolvedValue(existingSubTask);
+    const res = mockRes();
+
+    await editSubTaskController(mockReq({ body: { title: 'Validate input', status: 'done' } }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'A sub-task can only be marked done through the Complete action'
+    });
+    expect(updateSubTask).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 and writes nothing when Edit tries to reopen a done sub-task', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue(parentTask);
+    getSubTaskById.mockResolvedValue({ ...existingSubTask, status: 'done' });
+    const res = mockRes();
+
+    await editSubTaskController(mockReq({ body: { title: 'Validate input', status: 'todo' } }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'A completed sub-task cannot be reopened through Edit'
+    });
+    expect(updateSubTask).not.toHaveBeenCalled();
+  });
+
+  it('still lets Edit retitle a done sub-task while it stays done', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue(parentTask);
+    getSubTaskById.mockResolvedValue({ ...existingSubTask, status: 'done' });
+    const updated = { ...existingSubTask, title: 'Validate input (fixed typo)', status: 'done' };
+    updateSubTask.mockResolvedValue(updated);
+    const res = mockRes();
+
+    await editSubTaskController(
+      mockReq({ body: { title: 'Validate input (fixed typo)', status: 'done' } }),
+      res
+    );
+
+    expect(updateSubTask).toHaveBeenCalledWith(3, 4, { title: 'Validate input (fixed typo)', status: 'done' });
     expect(res.json).toHaveBeenCalledWith({ subTask: updated });
   });
 

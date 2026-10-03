@@ -17,3 +17,22 @@ const TASK_STATUS_SET = new Set(TASK_STATUSES);
 export function isTaskStatus(value) {
   return TASK_STATUS_SET.has(value);
 }
+
+// Which status changes the generic Admin Edit (US-04a) may make. Completing
+// work is owned by US-11's Complete actions, which enforce its prerequisites
+// (Active Sprint, assigned developer, sub-tasks done, actual hours) and record
+// actual_hours / completed_at - so Edit may move an item between todo and
+// in_progress, and may keep an already-done item done (e.g. to fix its title),
+// but may not move an item into done or reopen a done one.
+//
+// Returns null when the change is allowed, otherwise the message to send back.
+// `item` is the noun for the message ('task' or 'sub-task').
+export function editStatusTransitionError(currentStatus, nextStatus, item) {
+  if (nextStatus === 'done' && currentStatus !== 'done') {
+    return `A ${item} can only be marked done through the Complete action`;
+  }
+  if (currentStatus === 'done' && nextStatus !== 'done') {
+    return `A completed ${item} cannot be reopened through Edit`;
+  }
+  return null;
+}

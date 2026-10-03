@@ -6,7 +6,11 @@ import {
   deleteSubTask,
   assignSubTask
 } from '../models/subTaskModel.js';
-import { isTaskStatus, TASK_STATUSES } from '../constants/taskStatus.js';
+import {
+  isTaskStatus,
+  TASK_STATUSES,
+  editStatusTransitionError
+} from '../constants/taskStatus.js';
 import { listProjectMembers } from '../models/projectMembershipModel.js';
 
 // Sub-task mutation endpoints for US-04a. Mirrors taskController.js one
@@ -85,6 +89,13 @@ export async function editSubTaskController(req, res) {
     const subTask = await getSubTaskById(taskId, subTaskId);
     if (!subTask) {
       return res.status(404).json({ message: 'Sub-task not found' });
+    }
+
+    // Completing (or reopening) a sub-task belongs to US-11's Complete action -
+    // see editStatusTransitionError in ../constants/taskStatus.js.
+    const transitionError = editStatusTransitionError(subTask.status, parsed.subTask.status, 'sub-task');
+    if (transitionError) {
+      return res.status(400).json({ message: transitionError });
     }
 
     const updatedSubTask = await updateSubTask(taskId, subTaskId, parsed.subTask);

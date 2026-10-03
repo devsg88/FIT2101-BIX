@@ -71,11 +71,17 @@ function PbiMeta({ pbi }) {
 // The title + status inline edit form shown in place of a checklist row's
 // normal display while it is being edited. Shared by both tasks and
 // sub-tasks (kind picks which board action gets called on save).
+//
+// Edit never completes or reopens work - that is the US-11 Complete action,
+// which records actual hours and checks its prerequisites (the backend rejects
+// it too). So an open item can only move between To do and In progress, and a
+// done item keeps its status locked at Done while its title is edited.
 function ChecklistEditForm({ item, onSave, onCancel }) {
   const [title, setTitle] = useState(item.title);
   const [status, setStatus] = useState(item.status);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
+  const isDoneItem = item.status === 'done';
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -105,12 +111,17 @@ function ChecklistEditForm({ item, onSave, onCancel }) {
       <select
         value={status}
         onChange={(event) => setStatus(event.target.value)}
-        disabled={isSaving}
+        disabled={isSaving || isDoneItem}
         aria-label="Status"
       >
-        <option value="todo">To do</option>
-        <option value="in_progress">In progress</option>
-        <option value="done">Done</option>
+        {isDoneItem ? (
+          <option value="done">Done</option>
+        ) : (
+          <>
+            <option value="todo">To do</option>
+            <option value="in_progress">In progress</option>
+          </>
+        )}
       </select>
       <div className="project-board__checklist-edit-actions">
         <button type="submit" disabled={isSaving} aria-busy={isSaving}>

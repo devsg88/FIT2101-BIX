@@ -171,6 +171,57 @@ describe('Board page - admin task/sub-task controls (US-04a)', () => {
     expect(screen.getByText('Build upload endpoint')).toBeInTheDocument();
   });
 
+  // Completing work is the US-11 Complete action, not Edit.
+  it('does not offer Done in the status menu for an open item', async () => {
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'admin-tok' } });
+    getBoard.mockResolvedValue(boardWithOneTask);
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Build upload endpoint')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+
+    const statusSelect = screen.getByLabelText('Status');
+    const options = Array.from(statusSelect.options).map((option) => option.value);
+    expect(options).toEqual(['todo', 'in_progress']);
+    expect(statusSelect).toBeEnabled();
+  });
+
+  it('locks a done item\'s status at Done but still lets its title be edited', async () => {
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'admin-tok' } });
+    const doneTask = { ...boardWithOneTask.pbis[0].tasks[0], status: 'done' };
+    const boardWithDoneTask = {
+      ...boardWithOneTask,
+      pbis: [{ ...boardWithOneTask.pbis[0], tasks: [doneTask] }]
+    };
+    getBoard.mockResolvedValue(boardWithDoneTask);
+    updateTask.mockResolvedValue({ task: { ...doneTask, title: 'Build upload endpoint (typo fixed)' } });
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Build upload endpoint')).toBeInTheDocument());
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+
+    const statusSelect = screen.getByLabelText('Status');
+    expect(Array.from(statusSelect.options).map((option) => option.value)).toEqual(['done']);
+    expect(statusSelect).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Build upload endpoint (typo fixed)' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(updateTask).toHaveBeenCalledWith(
+        '7',
+        2,
+        9,
+        { title: 'Build upload endpoint (typo fixed)', status: 'done' },
+        'admin-tok'
+      )
+    );
+  });
+
   it('shows the edit form\'s own error and stays open when the save is rejected', async () => {
     useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'admin-tok' } });
     getBoard.mockResolvedValue(boardWithOneTask);
