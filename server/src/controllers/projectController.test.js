@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createProjectController } from './projectController.js';
-import { createProject } from '../models/projectModel.js';
+import {
+  createProjectController,
+  listResponsibleProjectsController,
+  updateProjectController,
+  deleteProjectController
+} from './projectController.js';
+import {
+  createProject,
+  listProjectsForResponsibleAdmin,
+  updateProjectName,
+  deleteEmptyProject
+} from '../models/projectModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
 vi.mock('../models/projectModel.js');
@@ -112,5 +122,209 @@ describe('createProjectController', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'Failed to create the project' });
+  });
+});
+
+describe('listResponsibleProjectsController (US-04c)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the logged-in Admin\'s responsible projects, looked up by req.user.id', async () => {
+    const projects = [
+      { id: '1', name: 'BIX Platform' },
+      { id: '3', name: 'US-04d Validation Project' }
+    ];
+    listProjectsForResponsibleAdmin.mockResolvedValue(projects);
+    const req = { user: admin };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledWith('3');
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ projects });
+  });
+
+  it('ignores any admin id in the query string or body - only the token decides', async () => {
+    listProjectsForResponsibleAdmin.mockResolvedValue([]);
+    const req = {
+      user: admin,
+      query: { adminId: '7', responsible_admin_id: '7' },
+      body: { adminId: '7' }
+    };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledTimes(1);
+    expect(listProjectsForResponsibleAdmin).toHaveBeenCalledWith('3');
+  });
+
+  it('returns an empty list when the Admin is responsible for no projects', async () => {
+    listProjectsForResponsibleAdmin.mockResolvedValue([]);
+    const req = { user: { id: '9', role: 'admin' } };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ projects: [] });
+  });
+
+  it('returns a generic 500 when the database fails, without leaking the database error', async () => {
+    listProjectsForResponsibleAdmin.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const req = { user: admin };
+    const res = mockRes();
+
+    await listResponsibleProjectsController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to load your projects' });
+  });
+});
+
+// US-04c: renaming a project (its board). Who may rename is decided by the
+// route's requireProjectResponsibility, so these tests cover only the
+// controller's own job: validating the name and saving it.
+describe('updateProjectController (US-04c)', () => {
+  function renameReq(body) {
+    return { user: admin, params: { projectId: '1' }, body };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('saves the trimmed name and returns the project with 200', async () => {
+    const renamed = { id: '1', name: 'BIX Platform v2', responsible_admin_id: '3' };
+    updateProjectName.mockResolvedValue(renamed);
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: '  BIX Platform v2  ' }), res);
+
+    expect(updateProjectName).toHaveBeenCalledWith(1, 'BIX Platform v2');
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ project: renamed });
+  });
+
+  it.each([
+    ['a missing name', {}],
+    ['a null name', { name: null }],
+    ['a blank name', { name: '   ' }]
+  ])('returns 400 for %s, without touching the database', async (_label, body) => {
+    const res = mockRes();
+
+    await updateProjectController(renameReq(body), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'A project name is required' });
+    expect(updateProjectName).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for a non-string name, without touching the database', async () => {
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 42 }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'The project name must be text' });
+    expect(updateProjectName).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when no project was updated', async () => {
+    updateProjectName.mockResolvedValue(null);
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 'P' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
+  });
+
+  it('returns a generic 500 when the database fails, without leaking the database error', async () => {
+    updateProjectName.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 'P' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to rename the project' });
+  });
+
+  it('ignores responsible_admin_id in the body - a rename never changes the owner', async () => {
+    updateProjectName.mockResolvedValue({ id: '1', name: 'P', responsible_admin_id: '3' });
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 'P', responsible_admin_id: '7' }), res);
+
+    expect(updateProjectName).toHaveBeenCalledTimes(1);
+    expect(updateProjectName).toHaveBeenCalledWith(1, 'P');
+  });
+});
+
+// US-04c: deleting an empty project (its board). Who may delete is decided by
+// the route's requireProjectResponsibility; these cover the controller's own
+// mapping of the model's outcome to a response.
+describe('deleteProjectController (US-04c)', () => {
+  function deleteReq(projectId = '5') {
+    return { user: admin, params: { projectId }, body: { projectId: '999' } };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 200 with the deleted id when the project was empty', async () => {
+    deleteEmptyProject.mockResolvedValue('deleted');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq('5'), res);
+
+    expect(deleteEmptyProject).toHaveBeenCalledWith(5);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project deleted', id: 5 });
+  });
+
+  it('returns 409 when the project still has work', async () => {
+    deleteEmptyProject.mockResolvedValue('has_work');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'This board still has work (PBIs or sprints) and cannot be deleted'
+    });
+  });
+
+  it('returns 404 when the project is gone', async () => {
+    deleteEmptyProject.mockResolvedValue('not_found');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
+  });
+
+  it('returns a generic 500 when the model throws, without leaking the database error', async () => {
+    deleteEmptyProject.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to delete the project' });
+  });
+
+  it('takes the project id from the route only, never the body', async () => {
+    deleteEmptyProject.mockResolvedValue('deleted');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq('5'), res);
+
+    expect(deleteEmptyProject).toHaveBeenCalledTimes(1);
+    expect(deleteEmptyProject).toHaveBeenCalledWith(5);
   });
 });

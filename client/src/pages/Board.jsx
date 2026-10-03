@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   BoardProvider,
@@ -746,6 +746,116 @@ function BoardColumns() {
   );
 }
 
+// The board's (project's) name, with Rename and Delete for an Admin (US-04c).
+// The board route only lets an Admin load a board they are responsible for,
+// so any Admin who can see this title may manage it; the backend still checks
+// responsibility on each action itself. Everyone else sees just the name.
+function ProjectTitle({ project }) {
+  const { user } = useAuth();
+  const { renameProject, deleteCurrentProject } = useBoard();
+  const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const canManageBoard = user?.role === 'admin' && project != null;
+
+  const startEditing = () => {
+    setName(project.name);
+    setError(null);
+    setDeleteError(null);
+    setIsEditing(true);
+  };
+
+  // Deleting the board deletes the project. The backend only allows it while
+  // the board has no PBIs or sprints (409 otherwise), so a refusal is shown
+  // here and the board stays as it is.
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${project.name}"? This cannot be undone.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteCurrentProject();
+      navigate('/dashboard');
+    } catch (err) {
+      setDeleteError(err?.message || 'Something went wrong deleting this board. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('A project name is required');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await renameProject(trimmedName);
+      setIsEditing(false);
+    } catch (err) {
+      // Stay in the form so the name can be corrected and saved again.
+      setError(err?.message || 'Something went wrong renaming this board. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <form className="project-board__checklist-edit" onSubmit={handleSubmit} noValidate>
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSaving}
+          aria-label="Project name"
+        />
+        <div className="project-board__checklist-edit-actions">
+          <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          <button type="button" onClick={() => setIsEditing(false)} disabled={isSaving}>
+            Cancel
+          </button>
+        </div>
+        {error && (
+          <p className="project-board__card-error" role="alert">{error}</p>
+        )}
+      </form>
+    );
+  }
+
+  return (
+    <>
+      <span className="project-board__project-pill">
+        {project?.name ?? 'Project board'}
+      </span>
+      {canManageBoard && (
+        <span className="project-board__checklist-edit-actions">
+          <button type="button" onClick={startEditing} disabled={isDeleting}>
+            Rename
+          </button>
+          {/* "Delete board", not just "Delete": the task/sub-task rows below
+              have their own Delete buttons, and this removes the whole board. */}
+          <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete board'}
+          </button>
+        </span>
+      )}
+      {deleteError && (
+        <p className="project-board__card-error" role="alert">{deleteError}</p>
+      )}
+    </>
+  );
+}
+
 // The bar across the top of the page: brand mark (links home), the current
 // project's name, and who is logged in. Shown in every state (loading, error,
 // ready) since none of it depends on the board having finished loading.
@@ -756,9 +866,7 @@ function BoardTopBar({ project }) {
   return (
     <header className="project-board__topbar">
       <Link to="/dashboard" className="project-board__brand">BIX</Link>
-      <span className="project-board__project-pill">
-        {project?.name ?? 'Project board'}
-      </span>
+      <ProjectTitle project={project} />
       <div className="project-board__user">
         <span className="project-board__user-name">{user?.name}</span>
         <span className="project-board__avatar" aria-hidden="true">{initial}</span>

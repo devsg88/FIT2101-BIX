@@ -50,6 +50,40 @@ export function createProject(name, token) {
   });
 }
 
+// GET /api/projects  (US-04c, Admin only)
+// The projects the logged-in Admin is responsible for, as { projects: [{ id,
+// name }] }. The server decides which projects those are from the token -
+// nothing here says which Admin is asking. Throws with the backend's message
+// on failure, like every other call in this file.
+export function getResponsibleProjects(token) {
+  return request('/projects', {
+    headers: authHeader(token)
+  });
+}
+
+// PATCH /api/projects/:projectId  (US-04c, responsible Admin only)
+// Renames the project - its board's name. Only the name is sent; who may
+// rename is decided by the server. Resolves with { project }, or throws with
+// the backend's message (blank name, not responsible, ...).
+export function updateProject(projectId, name, token) {
+  return request(`/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
+// DELETE /api/projects/:projectId  (US-04c, responsible Admin only)
+// Deletes the project - its board - only while it has no PBIs or sprints.
+// Resolves with { message, id }, or throws with the backend's message (409
+// when the board still has work, 403 when not responsible, ...).
+export function deleteProject(projectId, token) {
+  return request(`/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
