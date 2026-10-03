@@ -564,6 +564,14 @@ function BoardTopBar({ project, onOpenHistory }) {
 function CompletedWorkItem({ pbi }) {
   const sprintLabel = pbi.sprint_name ?? 'Not recorded';
   const effortLabel = pbi.actual_hours != null ? `${Number(pbi.actual_hours)}h` : 'Not recorded';
+  // collaborators comes from completedWorkModel.js's join onto
+  // pbi_collaborators (US-11). An empty array is a real, honest answer for a
+  // PBI completed before that table existed or recorded against - shown the
+  // same way an unrecorded Effort is, not left blank.
+  const collaboratorsLabel =
+    pbi.collaborators?.length > 0
+      ? pbi.collaborators.map((collaborator) => collaborator.name).join(', ')
+      : 'No collaborators recorded';
   const taskCount = pbi.tasks?.length ?? 0;
   // updated_at is the closest thing this schema has to a completion
   // timestamp (there is no dedicated completed_at column yet); it is bumped
@@ -589,6 +597,10 @@ function CompletedWorkItem({ pbi }) {
         <div className="completed-work__item-field">
           <dt>Effort</dt>
           <dd>{effortLabel}</dd>
+        </div>
+        <div className="completed-work__item-field completed-work__item-field--wide">
+          <dt>Collaborators</dt>
+          <dd>{collaboratorsLabel}</dd>
         </div>
       </dl>
 
