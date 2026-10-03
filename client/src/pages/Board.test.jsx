@@ -7,8 +7,11 @@ import {
   getBoard,
   movePbi,
   startSprint,
-  updatePbiPlanning,
-  getCompletedWork
+  updatePbiPlanning, 
+  getCompletedWork, 
+  completeTask, 
+  completeSubTask, 
+  completePbi
 } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
@@ -17,6 +20,9 @@ vi.mock('../services/api.js', () => ({
   movePbi: vi.fn(),
   updatePbiPlanning: vi.fn(),
   startSprint: vi.fn(),
+  completeTask: vi.fn(),
+  completeSubTask: vi.fn(),
+  completePbi: vi.fn(),
   getCompletedWork: vi.fn()
 }));
 
@@ -671,6 +677,134 @@ describe('Board page', () => {
       await waitFor(() =>
         expect(screen.queryByRole('dialog', { name: 'Completed work history' })).not.toBeInTheDocument()
       );
+    });
+  });
+
+  it('lets the assigned developer complete a task with actual hours', async () => {
+    const activePbi = {
+      id: 3,
+      title: 'Burndown chart',
+      stage: 'active_sprint',
+      estimated_hours: '24.00',
+      planned_start_date: '2026-08-17',
+      planned_end_date: '2026-08-28',
+      tasks: [
+        {
+          id: 3,
+          title: 'Aggregate remaining hours per day',
+          status: 'in_progress',
+          assignee_id: 1,
+          actual_hours: null,
+          subTasks: []
+        }
+      ]
+    };
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [activePbi]
+      })
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{
+          ...activePbi,
+          tasks: [{
+            ...activePbi.tasks[0],
+            status: 'done',
+            actual_hours: '4.00'
+          }]
+        }]
+      });
+    completeTask.mockResolvedValue({ task: { id: 3, status: 'done' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Burndown chart')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Actual hours for Aggregate remaining hours per day'), {
+      target: { value: '4' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete task' }));
+
+    await waitFor(() => expect(completeTask).toHaveBeenCalledWith('7', 3, 4, 'tok'));
+    await waitFor(() => expect(screen.getByText('Logged: 4h')).toBeInTheDocument());
+  });
+
+  it('shows validation when actual hours are not positive', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{
+        id: 3,
+        title: 'Burndown chart',
+        stage: 'active_sprint',
+        tasks: [{
+          id: 3,
+          title: 'Aggregate remaining hours per day',
+          status: 'in_progress',
+          assignee_id: 1,
+          subTasks: []
+        }]
+      }]
+    });
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Burndown chart')).toBeInTheDocument());
+
+    fireEvent.change(screen.getByLabelText('Actual hours for Aggregate remaining hours per day'), {
+      target: { value: '0' }
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Complete task' }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Actual hours must be greater than 0')
+    );
+    expect(completeTask).not.toHaveBeenCalled();
+  });
+
+  it('moves a PBI with finished tasks into Completed', async () => {
+    const donePbi = {
+      id: 3,
+      title: 'Burndown chart',
+      stage: 'active_sprint',
+      estimated_hours: '24.00',
+      tasks: [{
+        id: 3,
+        title: 'Aggregate remaining hours per day',
+        status: 'done',
+        assignee_id: 1,
+        actual_hours: '4.00',
+        subTasks: []
+      }]
+    };
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [donePbi]
+      })
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ ...donePbi, stage: 'completed', actual_hours: '4.00' }]
+      });
+    completePbi.mockResolvedValue({ pbi: { id: 3, stage: 'completed' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Burndown chart')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: 'Complete PBI' }));
+
+    await waitFor(() => expect(completePbi).toHaveBeenCalledWith('7', 3, {}, 'tok'));
+    await waitFor(() => {
+      const completedColumn = screen
+        .getByRole('heading', { name: 'Completed' })
+        .closest('section');
+      expect(completedColumn).toHaveTextContent('Burndown chart');
+      expect(completedColumn).toHaveTextContent('Logged: 4h');
     });
   });
 });

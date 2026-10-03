@@ -98,7 +98,8 @@ export async function getPbisByStage(projectId, stage) {
 
 export async function getTasksByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT t.id, t.pbi_id, t.title, t.status
+    `SELECT t.id, t.pbi_id, t.title, t.status,
+            t.assignee_id, t.actual_hours, t.completed_at
        FROM tasks t
        JOIN product_backlog_items p ON p.id = t.pbi_id
       WHERE p.project_id = $1

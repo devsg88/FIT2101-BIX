@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getBoard, movePbi, startSprint, updatePbiPlanning, getCompletedWork } from './api.js';
+import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, getCompletedWork } from './api.js';
 
 function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
@@ -77,6 +77,15 @@ describe('board api helpers', () => {
     await expect(startSprint(7, 3, 'tok-123')).rejects.toThrow(
       'Cannot start an empty sprint'
     );
+  });
+
+  it('completeTask posts actual hours', async () => {
+    await completeTask(7, 3, 4, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/tasks/3/complete');
+    expect(options.method).toBe('POST');
+    expect(options.body).toBe(JSON.stringify({ actual_hours: 4 }));
   });
 
   it('getCompletedWork performs a GET with the Bearer token (US-12)', async () => {

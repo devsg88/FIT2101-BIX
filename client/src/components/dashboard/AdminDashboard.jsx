@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar.jsx';
+import CreateProjectModal from './CreateProjectModal.jsx';
 import { allTeams, orgStats, productOwnerHandle } from '../../data/orgMockData.js';
 
 export default function AdminDashboard({ data }) {
+  const [showCreateProject, setShowCreateProject] = useState(false);
+
   return (
     <div className="admin-dashboard">
       <AdminSidebar />
@@ -16,6 +20,14 @@ export default function AdminDashboard({ data }) {
             </button>
             <button type="button" className="admin-btn admin-btn--solid">
               + Create Team
+            </button>
+            {/* US-04d: same styling as "+ Create Team" - no Figma screen exists for this flow. */}
+            <button
+              type="button"
+              className="admin-btn admin-btn--solid"
+              onClick={() => setShowCreateProject(true)}
+            >
+              + Create Project
             </button>
           </div>
         </div>
@@ -91,6 +103,10 @@ export default function AdminDashboard({ data }) {
           </div>
         </section>
       </main>
+
+      {showCreateProject && (
+        <CreateProjectModal onClose={() => setShowCreateProject(false)} />
+      )}
     </div>
   );
 }
