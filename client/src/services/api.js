@@ -94,3 +94,27 @@ export function startSprint(projectId, sprintId, token) {
     headers: authHeader(token)
   });
 }
+
+// POST /api/projects/:projectId/tasks/:taskId/complete  (US-11 — Yichi Zhang)
+export function completeTask(projectId, taskId, actualHours, token) {
+  return request(`/projects/${projectId}/tasks/${taskId}/complete`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ actual_hours: actualHours })
+  });
+}
+
+export function completeSubTask(projectId, subTaskId, token) {
+  return request(`/projects/${projectId}/sub-tasks/${subTaskId}/complete`, {
+    method: 'POST',
+    headers: authHeader(token)
+  });
+}
+
+export function completePbi(projectId, pbiId, payload, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/complete`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify(payload || {})
+  });
+}
