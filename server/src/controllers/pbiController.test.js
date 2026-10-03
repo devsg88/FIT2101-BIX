@@ -595,9 +595,22 @@ describe('deletePbiController (US-04b)', () => {
     }
   );
 
-  it('returns 409 when the PBI still has tasks', async () => {
+  // 23001 is what PostgreSQL actually raises for tasks.pbi_id ON DELETE
+  // RESTRICT (found in the SCRUM-104 walkthrough against a real database);
+  // 23503 is the NO ACTION equivalent.
+  it.each([
+    ['restrict_violation (23001)', '23001'],
+    ['foreign_key_violation (23503)', '23503']
+  ])('returns 409 when the PBI still has tasks - %s', async (_label, code) => {
     getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'product_backlog' });
-    deletePbi.mockRejectedValue(Object.assign(new Error('fk'), { code: '23503' }));
+    deletePbi.mockRejectedValue(
+      Object.assign(
+        new Error(
+          'update or delete on table "product_backlog_items" violates RESTRICT setting of foreign key constraint "tasks_pbi_id_fkey" on table "tasks"'
+        ),
+        { code }
+      )
+    );
     const res = mockRes();
 
     await deletePbiController(deleteReq(), res);

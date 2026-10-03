@@ -173,9 +173,11 @@ export async function updatePbiDetailsController(req, res) {
   }
 }
 
-// PostgreSQL's error code for a foreign key violation - here, deleting a PBI
-// that still has tasks (tasks.pbi_id is ON DELETE RESTRICT).
-const FOREIGN_KEY_VIOLATION = '23503';
+// PostgreSQL error codes for deleting a PBI that tasks still reference.
+// tasks.pbi_id is ON DELETE RESTRICT, which PostgreSQL reports as
+// restrict_violation (23001); foreign_key_violation (23503) is what the
+// default NO ACTION reports, kept so a future schema change still maps here.
+const PBI_STILL_REFERENCED = new Set(['23001', '23503']);
 
 // DELETE /api/projects/:projectId/pbis/:pbiId
 // US-04b. Same guards as create/edit: only the Admin responsible for this
@@ -220,7 +222,7 @@ export async function deletePbiController(req, res) {
 
     return res.json({ pbi: deletedPbi });
   } catch (err) {
-    if (err?.code === FOREIGN_KEY_VIOLATION) {
+    if (PBI_STILL_REFERENCED.has(err?.code)) {
       return res.status(409).json({
         message: 'Cannot delete a PBI that still has tasks. Remove its tasks first.'
       });

@@ -220,9 +220,9 @@ describe('deletePbi (US-04b)', () => {
     expect(await deletePbi(1, 99)).toBeNull();
   });
 
-  it('passes a foreign key violation (PBI still has tasks) through to the caller', async () => {
-    pool.query.mockRejectedValue(Object.assign(new Error('fk'), { code: '23503' }));
+  it('passes a restrict violation (PBI still has tasks) through to the caller', async () => {
+    pool.query.mockRejectedValue(Object.assign(new Error('restrict'), { code: '23001' }));
 
-    await expect(deletePbi(1, 4)).rejects.toMatchObject({ code: '23503' });
+    await expect(deletePbi(1, 4)).rejects.toMatchObject({ code: '23001' });
   });
 });

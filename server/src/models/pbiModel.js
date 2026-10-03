@@ -86,7 +86,7 @@ export async function updatePbiDetails(projectId, pbiId, changes) {
 //
 // A PBI that still has tasks cannot be deleted: tasks.pbi_id is ON DELETE
 // RESTRICT (see server/db/schema.sql), so PostgreSQL rejects the DELETE with
-// a foreign_key_violation (code 23503), which is passed through to the caller.
+// a restrict_violation (code 23001), which is passed through to the caller.
 export async function deletePbi(projectId, pbiId) {
   const { rows } = await pool.query(
     `DELETE FROM product_backlog_items
