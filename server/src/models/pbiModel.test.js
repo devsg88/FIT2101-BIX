@@ -142,7 +142,7 @@ describe('getTasksByProject', () => {
     await getTasksByProject(1);
 
     const [sql, params] = pool.query.mock.calls[0];
-    expect(sql).toMatch(/SELECT t\.id, t\.pbi_id, t\.title, t\.status, t\.assignee_id/i);
+    expect(sql).toMatch(/SELECT t\.id, t\.pbi_id, t\.title, t\.status,\s*t\.assignee_id/i);
     expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
     expect(params).toEqual([1]);
   });

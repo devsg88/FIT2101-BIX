@@ -61,6 +61,10 @@ function PbiMeta({ pbi }) {
     parts.push(`${start} - ${end}`);
   }
 
+  if (pbi.actual_hours != null) {
+    parts.push(`Actual: ${Number(pbi.actual_hours)}h`);
+  }
+
   return <p className="project-board__card-meta">{parts.join(' | ')}</p>;
 }
 
@@ -263,10 +267,138 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
   );
 }
 
+function sameUserId(left, right) {
+  return left != null && right != null && String(left) === String(right);
+}
+
+function isDone(status) {
+  return status === 'done';
+}
+
+function SubTaskCompleteButton({ subTask }) {
+  const { completeAssignedSubTask } = useBoard();
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClick = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      await completeAssignedSubTask(subTask.id);
+    } catch (err) {
+      setError(err?.message || 'Could not complete this sub-task.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div className="project-board__complete-inline">
+      <button type="button" onClick={handleClick} disabled={isSaving}>
+        {isSaving ? 'Saving...' : 'Mark complete'}
+      </button>
+      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+// US-11 — Yichi Zhang (SCRUM-130 / SCRUM-131)
+// Assigned developer enters positive actual hours; recorded effort is shown
+// on the task after save. Never writes Estimated Hours.
+function TaskCompleteForm({ task }) {
+  const { user } = useAuth();
+  const { completeAssignedTask } = useBoard();
+  const [hours, setHours] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const isAssignee = sameUserId(user?.id, task.assignee_id);
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const actualHours = Number(hours);
+    if (!Number.isFinite(actualHours) || actualHours <= 0) {
+      setError('Actual hours must be greater than 0');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await completeAssignedTask(task.id, actualHours);
+    } catch (err) {
+      setError(err?.message || 'Could not complete this task.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (!isAssignee) {
+    return (
+      <p className="project-board__hint">
+        Only the assigned developer can complete this task.
+      </p>
+    );
+  }
+
+  return (
+    <form className="project-board__complete-form" onSubmit={handleSubmit} noValidate>
+      <label className="project-board__planning-label">
+        Actual hours
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          required
+          value={hours}
+          onChange={(event) => setHours(event.target.value)}
+          disabled={isSaving}
+          aria-label={`Actual hours for ${task.title}`}
+        />
+      </label>
+      <button type="submit" disabled={isSaving}>
+        {isSaving ? 'Saving...' : 'Complete task'}
+      </button>
+      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+    </form>
+  );
+}
+
+function TaskWork({ task, pbiStage, pbiId, canManage }) {
+  const canComplete = pbiStage === 'active_sprint' && !isDone(task.status);
+  const logged = task.actual_hours != null ? Number(task.actual_hours) : null;
+
+  return (
+    <li>
+      <ChecklistRow item={task} kind="task" pbiId={pbiId} canManage={canManage} />
+      {logged != null && (
+        <p className="project-board__logged-effort">Logged: {logged}h</p>
+      )}
+      {canComplete && <TaskCompleteForm task={task} />}
+      {task.subTasks?.length > 0 && (
+        <ul className="project-board__checklist project-board__checklist--nested">
+          {task.subTasks.map((subTask) => (
+            <li key={subTask.id}>
+              <ChecklistRow
+                item={subTask}
+                kind="subTask"
+                pbiId={pbiId}
+                taskId={task.id}
+                canManage={canManage}
+              />
+              {pbiStage === 'active_sprint' && !isDone(subTask.status) && (
+                <SubTaskCompleteButton subTask={subTask} />
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 // Shows a PBI's tasks, and each task's sub-tasks nested underneath it. Renders
 // nothing if the PBI has no tasks yet, same as the design has no checklist on
 // a card with no tasks.
-function TaskChecklist({ tasks, pbiId, canManage }) {
+function TaskChecklist({ tasks, pbiStage, pbiId, canManage }) {
   if (!tasks || tasks.length === 0) {
     return null;
   }
@@ -274,26 +406,81 @@ function TaskChecklist({ tasks, pbiId, canManage }) {
   return (
     <ul className="project-board__checklist">
       {tasks.map((task) => (
-        <li key={task.id}>
-          <ChecklistRow item={task} kind="task" pbiId={pbiId} canManage={canManage} />
-          {task.subTasks?.length > 0 && (
-            <ul className="project-board__checklist project-board__checklist--nested">
-              {task.subTasks.map((subTask) => (
-                <li key={subTask.id}>
-                  <ChecklistRow
-                    item={subTask}
-                    kind="subTask"
-                    pbiId={pbiId}
-                    taskId={task.id}
-                    canManage={canManage}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-        </li>
+        <TaskWork
+          key={task.id}
+          task={task}
+          pbiStage={pbiStage}
+          pbiId={pbiId}
+          canManage={canManage}
+        />
       ))}
     </ul>
+  );
+}
+
+function CompletePbiButton({ pbi }) {
+  const { completeActivePbi } = useBoard();
+  const [hours, setHours] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const tasks = pbi.tasks || [];
+  const hasTasks = tasks.length > 0;
+  const allTasksDone = hasTasks && tasks.every((task) => isDone(task.status));
+  const canComplete = !hasTasks || allTasksDone;
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setError(null);
+    try {
+      const payload = {};
+      if (!hasTasks) {
+        const actualHours = Number(hours);
+        if (!Number.isFinite(actualHours) || actualHours <= 0) {
+          setError('Actual hours must be greater than 0');
+          setIsSaving(false);
+          return;
+        }
+        payload.actual_hours = actualHours;
+      }
+      await completeActivePbi(pbi.id, payload);
+    } catch (err) {
+      setError(err?.message || 'Could not complete this item.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form className="project-board__complete-form" onSubmit={handleSubmit}>
+      {!hasTasks && (
+        <label className="project-board__planning-label">
+          Actual hours
+          <input
+            type="number"
+            min="0.01"
+            step="0.01"
+            required
+            value={hours}
+            onChange={(event) => setHours(event.target.value)}
+            disabled={isSaving}
+            aria-label={`Actual hours for ${pbi.title}`}
+          />
+        </label>
+      )}
+      <button
+        type="submit"
+        disabled={!canComplete || isSaving}
+        title={
+          canComplete
+            ? 'Move this item to Completed and record collaborators'
+            : 'Complete every task first'
+        }
+      >
+        {isSaving ? 'Saving...' : 'Complete PBI'}
+      </button>
+      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+    </form>
   );
 }
 
@@ -502,11 +689,17 @@ function PbiCard({ pbi, canManage }) {
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
-      <TaskChecklist tasks={pbi.tasks} pbiId={pbi.id} canManage={canManage} />
+      <TaskChecklist
+        tasks={pbi.tasks}
+        pbiStage={pbi.stage}
+        pbiId={pbi.id}
+        canManage={canManage}
+      />
       {pbi.stage === 'product_backlog' && (
         <MoveToSprintPlanningButton pbiId={pbi.id} />
       )}
       {pbi.stage === 'sprint_planning' && <PlanningForm pbi={pbi} />}
+      {pbi.stage === 'active_sprint' && <CompletePbiButton pbi={pbi} />}
     </article>
   );
 }

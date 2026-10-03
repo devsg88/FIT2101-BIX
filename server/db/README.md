@@ -27,8 +27,32 @@ plain `pg` pool against `DATABASE_URL`).
 |--------|------|-------|
 | `id`   | `bigint` identity | Primary key. |
 | `name` | `text` | `NOT NULL`. |
+| `responsible_admin_id` | `bigint` | **Nullable.** FK → `users(id)`, `ON DELETE RESTRICT`. Indexed. The Admin responsible for the project (US-04d). |
 
 Top of the hierarchy. A project may have no sprints and no PBIs.
+
+`responsible_admin_id` is the US-04d source of truth for which Admin is
+responsible for a project. The Admin who creates a project
+(`POST /api/projects`) is recorded here. `project_members` remains project
+membership (US-05) and is not used for responsible-Admin ownership — the
+responsible Admin is not added there.
+
+`requireProjectResponsibility` (middleware) and `getProjectResponsibility`
+(model) provide the responsibility check and are covered by unit tests. The
+related Admin stories (US-04a, US-04b, US-04c) are expected to use them; as of
+US-04d, no live management route uses `requireProjectResponsibility` yet.
+Where the guard is applied, a project whose `responsible_admin_id` is `NULL`
+is refused for every Admin.
+
+- `schema.sql` includes this column, so a fresh setup needs no migration for it.
+- A database set up before US-04d gets it from
+  `migrations/003_us04d_project_responsible_admin.sql`. The migration only adds
+  the column, foreign key and index; it assigns no responsible Admin, so
+  existing projects start with `NULL`.
+- When re-run, `seed.sql` assigns the seeded Admin (`admin@bix.app`) to BIX
+  Platform (project 1) only where `responsible_admin_id` is `NULL`. Mobile App
+  (project 2) intentionally remains unowned, as the seeded "Admin not
+  responsible for this project" case.
 
 ### `sprints`
 | Column | Type | Notes |

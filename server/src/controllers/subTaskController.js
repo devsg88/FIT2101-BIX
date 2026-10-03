@@ -1,5 +1,5 @@
 import { getPbiById } from '../models/pbiModel.js';
-import { getTaskById } from '../models/taskModel.js';
+import { getTaskInPbi } from '../models/taskModel.js';
 import {
   getSubTaskById,
   updateSubTask,
@@ -29,7 +29,7 @@ async function loadPbiAndTaskOr404(projectId, pbiId, taskId) {
     return { error: { status: 404, message: 'PBI not found' } };
   }
 
-  const task = await getTaskById(pbiId, taskId);
+  const task = await getTaskInPbi(pbiId, taskId);
   if (!task) {
     return { error: { status: 404, message: 'Task not found' } };
   }

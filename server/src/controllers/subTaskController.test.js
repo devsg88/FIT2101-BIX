@@ -5,7 +5,7 @@ import {
   assignSubTaskController
 } from './subTaskController.js';
 import { getPbiById } from '../models/pbiModel.js';
-import { getTaskById } from '../models/taskModel.js';
+import { getTaskInPbi } from '../models/taskModel.js';
 import {
   getSubTaskById,
   updateSubTask,
@@ -65,12 +65,12 @@ describe('editSubTaskController', () => {
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ message: 'PBI not found' });
-    expect(getTaskById).not.toHaveBeenCalled();
+    expect(getTaskInPbi).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the task does not belong to that PBI', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(null);
+    getTaskInPbi.mockResolvedValue(null);
     const res = mockRes();
 
     await editSubTaskController(mockReq({ body: { title: 'x', status: 'todo' } }), res);
@@ -82,7 +82,7 @@ describe('editSubTaskController', () => {
 
   it('returns 404 when the sub-task does not belong to that task', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(null);
     const res = mockRes();
 
@@ -95,7 +95,7 @@ describe('editSubTaskController', () => {
 
   it('updates the sub-task and returns it', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
     const updated = { ...existingSubTask, title: 'Validate input (v2)', status: 'done' };
     updateSubTask.mockResolvedValue(updated);
@@ -128,7 +128,7 @@ describe('deleteSubTaskController', () => {
 
   it('returns 409 when the parent PBI is completed, and never loads the sub-task', async () => {
     getPbiById.mockResolvedValue(completedPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     const res = mockRes();
 
     await deleteSubTaskController(mockReq(), res);
@@ -143,7 +143,7 @@ describe('deleteSubTaskController', () => {
 
   it('returns 404 when the sub-task does not belong to that task', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(null);
     const res = mockRes();
 
@@ -155,7 +155,7 @@ describe('deleteSubTaskController', () => {
 
   it('deletes the sub-task with no child clean-up (sub-tasks are the bottom of the hierarchy)', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
     deleteSubTask.mockResolvedValue(true);
     const res = mockRes();
@@ -168,7 +168,7 @@ describe('deleteSubTaskController', () => {
 
   it('returns 404 if the sub-task disappears between the check and the delete', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
     deleteSubTask.mockResolvedValue(false);
     const res = mockRes();
@@ -206,7 +206,7 @@ describe('assignSubTaskController', () => {
 
   it('returns 400 when assignee_id is not a member of the project', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
     listProjectMembers.mockResolvedValue([{ id: 9, name: 'Someone Else' }]);
     const res = mockRes();
@@ -222,7 +222,7 @@ describe('assignSubTaskController', () => {
 
   it('accepts a project member even though pg returns member.id as a string (bigint)', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
     listProjectMembers.mockResolvedValue([{ id: '2', name: 'Developer' }]);
     const assigned = { ...existingSubTask, assignee_id: 2 };
@@ -237,7 +237,7 @@ describe('assignSubTaskController', () => {
 
   it('unassigns with assignee_id: null without checking project membership', async () => {
     getPbiById.mockResolvedValue(openPbi);
-    getTaskById.mockResolvedValue(parentTask);
+    getTaskInPbi.mockResolvedValue(parentTask);
     getSubTaskById.mockResolvedValue(existingSubTask);
     const unassigned = { ...existingSubTask, assignee_id: null };
     assignSubTask.mockResolvedValue(unassigned);

@@ -5,9 +5,9 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { getTaskById, updateTask, deleteTask, assignTask } from './taskModel.js';
+import { getTaskInPbi, updateTask, deleteTask, assignTask } from './taskModel.js';
 
-describe('getTaskById', () => {
+describe('getTaskInPbi', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -15,7 +15,7 @@ describe('getTaskById', () => {
   it('scopes the SELECT to both id and pbi_id', async () => {
     pool.query.mockResolvedValue({ rows: [{ id: 1, pbi_id: 2 }] });
 
-    await getTaskById(2, 1);
+    await getTaskInPbi(2, 1);
 
     const [sql, params] = pool.query.mock.calls[0];
     expect(sql).toMatch(/SELECT/i);
@@ -27,7 +27,7 @@ describe('getTaskById', () => {
   it('returns null when no row matches', async () => {
     pool.query.mockResolvedValue({ rows: [] });
 
-    const result = await getTaskById(2, 999);
+    const result = await getTaskInPbi(2, 999);
 
     expect(result).toBeNull();
   });
