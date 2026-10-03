@@ -57,6 +57,14 @@ export async function moveStageController(req, res) {
       });
     }
 
+    // US-11 (Yichi Zhang): Active Sprint -> Completed must go through the
+    // complete-PBI action so actual hours and collaborators are recorded.
+    if (targetStage === 'completed') {
+      return res.status(400).json({
+        message: 'Cannot move a PBI into Completed without recording actual hours. Complete the PBI instead.'
+      });
+    }
+
     const transition = checkStageTransition(pbi.stage, targetStage);
     if (!transition.allowed) {
       return res.status(400).json({ message: transition.reason });

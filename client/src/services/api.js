@@ -37,6 +37,19 @@ export function getDashboard(token) {
   });
 }
 
+// POST /api/projects  (US-04d, Admin only)
+// Creates a project owned by the logged-in Admin. Only the name is sent; the
+// server takes the responsible Admin from the token, never from the body.
+// Resolves with { project } on success, or throws with the backend's
+// rejection message (missing/blank name, not an Admin, ...).
+export function createProject(name, token) {
+  return request('/projects', {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
@@ -79,5 +92,29 @@ export function startSprint(projectId, sprintId, token) {
   return request(`/projects/${projectId}/sprints/${sprintId}/start`, {
     method: 'POST',
     headers: authHeader(token)
+  });
+}
+
+// POST /api/projects/:projectId/tasks/:taskId/complete  (US-11 — Yichi Zhang)
+export function completeTask(projectId, taskId, actualHours, token) {
+  return request(`/projects/${projectId}/tasks/${taskId}/complete`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ actual_hours: actualHours })
+  });
+}
+
+export function completeSubTask(projectId, subTaskId, token) {
+  return request(`/projects/${projectId}/sub-tasks/${subTaskId}/complete`, {
+    method: 'POST',
+    headers: authHeader(token)
+  });
+}
+
+export function completePbi(projectId, pbiId, payload, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/complete`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify(payload || {})
   });
 }

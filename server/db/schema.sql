@@ -110,7 +110,13 @@ CREATE TABLE IF NOT EXISTS tasks (
     -- CHECK and no default, pending a team decision. See server/db/README.md
     -- ("Open questions and flags"). Add a CHECK (...) via migration once the
     -- vocabulary is agreed.
-    status text
+    status text,
+    -- US-11 (Yichi Zhang): Actual Hours logged when the task is completed.
+    -- Separate from the parent PBI's estimated_hours (Sprint Planning).
+    -- NULL until completion. Must be > 0 when set. assignee_id is added
+    -- after the users table exists (see ALTER below).
+    actual_hours  numeric(6,2) CHECK (actual_hours IS NULL OR actual_hours > 0),
+    completed_at  timestamptz
 );
 
 CREATE INDEX IF NOT EXISTS idx_tasks_pbi_id ON tasks (pbi_id);
@@ -191,6 +197,31 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE INDEX IF NOT EXISTS idx_users_role ON users (role);
 
 -- -------------------------------------------------------------------------
+-- projects.responsible_admin_id  (US-04d)
+--   The one Admin responsible for a project - set to the Admin who creates
+--   it. Related Admin stories (US-04a, US-04c) check this column to decide
+--   whether an Admin may manage a particular project.
+--
+--   Added here rather than inside CREATE TABLE projects above because users
+--   is created after projects in this file, so the foreign key cannot be
+--   declared any earlier. Existing databases get the same column from
+--   server/db/migrations/003_us04d_project_responsible_admin.sql.
+--
+--   Nullable: NULL means no Admin is responsible, so every Admin is denied
+--   project-scoped admin actions on that project. Deliberately separate from
+--   project_members, which is Developer access (US-05), not responsibility.
+--   ON DELETE RESTRICT, in line with "Deletion behaviour" in
+--   server/db/README.md: an Admin who is still responsible for a project
+--   cannot be deleted out from under it.
+-- -------------------------------------------------------------------------
+ALTER TABLE projects
+    ADD COLUMN IF NOT EXISTS responsible_admin_id bigint
+        REFERENCES users (id) ON DELETE RESTRICT;
+
+CREATE INDEX IF NOT EXISTS idx_projects_responsible_admin_id
+    ON projects (responsible_admin_id);
+
+-- -------------------------------------------------------------------------
 -- teams
 --   A developer team, independent of any one project - an admin can staff a
 --   team before it has any project work. See the note above on why project
@@ -243,6 +274,23 @@ CREATE TABLE IF NOT EXISTS project_members (
 );
 
 CREATE INDEX IF NOT EXISTS idx_project_members_user_id ON project_members (user_id);
+
+-- US-11 (Yichi Zhang): assigned developer on a task. Added here because
+-- `tasks` is created before `users` in this file.
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS assignee_id bigint REFERENCES users (id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee_id ON tasks (assignee_id);
+
+-- US-11 (Yichi Zhang): developers who contributed to a completed PBI.
+-- Source data for completed-work history (US-12) and analytics (US-13).
+CREATE TABLE IF NOT EXISTS pbi_collaborators (
+    pbi_id  bigint NOT NULL REFERENCES product_backlog_items (id) ON DELETE RESTRICT,
+    user_id bigint NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
+    PRIMARY KEY (pbi_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pbi_collaborators_user_id ON pbi_collaborators (user_id);
 
 COMMIT;
 
