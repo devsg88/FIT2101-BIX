@@ -59,6 +59,16 @@ export function getBoard(projectId, token) {
   });
 }
 
+// GET /api/projects/:projectId/pbis  (US-04b, SCRUM-151)
+// The project's Product Backlog Items, for the Admin responsible for that
+// project. Resolves with { pbis: [...] }, or throws with the backend's
+// message (not logged in, not responsible for this project, not found, ...).
+export function getProjectPbis(projectId, token) {
+  return request(`/projects/${projectId}/pbis`, {
+    headers: authHeader(token)
+  });
+}
+
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
 // Moves a PBI to a new stage. `stage` is the target stage's machine name
 // (e.g. 'sprint_planning'). Resolves with { pbi: <updated PBI> } on success,

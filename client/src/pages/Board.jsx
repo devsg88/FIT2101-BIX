@@ -346,6 +346,7 @@ function BoardColumns() {
 // ready) since none of it depends on the board having finished loading.
 function BoardTopBar({ project }) {
   const { user } = useAuth();
+  const { projectId } = useBoard();
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?';
 
   return (
@@ -354,6 +355,12 @@ function BoardTopBar({ project }) {
       <span className="project-board__project-pill">
         {project?.name ?? 'Project board'}
       </span>
+      {/* US-04b: Admins manage PBIs from the backlog page. */}
+      {user?.role === 'admin' && (
+        <Link to={`/projects/${projectId}/backlog`} className="pbi-backlog__board-link">
+          Manage backlog
+        </Link>
+      )}
       <div className="project-board__user">
         <span className="project-board__user-name">{user?.name}</span>
         <span className="project-board__avatar" aria-hidden="true">{initial}</span>

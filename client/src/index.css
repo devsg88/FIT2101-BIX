@@ -2283,3 +2283,106 @@ input {
     transform: none;
   }
 }
+/* =========================================================
+   Product Backlog list (US-04b, admin)
+   Reuses the project board's top bar and palette.
+   ========================================================= */
+
+.pbi-backlog__board-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #000;
+}
+
+.pbi-backlog__heading {
+  margin: 0 0 1rem;
+  font-size: 1.375rem;
+}
+
+.pbi-backlog__empty {
+  padding: 1rem;
+  background: #fdfaf0;
+  border: 1px dashed #000;
+  border-radius: 8px;
+}
+
+.pbi-backlog__columns,
+.pbi-backlog__row {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: center;
+  padding: 0.625rem 0.875rem;
+}
+
+.pbi-backlog__columns {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pbi-backlog__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.pbi-backlog__row {
+  background: #fdfaf0;
+  border-bottom: 1px solid #000;
+}
+
+.pbi-backlog__row:last-child {
+  border-bottom: 0;
+}
+
+.pbi-backlog__title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.pbi-backlog__priority {
+  font-size: 0.875rem;
+}
+
+.pbi-backlog__status {
+  justify-self: start;
+  border: 1px solid #000;
+  border-radius: 999px;
+  padding: 0.125rem 0.625rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: #f4f2e6;
+}
+
+.pbi-backlog__status--sprint_planning {
+  background: #f0a860;
+}
+
+.pbi-backlog__status--active_sprint {
+  background: #4f9ca6;
+  color: #fff;
+}
+
+.pbi-backlog__status--completed {
+  background: #6fbf73;
+  color: #fff;
+}
+
+@media (max-width: 600px) {
+  .pbi-backlog__columns {
+    display: none;
+  }
+
+  .pbi-backlog__row {
+    grid-template-columns: 1fr auto;
+  }
+
+  .pbi-backlog__title {
+    grid-column: 1 / -1;
+  }
+}

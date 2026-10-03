@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getBoard, movePbi, startSprint, updatePbiPlanning } from './api.js';
+import {
+  getBoard,
+  getProjectPbis,
+  movePbi,
+  startSprint,
+  updatePbiPlanning
+} from './api.js';
 
 function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
@@ -76,6 +82,40 @@ describe('board api helpers', () => {
 
     await expect(startSprint(7, 3, 'tok-123')).rejects.toThrow(
       'Cannot start an empty sprint'
+    );
+  });
+});
+
+describe('getProjectPbis (US-04b)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({ pbis: [] }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('performs a GET on the project PBI list with the Bearer token', async () => {
+    const result = await getProjectPbis(7, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis');
+    expect(options.method).toBeUndefined();
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
+    expect(result).toEqual({ pbis: [] });
+  });
+
+  it("throws the backend's message when the request is refused", async () => {
+    global.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ message: 'You are not responsible for this project' })
+      })
+    );
+
+    await expect(getProjectPbis(2, 'tok')).rejects.toThrow(
+      'You are not responsible for this project'
     );
   });
 });

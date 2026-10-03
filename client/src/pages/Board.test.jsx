@@ -484,3 +484,31 @@ describe('Board page', () => {
     expect(backlogColumn).toHaveTextContent('Reset password');
   });
 });
+
+describe('Board top bar: Manage backlog link (US-04b)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getBoard.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, sprints: [], pbis: [] });
+  });
+
+  it('shows Admins a link to the project backlog', async () => {
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    expect(screen.getByRole('link', { name: 'Manage backlog' })).toHaveAttribute(
+      'href',
+      '/projects/7/backlog'
+    );
+  });
+
+  it('does not show Developers the link', async () => {
+    useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'tok' } });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    expect(screen.queryByRole('link', { name: 'Manage backlog' })).not.toBeInTheDocument();
+  });
+});
