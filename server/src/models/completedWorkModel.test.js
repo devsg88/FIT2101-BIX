@@ -5,18 +5,21 @@ vi.mock('../config/db.js', () => ({
 }));
 vi.mock('./pbiModel.js');
 vi.mock('./sprintModel.js');
+vi.mock('./completionModel.js');
 
 import { pool } from '../config/db.js';
 import { getCompletedWorkByProject } from './completedWorkModel.js';
 import { getPbisByStage, getTasksByProject, getSubTasksByProject } from './pbiModel.js';
 import { getSprintsByProject } from './sprintModel.js';
+import { getCollaboratorsByProject } from './completionModel.js';
 
 describe('getCompletedWorkByProject', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Every test gets an empty sprint list by default; tests that care about
-    // sprint_name override this explicitly.
+    // Every test gets an empty sprint list and collaborator list by default;
+    // tests that care about sprint_name / collaborators override these explicitly.
     getSprintsByProject.mockResolvedValue([]);
+    getCollaboratorsByProject.mockResolvedValue([]);
   });
 
   it('returns null when the project does not exist', async () => {
@@ -41,9 +44,12 @@ describe('getCompletedWorkByProject', () => {
     expect(getPbisByStage).toHaveBeenCalledWith(1, 'completed');
   });
 
-  it('nests tasks and sub-tasks under their completed PBI, carrying actual_hours and sprint_name along', async () => {
+  it('nests tasks and sub-tasks under their completed PBI, carrying actual_hours, sprint_name and collaborators along', async () => {
     pool.query.mockResolvedValue({ rows: [{ id: 1, name: 'BIX Platform' }] });
     getSprintsByProject.mockResolvedValue([{ id: 1, name: 'Sprint 1' }]);
+    getCollaboratorsByProject.mockResolvedValue([
+      { pbi_id: 10, id: 2, name: 'Pang', email: 'pang@bix.app', role: 'developer' }
+    ]);
     getPbisByStage.mockResolvedValue([
       {
         id: 10,
@@ -71,6 +77,9 @@ describe('getCompletedWorkByProject', () => {
         actual_hours: '10.50',
         sprint_id: 1,
         sprint_name: 'Sprint 1',
+        collaborators: [
+          { pbi_id: 10, id: 2, name: 'Pang', email: 'pang@bix.app', role: 'developer' }
+        ],
         tasks: [
           {
             id: 100,
@@ -83,6 +92,44 @@ describe('getCompletedWorkByProject', () => {
           }
         ]
       }
+    ]);
+  });
+
+  it('returns an empty collaborators array for a completed PBI nobody has been recorded against', async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: 1, name: 'BIX Platform' }] });
+    getPbisByStage.mockResolvedValue([
+      { id: 10, stage: 'completed', title: 'Completed before US-11 recorded collaborators' }
+    ]);
+    getTasksByProject.mockResolvedValue([]);
+    getSubTasksByProject.mockResolvedValue([]);
+
+    const result = await getCompletedWorkByProject(1);
+
+    expect(result.pbis[0].collaborators).toEqual([]);
+  });
+
+  it('keeps each completed PBI\'s collaborators separate, with more than one collaborator preserved per PBI', async () => {
+    pool.query.mockResolvedValue({ rows: [{ id: 1, name: 'BIX Platform' }] });
+    getCollaboratorsByProject.mockResolvedValue([
+      { pbi_id: 10, id: 1, name: 'Pang', email: 'pang@bix.app', role: 'developer' },
+      { pbi_id: 10, id: 2, name: 'Dave', email: 'dev@bix.local', role: 'developer' },
+      { pbi_id: 11, id: 3, name: 'Admin', email: 'admin@bix.app', role: 'admin' }
+    ]);
+    getPbisByStage.mockResolvedValue([
+      { id: 10, stage: 'completed', title: 'Login page' },
+      { id: 11, stage: 'completed', title: 'Reset password' }
+    ]);
+    getTasksByProject.mockResolvedValue([]);
+    getSubTasksByProject.mockResolvedValue([]);
+
+    const result = await getCompletedWorkByProject(1);
+
+    expect(result.pbis.find((pbi) => pbi.id === 10).collaborators).toEqual([
+      { pbi_id: 10, id: 1, name: 'Pang', email: 'pang@bix.app', role: 'developer' },
+      { pbi_id: 10, id: 2, name: 'Dave', email: 'dev@bix.local', role: 'developer' }
+    ]);
+    expect(result.pbis.find((pbi) => pbi.id === 11).collaborators).toEqual([
+      { pbi_id: 11, id: 3, name: 'Admin', email: 'admin@bix.app', role: 'admin' }
     ]);
   });
 
@@ -126,14 +173,15 @@ describe('getCompletedWorkByProject', () => {
     await getCompletedWorkByProject(5);
 
     // getProjectById (boardModel.js) is the one call that still goes through
-    // the raw pool mock; the other three are asserted directly. Together
-    // these are every source of PBI/task/sub-task data this function reads,
-    // so this proves the whole result is scoped to project 5, not leaked in
-    // from any other project.
+    // the raw pool mock; the rest are asserted directly. Together these are
+    // every source of PBI/task/sub-task/collaborator data this function
+    // reads, so this proves the whole result is scoped to project 5, not
+    // leaked in from any other project.
     expect(pool.query).toHaveBeenCalledWith(expect.any(String), [5]);
     expect(getPbisByStage).toHaveBeenCalledWith(5, 'completed');
     expect(getTasksByProject).toHaveBeenCalledWith(5);
     expect(getSubTasksByProject).toHaveBeenCalledWith(5);
+    expect(getCollaboratorsByProject).toHaveBeenCalledWith(5);
   });
 
   it('passes actual_hours through exactly as US-11 recorded it, including leaving it null rather than defaulting it', async () => {
