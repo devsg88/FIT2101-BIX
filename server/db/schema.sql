@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     pbi_id bigint NOT NULL
                   REFERENCES product_backlog_items (id) ON DELETE RESTRICT,
     title  text   NOT NULL,
+    description text,
     -- FLAG: the allowed set of status values, whether the column is NOT NULL,
     -- and any default were NOT specified for tasks. Left as free text with no
     -- CHECK and no default, pending a team decision. See server/db/README.md
@@ -130,6 +131,7 @@ CREATE TABLE IF NOT EXISTS sub_tasks (
     task_id bigint NOT NULL
                    REFERENCES tasks (id) ON DELETE RESTRICT,
     title   text   NOT NULL,
+    description text,
     -- FLAG: same as tasks.status - allowed values / nullability / default are
     -- a pending team decision. See server/db/README.md.
     status  text
