@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import {
   BoardProvider,
@@ -746,23 +746,45 @@ function BoardColumns() {
   );
 }
 
-// The board's (project's) name, with an inline Rename for an Admin (US-04c).
+// The board's (project's) name, with Rename and Delete for an Admin (US-04c).
 // The board route only lets an Admin load a board they are responsible for,
-// so any Admin who can see this title may rename it; the backend still checks
-// responsibility on the rename itself. Everyone else sees just the name.
+// so any Admin who can see this title may manage it; the backend still checks
+// responsibility on each action itself. Everyone else sees just the name.
 function ProjectTitle({ project }) {
   const { user } = useAuth();
-  const { renameProject } = useBoard();
+  const { renameProject, deleteCurrentProject } = useBoard();
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState(null);
-  const canRename = user?.role === 'admin' && project != null;
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const canManageBoard = user?.role === 'admin' && project != null;
 
   const startEditing = () => {
     setName(project.name);
     setError(null);
+    setDeleteError(null);
     setIsEditing(true);
+  };
+
+  // Deleting the board deletes the project. The backend only allows it while
+  // the board has no PBIs or sprints (409 otherwise), so a refusal is shown
+  // here and the board stays as it is.
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${project.name}"? This cannot be undone.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteCurrentProject();
+      navigate('/dashboard');
+    } catch (err) {
+      setDeleteError(err?.message || 'Something went wrong deleting this board. Please try again.');
+      setIsDeleting(false);
+    }
   };
 
   const handleSubmit = async (event) => {
@@ -815,12 +837,20 @@ function ProjectTitle({ project }) {
       <span className="project-board__project-pill">
         {project?.name ?? 'Project board'}
       </span>
-      {canRename && (
+      {canManageBoard && (
         <span className="project-board__checklist-edit-actions">
-          <button type="button" onClick={startEditing}>
+          <button type="button" onClick={startEditing} disabled={isDeleting}>
             Rename
           </button>
+          {/* "Delete board", not just "Delete": the task/sub-task rows below
+              have their own Delete buttons, and this removes the whole board. */}
+          <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete board'}
+          </button>
         </span>
+      )}
+      {deleteError && (
+        <p className="project-board__card-error" role="alert">{deleteError}</p>
       )}
     </>
   );

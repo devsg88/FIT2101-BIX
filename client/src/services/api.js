@@ -73,6 +73,17 @@ export function updateProject(projectId, name, token) {
   });
 }
 
+// DELETE /api/projects/:projectId  (US-04c, responsible Admin only)
+// Deletes the project - its board - only while it has no PBIs or sprints.
+// Resolves with { message, id }, or throws with the backend's message (409
+// when the board still has work, 403 when not responsible, ...).
+export function deleteProject(projectId, token) {
+  return request(`/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board

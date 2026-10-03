@@ -22,7 +22,8 @@ import {
   completeTask,
   completeSubTask,
   completePbi,
-  updateProject
+  updateProject,
+  deleteProject as apiDeleteProject
 } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
@@ -298,6 +299,13 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-04c. Deletes the project (its board) - the backend only allows it while
+  // the board has no PBIs or sprints. No refresh afterwards: on success the
+  // page navigates away, and on failure the board is unchanged.
+  const deleteCurrentProject = useCallback(async () => {
+    await apiDeleteProject(projectId, token);
+  }, [projectId, token]);
+
   // We only keep one list of PBIs. The four columns are worked out from it
   // here, instead of being stored separately, so a PBI's stage can never
   // disagree with which column it shows up in.
@@ -336,7 +344,8 @@ export function BoardProvider({ projectId, children }) {
       completeAssignedTask,
       completeAssignedSubTask,
       completeActivePbi,
-      renameProject
+      renameProject,
+      deleteCurrentProject
     }),
     [
       projectId,
@@ -360,7 +369,8 @@ export function BoardProvider({ projectId, children }) {
       completeAssignedTask,
       completeAssignedSubTask,
       completeActivePbi,
-      renameProject
+      renameProject,
+      deleteCurrentProject
     ]
   );
 

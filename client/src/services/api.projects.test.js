@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createProject, getResponsibleProjects, updateProject } from './api.js';
+import { createProject, getResponsibleProjects, updateProject, deleteProject } from './api.js';
 
 // Kept separate from api.test.js (the board helpers) so US-04d's API test
 // does not touch that shared file.
@@ -108,6 +108,36 @@ describe('project api helpers (US-04d)', () => {
 
     await expect(updateProject(7, 'X', 'tok-admin')).rejects.toThrow(
       'You are not responsible for this project'
+    );
+  });
+
+  it('deleteProject sends DELETE /projects/:projectId with the Bearer token and no body (US-04c)', async () => {
+    global.fetch.mockImplementation(() => okJson({ message: 'Project deleted', id: 7 }));
+
+    const result = await deleteProject(7, 'tok-admin');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7');
+    expect(options.method).toBe('DELETE');
+    expect(options.body).toBeUndefined();
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-admin' });
+    expect(result).toEqual({ message: 'Project deleted', id: 7 });
+  });
+
+  it('deleteProject throws the server-provided message, e.g. on 409 (US-04c)', async () => {
+    global.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 409,
+        json: () =>
+          Promise.resolve({
+            message: 'This board still has work (PBIs or sprints) and cannot be deleted'
+          })
+      })
+    );
+
+    await expect(deleteProject(1, 'tok-admin')).rejects.toThrow(
+      'This board still has work (PBIs or sprints) and cannot be deleted'
     );
   });
 });
