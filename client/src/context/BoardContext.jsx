@@ -21,7 +21,8 @@ import {
   getProjectMembers,
   completeTask,
   completeSubTask,
-  completePbi
+  completePbi,
+  updateProject
 } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
@@ -285,6 +286,18 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-04c. Renames the project (its board), then shows the name the server
+  // actually saved, the same refresh-after-save pattern as the actions above.
+  const renameProject = useCallback(
+    async (name) => {
+      await updateProject(projectId, name, token);
+      await refreshBoardAfterSave(
+        'The project was renamed, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // We only keep one list of PBIs. The four columns are worked out from it
   // here, instead of being stored separately, so a PBI's stage can never
   // disagree with which column it shows up in.
@@ -322,7 +335,8 @@ export function BoardProvider({ projectId, children }) {
       assignSubTask,
       completeAssignedTask,
       completeAssignedSubTask,
-      completeActivePbi
+      completeActivePbi,
+      renameProject
     }),
     [
       projectId,
@@ -345,7 +359,8 @@ export function BoardProvider({ projectId, children }) {
       assignSubTask,
       completeAssignedTask,
       completeAssignedSubTask,
-      completeActivePbi
+      completeActivePbi,
+      renameProject
     ]
   );
 

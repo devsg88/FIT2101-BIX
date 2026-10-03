@@ -746,6 +746,86 @@ function BoardColumns() {
   );
 }
 
+// The board's (project's) name, with an inline Rename for an Admin (US-04c).
+// The board route only lets an Admin load a board they are responsible for,
+// so any Admin who can see this title may rename it; the backend still checks
+// responsibility on the rename itself. Everyone else sees just the name.
+function ProjectTitle({ project }) {
+  const { user } = useAuth();
+  const { renameProject } = useBoard();
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const canRename = user?.role === 'admin' && project != null;
+
+  const startEditing = () => {
+    setName(project.name);
+    setError(null);
+    setIsEditing(true);
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('A project name is required');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await renameProject(trimmedName);
+      setIsEditing(false);
+    } catch (err) {
+      // Stay in the form so the name can be corrected and saved again.
+      setError(err?.message || 'Something went wrong renaming this board. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <form className="project-board__checklist-edit" onSubmit={handleSubmit} noValidate>
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSaving}
+          aria-label="Project name"
+        />
+        <div className="project-board__checklist-edit-actions">
+          <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          <button type="button" onClick={() => setIsEditing(false)} disabled={isSaving}>
+            Cancel
+          </button>
+        </div>
+        {error && (
+          <p className="project-board__card-error" role="alert">{error}</p>
+        )}
+      </form>
+    );
+  }
+
+  return (
+    <>
+      <span className="project-board__project-pill">
+        {project?.name ?? 'Project board'}
+      </span>
+      {canRename && (
+        <span className="project-board__checklist-edit-actions">
+          <button type="button" onClick={startEditing}>
+            Rename
+          </button>
+        </span>
+      )}
+    </>
+  );
+}
+
 // The bar across the top of the page: brand mark (links home), the current
 // project's name, and who is logged in. Shown in every state (loading, error,
 // ready) since none of it depends on the board having finished loading.
@@ -756,9 +836,7 @@ function BoardTopBar({ project }) {
   return (
     <header className="project-board__topbar">
       <Link to="/dashboard" className="project-board__brand">BIX</Link>
-      <span className="project-board__project-pill">
-        {project?.name ?? 'Project board'}
-      </span>
+      <ProjectTitle project={project} />
       <div className="project-board__user">
         <span className="project-board__user-name">{user?.name}</span>
         <span className="project-board__avatar" aria-hidden="true">{initial}</span>

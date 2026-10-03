@@ -61,6 +61,18 @@ export function getResponsibleProjects(token) {
   });
 }
 
+// PATCH /api/projects/:projectId  (US-04c, responsible Admin only)
+// Renames the project - its board's name. Only the name is sent; who may
+// rename is decided by the server. Resolves with { project }, or throws with
+// the backend's message (blank name, not responsible, ...).
+export function updateProject(projectId, name, token) {
+  return request(`/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
