@@ -13,7 +13,11 @@ vi.mock('../services/api.js', () => ({
   startSprint: vi.fn(),
   completeTask: vi.fn(),
   completeSubTask: vi.fn(),
-  completePbi: vi.fn()
+  completePbi: vi.fn(),
+  createTask: vi.fn(),
+  updateTask: vi.fn(),
+  createSubTask: vi.fn(),
+  updateSubTask: vi.fn()
 }));
 
 function renderBoard(path = '/projects/7/board') {

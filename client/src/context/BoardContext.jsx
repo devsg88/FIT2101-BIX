@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, completeSubTask, completePbi } from '../services/api.js';
+import { createTask, updateTask, createSubTask, updateSubTask } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
 // match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
@@ -119,7 +120,9 @@ export function BoardProvider({ projectId, children }) {
         const data = await getBoard(projectId, token);
         applyBoardData(data);
       } catch (err) {
-        throw new Error(`${savedMessage}: ${err.message}`);
+        const refreshError = new Error(`${savedMessage}: ${err.message}`);
+        refreshError.saved = true;
+        throw refreshError;
       }
     },
     [projectId, token, applyBoardData]
@@ -182,6 +185,24 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  const saveTask = useCallback(
+    async (pbiId, taskId, fields) => {
+      if (taskId == null) await createTask(projectId, pbiId, fields, token);
+      else await updateTask(projectId, taskId, fields, token);
+      await refreshBoardAfterSave('The task was saved, but the board could not be refreshed');
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const saveSubTask = useCallback(
+    async (taskId, subTaskId, fields) => {
+      if (subTaskId == null) await createSubTask(projectId, taskId, fields, token);
+      else await updateSubTask(projectId, subTaskId, fields, token);
+      await refreshBoardAfterSave('The sub-task was saved, but the board could not be refreshed');
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // We only keep one list of PBIs. The four columns are worked out from it
   // here, instead of being stored separately, so a PBI's stage can never
   // disagree with which column it shows up in.
@@ -212,7 +233,9 @@ export function BoardProvider({ projectId, children }) {
       startPlannedSprint,
       completeAssignedTask,
       completeAssignedSubTask,
-      completeActivePbi
+      completeActivePbi,
+      saveTask,
+      saveSubTask
     }),
     [
       projectId,
@@ -228,7 +251,9 @@ export function BoardProvider({ projectId, children }) {
       startPlannedSprint,
       completeAssignedTask,
       completeAssignedSubTask,
-      completeActivePbi
+      completeActivePbi,
+      saveTask,
+      saveSubTask
     ]
   );
 

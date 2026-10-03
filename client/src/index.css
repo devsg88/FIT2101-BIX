@@ -1713,6 +1713,77 @@ input {
   padding: 0.125rem 0;
 }
 
+.project-board__work-action {
+  margin: 0.25rem 0;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #fff;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.project-board__work-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0.5rem 0;
+  padding: 0.5rem 0;
+  border-top: 1px solid #ccc;
+}
+
+.project-board__work-form input,
+.project-board__work-form textarea,
+.project-board__work-actions button {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.375rem 0.5rem;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.8125rem;
+}
+
+.project-board__work-form textarea {
+  resize: vertical;
+}
+
+.project-board__work-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.project-board__work-actions button {
+  width: auto;
+  cursor: pointer;
+}
+
+.project-board__work-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.project-board__work-description {
+  margin: 0.125rem 0 0.375rem;
+  font-size: 0.75rem;
+  color: #555;
+  white-space: pre-wrap;
+}
+
+.project-board__card,
+.project-board__project-pill,
+.project-board__checklist-item span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-board__checklist-item input {
+  flex-shrink: 0;
+}
+
 .project-board__checklist--nested .project-board__checklist-item {
   font-size: 0.75rem;
   color: #555;

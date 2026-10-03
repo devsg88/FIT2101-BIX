@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
 import {
   BoardProvider,
   useBoard,
@@ -180,6 +181,10 @@ function TaskWork({ task, pbiStage }) {
   return (
     <li>
       <ChecklistRow item={task} />
+      {task.description && <p className="project-board__work-description">{task.description}</p>}
+      {pbiStage === 'sprint_planning' && (
+        <WorkItemEditor kind="task" parentId={task.pbi_id} item={task} />
+      )}
       {logged != null && (
         <p className="project-board__logged-effort">Logged: {logged}h</p>
       )}
@@ -189,12 +194,21 @@ function TaskWork({ task, pbiStage }) {
           {task.subTasks.map((subTask) => (
             <li key={subTask.id}>
               <ChecklistRow item={subTask} />
+              {subTask.description && <p className="project-board__work-description">{subTask.description}</p>}
+              {pbiStage === 'sprint_planning' && (
+                <WorkItemEditor kind="subTask" parentId={task.id} item={subTask} />
+              )}
               {pbiStage === 'active_sprint' && !isDone(subTask.status) && (
                 <SubTaskCompleteButton subTask={subTask} />
               )}
             </li>
           ))}
         </ul>
+      )}
+      {pbiStage === 'sprint_planning' && (
+        <div className="project-board__checklist--nested">
+          <WorkItemEditor kind="subTask" parentId={task.id} parentTitle={task.title} />
+        </div>
       )}
     </li>
   );
@@ -485,6 +499,9 @@ function PbiCard({ pbi }) {
       )}
       <PbiMeta pbi={pbi} />
       <TaskChecklist tasks={pbi.tasks} pbiStage={pbi.stage} />
+      {pbi.stage === 'sprint_planning' && (
+        <WorkItemEditor kind="task" parentId={pbi.id} parentTitle={pbi.title} />
+      )}
       {pbi.stage === 'product_backlog' && (
         <MoveToSprintPlanningButton pbiId={pbi.id} />
       )}
