@@ -71,6 +71,15 @@ psql "postgresql://<username>:<password>@localhost:5432/<database>" -f server/db
 
 Run `schema.sql` first, followed by `seed.sql`.
 
+Then apply the task/sub-task migration (US-04a). `schema.sql` does not include
+it, and the project board needs the `sub_tasks.assignee_id` column it adds. It
+is safe to run more than once, so also run it on an existing database that has
+not had it yet:
+
+```bash
+psql "postgresql://<username>:<password>@localhost:5432/<database>" -v ON_ERROR_STOP=1 -f server/db/migrations/001_task_subtask_assignee_and_status.sql
+```
+
 **Project responsibility (US-04d).** A fresh database set up with the current
 `schema.sql` (from US-04d onwards) already gets `projects.responsible_admin_id`,
 so migration 003 is not needed for that column on a fresh setup.
