@@ -1950,9 +1950,9 @@ input {
   font-size: 0.9375rem;
 }
 
-/* Sprint / Completed / Effort, shown as a small label-over-value grid so the
-   three fields this subtask requires read clearly and consistently across
-   every record, rather than as a run-on sentence. */
+/* Sprint / Completed / Effort / Collaborators, shown as a small label-over-value
+   grid so these fields read clearly and consistently across every record,
+   rather than as a run-on sentence. */
 .completed-work__item-fields {
   margin: 0;
   display: flex;
@@ -1962,6 +1962,13 @@ input {
 
 .completed-work__item-field {
   min-width: 5rem;
+}
+
+/* Collaborators can be a comma-separated list of several names, much longer
+   than a sprint label or an hour count - let it claim a full row of its own
+   instead of squeezing into the same narrow column as the other fields. */
+.completed-work__item-field--wide {
+  flex-basis: 100%;
 }
 
 .completed-work__item-field dt {
