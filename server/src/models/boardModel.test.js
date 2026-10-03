@@ -5,9 +5,12 @@ vi.mock('../config/db.js', () => ({
 }));
 vi.mock('./pbiModel.js');
 vi.mock('./sprintModel.js');
+vi.mock('./taskModel.js');
 
 import { pool } from '../config/db.js';
-import { getBoard } from './boardModel.js';
+import { getBoard, getPbiBreakdown } from './boardModel.js';
+import { getPbiById } from './pbiModel.js';
+import { getTasksByPbi, getSubTasksByPbi } from './taskModel.js';
 import {
   getPbisByProject,
   getTasksByProject,
@@ -66,5 +69,30 @@ describe('getBoard', () => {
       },
       { id: 11, stage: 'product_backlog', tasks: [] }
     ]);
+  });
+});
+
+describe('getPbiBreakdown', () => {
+  beforeEach(() => vi.resetAllMocks());
+  it('nests multiple tasks, optional sub-tasks and descriptions without duplicating the PBI', async () => {
+    getPbiById.mockResolvedValue({ id: '10', project_id: '7', stage: 'active_sprint' });
+    getTasksByPbi.mockResolvedValue([
+      { id: '11', pbi_id: '10', description: 'Details' },
+      { id: '12', pbi_id: '10' }
+    ]);
+    getSubTasksByPbi.mockResolvedValue([{ id: '13', task_id: '11', description: 'Nested' }]);
+    const pbi = await getPbiBreakdown(7, 10);
+    expect(pbi.id).toBe('10');
+    expect(pbi.tasks).toEqual([
+      { id: '11', pbi_id: '10', description: 'Details', subTasks: [{ id: '13', task_id: '11', description: 'Nested' }] },
+      { id: '12', pbi_id: '10', subTasks: [] }
+    ]);
+    expect(getTasksByPbi).toHaveBeenCalledWith(7, 10);
+    expect(getSubTasksByPbi).toHaveBeenCalledWith(7, 10);
+  });
+  it('does not load children of a missing or cross-project PBI', async () => {
+    getPbiById.mockResolvedValue(null);
+    expect(await getPbiBreakdown(7, 10)).toBeNull();
+    expect(getTasksByPbi).not.toHaveBeenCalled();
   });
 });

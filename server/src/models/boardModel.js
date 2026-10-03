@@ -1,10 +1,12 @@
 import { pool } from '../config/db.js';
 import {
   getPbisByProject,
+  getPbiById,
   getTasksByProject,
   getSubTasksByProject
 } from './pbiModel.js';
 import { getSprintsByProject } from './sprintModel.js';
+import { getTasksByPbi, getSubTasksByPbi } from './taskModel.js';
 
 export async function getProjectById(projectId) {
   const { rows } = await pool.query(
@@ -32,6 +34,20 @@ export async function getBoard(projectId) {
     return null;
   }
 
+  return { project, sprints, pbis: nestPbis(pbis, tasks, subTasks) };
+}
+
+export async function getPbiBreakdown(projectId, pbiId) {
+  const pbi = await getPbiById(projectId, pbiId);
+  if (!pbi) return null;
+  const [tasks, subTasks] = await Promise.all([
+    getTasksByPbi(projectId, pbiId),
+    getSubTasksByPbi(projectId, pbiId)
+  ]);
+  return nestPbis([pbi], tasks, subTasks)[0];
+}
+
+function nestPbis(pbis, tasks, subTasks) {
   const subTasksByTask = groupBy(subTasks, 'task_id');
   const tasksByPbi = groupBy(
     tasks.map((task) => ({
@@ -41,14 +57,10 @@ export async function getBoard(projectId) {
     'pbi_id'
   );
 
-  return {
-    project,
-    sprints,
-    pbis: pbis.map((pbi) => ({
-      ...pbi,
-      tasks: tasksByPbi[pbi.id] ?? []
-    }))
-  };
+  return pbis.map((pbi) => ({
+    ...pbi,
+    tasks: tasksByPbi[pbi.id] ?? []
+  }));
 }
 
 function groupBy(rows, key) {
