@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createProjectController,
   listResponsibleProjectsController,
-  updateProjectController
+  updateProjectController,
+  deleteProjectController
 } from './projectController.js';
 import {
   createProject,
   listProjectsForResponsibleAdmin,
-  updateProjectName
+  updateProjectName,
+  deleteEmptyProject
 } from '../models/projectModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
@@ -258,5 +260,71 @@ describe('updateProjectController (US-04c)', () => {
 
     expect(updateProjectName).toHaveBeenCalledTimes(1);
     expect(updateProjectName).toHaveBeenCalledWith(1, 'P');
+  });
+});
+
+// US-04c: deleting an empty project (its board). Who may delete is decided by
+// the route's requireProjectResponsibility; these cover the controller's own
+// mapping of the model's outcome to a response.
+describe('deleteProjectController (US-04c)', () => {
+  function deleteReq(projectId = '5') {
+    return { user: admin, params: { projectId }, body: { projectId: '999' } };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 200 with the deleted id when the project was empty', async () => {
+    deleteEmptyProject.mockResolvedValue('deleted');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq('5'), res);
+
+    expect(deleteEmptyProject).toHaveBeenCalledWith(5);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project deleted', id: 5 });
+  });
+
+  it('returns 409 when the project still has work', async () => {
+    deleteEmptyProject.mockResolvedValue('has_work');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'This board still has work (PBIs or sprints) and cannot be deleted'
+    });
+  });
+
+  it('returns 404 when the project is gone', async () => {
+    deleteEmptyProject.mockResolvedValue('not_found');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
+  });
+
+  it('returns a generic 500 when the model throws, without leaking the database error', async () => {
+    deleteEmptyProject.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to delete the project' });
+  });
+
+  it('takes the project id from the route only, never the body', async () => {
+    deleteEmptyProject.mockResolvedValue('deleted');
+    const res = mockRes();
+
+    await deleteProjectController(deleteReq('5'), res);
+
+    expect(deleteEmptyProject).toHaveBeenCalledTimes(1);
+    expect(deleteEmptyProject).toHaveBeenCalledWith(5);
   });
 });

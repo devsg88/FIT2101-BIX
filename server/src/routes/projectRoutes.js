@@ -7,7 +7,8 @@ import {
 import {
   createProjectController,
   listResponsibleProjectsController,
-  updateProjectController
+  updateProjectController,
+  deleteProjectController
 } from '../controllers/projectController.js';
 
 // Mounted at /api/projects (see app.js). Project-level routes that are not
@@ -37,6 +38,18 @@ router.patch(
   requireRole('admin'),
   requireProjectResponsibility,
   updateProjectController
+);
+
+// DELETE /api/projects/:projectId
+// US-04c / SCRUM-17. Deletes the project (its board) while it has no PBIs or
+// sprints - 409 otherwise. Only the Admin responsible for the project
+// (projects.responsible_admin_id) may do this.
+router.delete(
+  '/:projectId',
+  requireAuth,
+  requireRole('admin'),
+  requireProjectResponsibility,
+  deleteProjectController
 );
 
 export default router;

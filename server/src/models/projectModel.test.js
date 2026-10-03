@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('../config/db.js', () => ({
-  pool: { query: vi.fn() }
+  pool: { query: vi.fn(), connect: vi.fn() }
 }));
 
 import { pool } from '../config/db.js';
@@ -9,7 +9,8 @@ import {
   createProject,
   getProjectResponsibility,
   listProjectsForResponsibleAdmin,
-  updateProjectName
+  updateProjectName,
+  deleteEmptyProject
 } from './projectModel.js';
 
 describe('projectModel', () => {
@@ -178,6 +179,127 @@ describe('projectModel', () => {
       pool.query.mockRejectedValue(new Error('connection refused'));
 
       await expect(updateProjectName(1, 'P')).rejects.toThrow('connection refused');
+    });
+  });
+
+  describe('deleteEmptyProject (US-04c)', () => {
+    // A fake transaction client: answers each statement by its SQL, and
+    // records every statement it was given in order.
+    // pbis / sprints: how many of each the project has. The work check is
+    // answered from the SQL itself, so a table only counts if the query
+    // actually looks at it.
+    function fakeClient({ found = true, pbis = 0, sprints = 0, deleteError = null } = {}) {
+      const client = {
+        release: vi.fn(),
+        query: vi.fn(async (sql) => {
+          if (/FOR UPDATE/.test(sql)) {
+            return { rows: found ? [{ id: '5' }] : [] };
+          }
+          if (/EXISTS/.test(sql)) {
+            const hasWork =
+              (pbis > 0 && /FROM product_backlog_items WHERE project_id = \$1/.test(sql)) ||
+              (sprints > 0 && /FROM sprints WHERE project_id = \$1/.test(sql));
+            return { rows: [{ has_work: hasWork }] };
+          }
+          if (/^DELETE/.test(sql)) {
+            if (deleteError) {
+              throw deleteError;
+            }
+            return { rowCount: 1 };
+          }
+          return { rows: [] }; // BEGIN / COMMIT / ROLLBACK
+        })
+      };
+      pool.connect.mockResolvedValue(client);
+      return client;
+    }
+
+    const statements = (client) => client.query.mock.calls.map(([sql]) => sql.trim().split(/\s+/).slice(0, 2).join(' '));
+
+    it('deletes an empty project in one transaction and returns "deleted"', async () => {
+      const client = fakeClient();
+
+      const outcome = await deleteEmptyProject(5);
+
+      expect(outcome).toBe('deleted');
+      expect(pool.connect).toHaveBeenCalledTimes(1);
+      expect(statements(client)).toEqual([
+        'BEGIN',
+        'SELECT id',
+        'SELECT EXISTS',
+        'DELETE FROM',
+        'COMMIT'
+      ]);
+      const [lockSql, lockParams] = client.query.mock.calls[1];
+      expect(lockSql).toMatch(/SELECT id FROM projects WHERE id = \$1 FOR UPDATE/);
+      expect(lockParams).toEqual([5]);
+      const [workSql, workParams] = client.query.mock.calls[2];
+      expect(workSql).toMatch(/FROM product_backlog_items WHERE project_id = \$1/);
+      expect(workSql).toMatch(/FROM sprints WHERE project_id = \$1/);
+      expect(workParams).toEqual([5]);
+      expect(client.query.mock.calls[3]).toEqual(['DELETE FROM projects WHERE id = $1', [5]]);
+      expect(client.release).toHaveBeenCalledTimes(1);
+    });
+
+    it.each([
+      ['a PBI', { pbis: 1 }],
+      ['a sprint', { sprints: 1 }]
+    ])('returns "has_work" and rolls back without deleting when the project has %s', async (_label, work) => {
+      const client = fakeClient(work);
+
+      const outcome = await deleteEmptyProject(1);
+
+      expect(outcome).toBe('has_work');
+      expect(statements(client)).toEqual(['BEGIN', 'SELECT id', 'SELECT EXISTS', 'ROLLBACK']);
+      expect(statements(client)).not.toContain('DELETE FROM');
+      expect(client.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns "not_found" and rolls back when the project does not exist', async () => {
+      const client = fakeClient({ found: false });
+
+      const outcome = await deleteEmptyProject(999);
+
+      expect(outcome).toBe('not_found');
+      expect(statements(client)).toEqual(['BEGIN', 'SELECT id', 'ROLLBACK']);
+      expect(client.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns "has_work" and rolls back if the DELETE hits a foreign-key violation (23503)', async () => {
+      const fkError = Object.assign(new Error('violates foreign key constraint'), { code: '23503' });
+      const client = fakeClient({ deleteError: fkError });
+
+      const outcome = await deleteEmptyProject(5);
+
+      expect(outcome).toBe('has_work');
+      expect(statements(client)).toEqual([
+        'BEGIN',
+        'SELECT id',
+        'SELECT EXISTS',
+        'DELETE FROM',
+        'ROLLBACK'
+      ]);
+      expect(client.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('rolls back and rethrows any other database error, still releasing the client', async () => {
+      const client = fakeClient({ deleteError: Object.assign(new Error('connection lost'), { code: '08006' }) });
+
+      await expect(deleteEmptyProject(5)).rejects.toThrow('connection lost');
+
+      expect(statements(client)).toContain('ROLLBACK');
+      expect(statements(client)).not.toContain('COMMIT');
+      expect(client.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('never deletes project_members itself - the ON DELETE CASCADE handles them', async () => {
+      const client = fakeClient();
+
+      await deleteEmptyProject(5);
+
+      const allSql = client.query.mock.calls.map(([sql]) => sql).join('\n');
+      expect(allSql).not.toMatch(/project_members/);
+      expect(allSql).not.toMatch(/DELETE FROM (product_backlog_items|sprints|tasks|sub_tasks|pbi_collaborators)/);
     });
   });
 });

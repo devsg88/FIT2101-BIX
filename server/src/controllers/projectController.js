@@ -1,7 +1,8 @@
 import {
   createProject,
   listProjectsForResponsibleAdmin,
-  updateProjectName
+  updateProjectName,
+  deleteEmptyProject
 } from '../models/projectModel.js';
 
 // Project creation (US-04d / SCRUM-19).
@@ -100,5 +101,35 @@ export async function updateProjectController(req, res) {
   } catch (err) {
     // Do not send the raw database error to the client, just a plain message.
     return res.status(500).json({ message: 'Failed to rename the project' });
+  }
+}
+
+// DELETE /api/projects/:projectId
+// US-04c / SCRUM-17. Deletes the project - its board - but only while it has
+// no work (no PBIs or sprints); otherwise 409, and nothing is deleted. The
+// route runs requireAuth, requireRole('admin') and requireProjectResponsibility
+// first, so who may delete is already decided here.
+export async function deleteProjectController(req, res) {
+  const projectId = Number(req.params.projectId);
+
+  try {
+    const outcome = await deleteEmptyProject(projectId);
+
+    if (outcome === 'has_work') {
+      return res.status(409).json({
+        message: 'This board still has work (PBIs or sprints) and cannot be deleted'
+      });
+    }
+    if (outcome === 'not_found') {
+      // Only reachable if the project was removed after the responsibility check.
+      return res.status(404).json({ message: 'Project not found' });
+    }
+
+    // 200 with a body (not 204), matching the task/sub-task delete endpoints and
+    // the client's request() helper, which reads JSON from every success.
+    return res.json({ message: 'Project deleted', id: projectId });
+  } catch (err) {
+    // Do not send the raw database error to the client, just a plain message.
+    return res.status(500).json({ message: 'Failed to delete the project' });
   }
 }

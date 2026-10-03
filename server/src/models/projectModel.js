@@ -87,3 +87,57 @@ export async function updateProjectName(projectId, name) {
   );
   return rows[0] ?? null;
 }
+
+// PostgreSQL "foreign_key_violation".
+const FOREIGN_KEY_VIOLATION = '23503';
+
+// Deletes a project - its board - only while it has no work in it (US-04c).
+// "Work" is any PBI or sprint: tasks, sub-tasks and PBI collaborators can only
+// exist under a PBI, so checking those two is enough. Nothing is cascaded
+// away; project_members rows go with the project through their own
+// ON DELETE CASCADE (they are access links, not work).
+//
+// One transaction: the project row is locked FOR UPDATE first, so a PBI or
+// sprint being added at the same moment (which needs a lock on that same row)
+// waits until this finishes. The RESTRICT foreign keys from sprints and PBIs
+// are the final backstop - if one still fires, it is reported as 'has_work'.
+//
+// Returns 'deleted', 'has_work' or 'not_found'. Any other error is rethrown.
+export async function deleteEmptyProject(projectId) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const project = await client.query(
+      'SELECT id FROM projects WHERE id = $1 FOR UPDATE',
+      [projectId]
+    );
+    if (project.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return 'not_found';
+    }
+
+    const work = await client.query(
+      `SELECT EXISTS (SELECT 1 FROM product_backlog_items WHERE project_id = $1)
+           OR EXISTS (SELECT 1 FROM sprints WHERE project_id = $1) AS has_work`,
+      [projectId]
+    );
+    if (work.rows[0].has_work) {
+      await client.query('ROLLBACK');
+      return 'has_work';
+    }
+
+    await client.query('DELETE FROM projects WHERE id = $1', [projectId]);
+    await client.query('COMMIT');
+    return 'deleted';
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === FOREIGN_KEY_VIOLATION) {
+      return 'has_work';
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
