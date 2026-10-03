@@ -1829,6 +1829,86 @@ input {
   margin: 0;
 }
 
+/* US-04a / SCRUM-123 — admin edit/delete controls on a checklist row. */
+
+.project-board__checklist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+}
+
+.project-board__checklist-assignee {
+  flex-shrink: 0;
+}
+
+.project-board__checklist-assignee select {
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.0625rem 0.25rem;
+  font-size: 0.6875rem;
+  max-width: 6.5rem;
+}
+
+.project-board__checklist-assignee select:disabled {
+  opacity: 0.6;
+}
+
+.project-board__checklist-actions {
+  display: flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.project-board__checklist-actions button {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.0625rem 0.375rem;
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+
+.project-board__checklist-actions button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.project-board__checklist-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.25rem 0;
+}
+
+.project-board__checklist-edit input,
+.project-board__checklist-edit select {
+  width: 100%;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.25rem 0.375rem;
+  font-size: 0.75rem;
+}
+
+.project-board__checklist-edit-actions {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.project-board__checklist-edit-actions button {
+  background: #f0a860;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.project-board__checklist-edit-actions button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 @media (max-width: 800px) {
   .project-board__columns {
     grid-template-columns: 1fr;
