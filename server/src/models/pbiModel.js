@@ -96,9 +96,14 @@ export async function getPbisByStage(projectId, stage) {
 // Tasks and sub-tasks are read per project (joined up through their parent PBI)
 // so the board can be assembled in one pass without an N+1 query per PBI.
 
+// assignee_id added by server/db/migrations/001_task_subtask_assignee_and_status.sql
+// (US-04a/SCRUM-122) so the board can show who a task/sub-task is assigned
+// to, and the frontend assignee dropdown (SCRUM-124) knows its current
+// value without a second request per card.
 export async function getTasksByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT t.id, t.pbi_id, t.title, t.status
+    `SELECT t.id, t.pbi_id, t.title, t.status,
+            t.assignee_id, t.actual_hours, t.completed_at
        FROM tasks t
        JOIN product_backlog_items p ON p.id = t.pbi_id
       WHERE p.project_id = $1
@@ -110,7 +115,7 @@ export async function getTasksByProject(projectId) {
 
 export async function getSubTasksByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT s.id, s.task_id, s.title, s.status
+    `SELECT s.id, s.task_id, s.title, s.status, s.assignee_id
        FROM sub_tasks s
        JOIN tasks t ON t.id = s.task_id
        JOIN product_backlog_items p ON p.id = t.pbi_id

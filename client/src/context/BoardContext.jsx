@@ -7,7 +7,22 @@ import {
   useState
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
-import { getBoard, movePbi, startSprint, updatePbiPlanning } from '../services/api.js';
+import {
+  getBoard,
+  movePbi,
+  startSprint,
+  updatePbiPlanning,
+  updateTask as apiUpdateTask,
+  deleteTask as apiDeleteTask,
+  updateSubTask as apiUpdateSubTask,
+  deleteSubTask as apiDeleteSubTask,
+  assignTask as apiAssignTask,
+  assignSubTask as apiAssignSubTask,
+  getProjectMembers,
+  completeTask,
+  completeSubTask,
+  completePbi
+} from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
 // match BOARD_STAGES on the backend (server/src/controllers/boardController.js).
@@ -39,6 +54,14 @@ export function BoardProvider({ projectId, children }) {
   const [sprints, setSprints] = useState([]);
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null);
+  // US-04a / SCRUM-124. This project's members, for the assignee dropdown.
+  // Loaded alongside the board (see loadBoard below) rather than lazily on
+  // first dropdown render, so the dropdown never has to show its own
+  // separate loading state - by the time the board is 'ready', the members
+  // list is too. A failure here does not fail the whole board load (see
+  // loadBoard's Promise.all handling below): the board is still usable
+  // without assignee names, it would just be a worse dropdown.
+  const [members, setMembers] = useState([]);
 
   // Applies a board API response to state. The one place `project`/`pbis`/
   // `sprints` are ever set from server data, used both for the first load
@@ -67,6 +90,18 @@ export function BoardProvider({ projectId, children }) {
     } catch (err) {
       setError(err.message);
       setStatus('error');
+      return;
+    }
+
+    // Members are fetched after the board succeeds, and in their own
+    // try/catch: this list only feeds the assignee dropdown (SCRUM-124), so
+    // a failure here should not turn an otherwise-loadable board into an
+    // error page. It just leaves `members` empty until the next reload.
+    try {
+      const { members: loadedMembers } = await getProjectMembers(projectId, token);
+      setMembers(Array.isArray(loadedMembers) ? loadedMembers : []);
+    } catch (err) {
+      setMembers([]);
     }
   }, [projectId, token, applyBoardData]);
 
@@ -138,6 +173,74 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-04a / SCRUM-121-123. Edit/delete a task or sub-task, then refresh from
+  // the server - same "trust what got saved, not a local guess" pattern as
+  // movePbiStage/savePbiPlanning above. Every one of these can reject with
+  // the backend's 403 (non-admin), 409 (completed PBI, delete only), or 404;
+  // the caller (ChecklistRow in Board.jsx) shows whatever message comes back.
+  const editTask = useCallback(
+    async (pbiId, taskId, payload) => {
+      await apiUpdateTask(projectId, pbiId, taskId, payload, token);
+      await refreshBoardAfterSave(
+        'The task was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const deleteTask = useCallback(
+    async (pbiId, taskId) => {
+      await apiDeleteTask(projectId, pbiId, taskId, token);
+      await refreshBoardAfterSave(
+        'The task was deleted, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const editSubTask = useCallback(
+    async (pbiId, taskId, subTaskId, payload) => {
+      await apiUpdateSubTask(projectId, pbiId, taskId, subTaskId, payload, token);
+      await refreshBoardAfterSave(
+        'The sub-task was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const deleteSubTask = useCallback(
+    async (pbiId, taskId, subTaskId) => {
+      await apiDeleteSubTask(projectId, pbiId, taskId, subTaskId, token);
+      await refreshBoardAfterSave(
+        'The sub-task was deleted, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  // US-04a / SCRUM-122/124. Same refresh-after-save pattern as edit/delete
+  // above. assigneeId may be null (unassign); the dropdown (Board.jsx) is
+  // what turns "" back into null before calling this.
+  const assignTask = useCallback(
+    async (pbiId, taskId, assigneeId) => {
+      await apiAssignTask(projectId, pbiId, taskId, assigneeId, token);
+      await refreshBoardAfterSave(
+        'The assignment was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const assignSubTask = useCallback(
+    async (pbiId, taskId, subTaskId, assigneeId) => {
+      await apiAssignSubTask(projectId, pbiId, taskId, subTaskId, assigneeId, token);
+      await refreshBoardAfterSave(
+        'The assignment was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-10 — Yichi Zhang. After a successful start, every former Sprint
   // Planning card should reappear under Active Sprint from the fresh GET.
   const startPlannedSprint = useCallback(
@@ -145,6 +248,38 @@ export function BoardProvider({ projectId, children }) {
       await startSprint(projectId, sprintId, token);
       await refreshBoardAfterSave(
         'The sprint was started, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  // US-11 — Yichi Zhang. Complete a task with actual hours, a sub-task, or
+  // the parent PBI (which moves it into Completed after hours/collaborators).
+  const completeAssignedTask = useCallback(
+    async (taskId, actualHours) => {
+      await completeTask(projectId, taskId, actualHours, token);
+      await refreshBoardAfterSave(
+        'The task was completed, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const completeAssignedSubTask = useCallback(
+    async (subTaskId) => {
+      await completeSubTask(projectId, subTaskId, token);
+      await refreshBoardAfterSave(
+        'The sub-task was completed, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  const completeActivePbi = useCallback(
+    async (pbiId, payload) => {
+      await completePbi(projectId, pbiId, payload, token);
+      await refreshBoardAfterSave(
+        'The item was completed, but the board could not be refreshed'
       );
     },
     [projectId, token, refreshBoardAfterSave]
@@ -171,13 +306,23 @@ export function BoardProvider({ projectId, children }) {
       pbis,
       pbisByStage,
       sprints,
+      members,
       stages: STAGES,
       status,
       error,
       reloadBoard: loadBoard,
       movePbiStage,
       savePbiPlanning,
-      startPlannedSprint
+      startPlannedSprint,
+      editTask,
+      deleteTask,
+      editSubTask,
+      deleteSubTask,
+      assignTask,
+      assignSubTask,
+      completeAssignedTask,
+      completeAssignedSubTask,
+      completeActivePbi
     }),
     [
       projectId,
@@ -185,12 +330,22 @@ export function BoardProvider({ projectId, children }) {
       pbis,
       pbisByStage,
       sprints,
+      members,
       status,
       error,
       loadBoard,
       movePbiStage,
       savePbiPlanning,
-      startPlannedSprint
+      startPlannedSprint,
+      editTask,
+      deleteTask,
+      editSubTask,
+      deleteSubTask,
+      assignTask,
+      assignSubTask,
+      completeAssignedTask,
+      completeAssignedSubTask,
+      completeActivePbi
     ]
   );
 

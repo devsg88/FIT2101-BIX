@@ -11,6 +11,7 @@ plain `pg` pool against `DATABASE_URL`).
 |------|---------|
 | `schema.sql` | Creates the tables, constraints, indexes and the `updated_at` trigger. |
 | `seed.sql`   | Inserts a small, consistent set of sample rows for local development. |
+| `migrations/001_task_subtask_assignee_and_status.sql` | US-04a (SCRUM-121). Adds `assignee_id` to `tasks`/`sub_tasks` and a `CHECK` on their `status` column. See [Migrations](#migrations) below. |
 | `README.md`  | This document. |
 
 > **Status:** these scripts have been successfully executed against a fresh
@@ -85,22 +86,24 @@ Each sprint belongs to exactly one project. A sprint may have no PBIs.
 | `updated_at`         | `timestamptz` | `NOT NULL`, default `now()`. Maintained by trigger — see below. |
 
 ### `tasks`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id`     | `bigint` identity | Primary key. |
-| `pbi_id` | `bigint` | `NOT NULL`. FK → `product_backlog_items(id)`. |
-| `title`  | `text` | `NOT NULL`. |
-| `status` | `text` | **Nullable, no default, no `CHECK`** — the allowed values were not specified. See [Open questions and flags](#open-questions-and-flags). |
+| Column        | Type | Notes |
+|---------------|------|-------|
+| `id`          | `bigint` identity | Primary key. |
+| `pbi_id`      | `bigint` | `NOT NULL`. FK → `product_backlog_items(id)`, `ON DELETE RESTRICT`. |
+| `title`       | `text` | `NOT NULL`. |
+| `status`      | `text` | `NOT NULL`, default `'todo'`. `CHECK` in (`todo`, `in_progress`, `done`). Added by `migrations/001_task_subtask_assignee_and_status.sql` (US-04a/SCRUM-121) — resolves [Open questions and flags](#open-questions-and-flags) #1 below. |
+| `assignee_id` | `bigint` | Nullable. FK → `users(id)`, `ON DELETE SET NULL`. Added by the same migration (SCRUM-122). One assignee per task; unrelated to US-11's plural "collaborators" field. |
 
 Each task belongs to exactly one PBI. A PBI may have no tasks.
 
 ### `sub_tasks`
-| Column | Type | Notes |
-|--------|------|-------|
-| `id`      | `bigint` identity | Primary key. |
-| `task_id` | `bigint` | `NOT NULL`. FK → `tasks(id)`. |
-| `title`   | `text` | `NOT NULL`. |
-| `status`  | `text` | **Nullable, no default, no `CHECK`** — same as `tasks.status`. |
+| Column        | Type | Notes |
+|---------------|------|-------|
+| `id`          | `bigint` identity | Primary key. |
+| `task_id`     | `bigint` | `NOT NULL`. FK → `tasks(id)`, `ON DELETE RESTRICT`. |
+| `title`       | `text` | `NOT NULL`. |
+| `status`      | `text` | `NOT NULL`, default `'todo'`. `CHECK` in (`todo`, `in_progress`, `done`). Same migration as `tasks.status`. |
+| `assignee_id` | `bigint` | Nullable. FK → `users(id)`, `ON DELETE SET NULL`. Same migration as `tasks.assignee_id`. |
 
 Each sub-task belongs to exactly one task. A task may have no sub-tasks.
 
@@ -290,6 +293,23 @@ Both scripts are safe to run again — neither drops a table or deletes data.
   already exist are left as they are (they are **not** updated to match the
   file). The sequence re-sync at the end runs every time and is harmless.
 
+### Migrations
+
+`migrations/` holds hand-written, numbered `.sql` files for changes made
+*after* `schema.sql`'s tables already existed - the same "no ORM, no
+framework, run by hand" approach, just for ALTERs instead of CREATEs. Run
+them in numeric order, once, after `schema.sql`/`seed.sql`:
+
+```bash
+psql "postgresql://<user>@localhost:5432/<database>" -f server/db/migrations/001_task_subtask_assignee_and_status.sql
+```
+
+Each migration file documents what it does and any assumptions it makes at
+the top of the file itself. As with `schema.sql`, **do not** edit
+`schema.sql` to reflect a migration after the fact - the tables section
+above is kept in sync by hand instead, and the migration file is the actual
+source of truth for what ran.
+
 ### Starting over (not part of normal setup)
 
 There is intentionally no reset command in the scripts. If you genuinely need a
@@ -323,11 +343,11 @@ added, agree on:
 1. ~~User id type.~~ Resolved: `bigint` identity, matching every other table.
 2. ~~Users table name and key.~~ Resolved: `users`, primary key `id`.
 3. **Which assignment fields are needed, and their names.** Candidates:
-   - PBI owner / assignee — e.g. `product_backlog_items.assignee_id`
-   - Task assignee — e.g. `tasks.assignee_id`
-   - Sub-task assignee — e.g. `sub_tasks.assignee_id`
-   - PBI author / reporter — e.g. `product_backlog_items.created_by`
-   - Sprint owner / scrum master — e.g. `sprints.created_by`
+   - PBI owner / assignee — e.g. `product_backlog_items.assignee_id` — **still open.**
+   - Task assignee — **resolved:** `tasks.assignee_id`, added by `migrations/001_task_subtask_assignee_and_status.sql` (US-04a/SCRUM-122).
+   - Sub-task assignee — **resolved:** `sub_tasks.assignee_id`, same migration.
+   - PBI author / reporter — e.g. `product_backlog_items.created_by` — still open.
+   - Sprint owner / scrum master — e.g. `sprints.created_by` — still open.
 4. **Person vs role.** US-10 refers to "saved role information". Decide whether
    work is assigned to a specific user, to a role, or both.
 5. **Nullability.** Assume unassigned work is allowed, i.e. the assignment
@@ -350,7 +370,7 @@ Once agreed, the assignment columns are added in a follow-up migration as
 
 | # | Item | Decision needed |
 |---|------|-----------------|
-| 1 | **`tasks.status` / `sub_tasks.status` values** | Not specified. Columns are currently free text with no default and no `CHECK`. Agree the vocabulary (e.g. `todo` / `in_progress` / `done`), whether the column is `NOT NULL`, and a default; then add a `CHECK` via migration. The seed uses `todo` / `in_progress` / `done` as placeholders only. |
+| 1 | **`tasks.status` / `sub_tasks.status` values** | **Resolved by `migrations/001_task_subtask_assignee_and_status.sql` (US-04a/SCRUM-121).** Vocabulary is `todo` / `in_progress` / `done`, `NOT NULL`, default `'todo'`, enforced by `CHECK`. This was stated as an assumption in that migration, not separately agreed with the team - flag if the team wants a different vocabulary. |
 | 2 | **`stage` default `'product_backlog'`** | Convenience so a new PBI lands in the backlog. An explicit value can always be supplied on insert. Confirm this is acceptable. |
 | 3 | **`sprints.status` default `'planning'`** | Same idea — a new sprint starts in planning. Confirm. |
 | 4 | **`started_at` vs `status`** | The schema does **not** force `started_at` to be non-null when `status = 'active'`, nor null when `status = 'planning'`. That cross-field rule was not in the spec; add it later if wanted. |
