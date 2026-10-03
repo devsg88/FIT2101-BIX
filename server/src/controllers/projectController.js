@@ -1,4 +1,8 @@
-import { createProject, listProjectsForResponsibleAdmin } from '../models/projectModel.js';
+import {
+  createProject,
+  listProjectsForResponsibleAdmin,
+  updateProjectName
+} from '../models/projectModel.js';
 
 // Project creation (US-04d / SCRUM-19).
 //
@@ -68,5 +72,33 @@ export async function listResponsibleProjectsController(req, res) {
   } catch (err) {
     // Do not send the raw database error to the client, just a plain message.
     return res.status(500).json({ message: 'Failed to load your projects' });
+  }
+}
+
+// PATCH /api/projects/:projectId
+// US-04c / SCRUM-17. Renames the project, which is its board's name - the one
+// board-level setting this schema has (the four stages are fixed). The route
+// (projectRoutes.js) runs requireAuth, requireRole('admin') and
+// requireProjectResponsibility first, so who may rename is already decided:
+// this only validates the name, using the same rules as creating a project.
+// Only `name` is read from the body - responsible_admin_id or anything else
+// sent is ignored, so a rename can never change who owns the project.
+export async function updateProjectController(req, res) {
+  const parsed = parseProjectPayload(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ message: parsed.error });
+  }
+
+  try {
+    const project = await updateProjectName(Number(req.params.projectId), parsed.name);
+    if (!project) {
+      // Only reachable if the project was removed after the responsibility
+      // check - treated as "not found", same as the other controllers.
+      return res.status(404).json({ message: 'Project not found' });
+    }
+    return res.json({ project });
+  } catch (err) {
+    // Do not send the raw database error to the client, just a plain message.
+    return res.status(500).json({ message: 'Failed to rename the project' });
   }
 }

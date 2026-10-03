@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   createProjectController,
-  listResponsibleProjectsController
+  listResponsibleProjectsController,
+  updateProjectController
 } from './projectController.js';
-import { createProject, listProjectsForResponsibleAdmin } from '../models/projectModel.js';
+import {
+  createProject,
+  listProjectsForResponsibleAdmin,
+  updateProjectName
+} from '../models/projectModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
 vi.mock('../models/projectModel.js');
@@ -174,5 +179,84 @@ describe('listResponsibleProjectsController (US-04c)', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'Failed to load your projects' });
+  });
+});
+
+// US-04c: renaming a project (its board). Who may rename is decided by the
+// route's requireProjectResponsibility, so these tests cover only the
+// controller's own job: validating the name and saving it.
+describe('updateProjectController (US-04c)', () => {
+  function renameReq(body) {
+    return { user: admin, params: { projectId: '1' }, body };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('saves the trimmed name and returns the project with 200', async () => {
+    const renamed = { id: '1', name: 'BIX Platform v2', responsible_admin_id: '3' };
+    updateProjectName.mockResolvedValue(renamed);
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: '  BIX Platform v2  ' }), res);
+
+    expect(updateProjectName).toHaveBeenCalledWith(1, 'BIX Platform v2');
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ project: renamed });
+  });
+
+  it.each([
+    ['a missing name', {}],
+    ['a null name', { name: null }],
+    ['a blank name', { name: '   ' }]
+  ])('returns 400 for %s, without touching the database', async (_label, body) => {
+    const res = mockRes();
+
+    await updateProjectController(renameReq(body), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'A project name is required' });
+    expect(updateProjectName).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for a non-string name, without touching the database', async () => {
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 42 }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'The project name must be text' });
+    expect(updateProjectName).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when no project was updated', async () => {
+    updateProjectName.mockResolvedValue(null);
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 'P' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
+  });
+
+  it('returns a generic 500 when the database fails, without leaking the database error', async () => {
+    updateProjectName.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 'P' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to rename the project' });
+  });
+
+  it('ignores responsible_admin_id in the body - a rename never changes the owner', async () => {
+    updateProjectName.mockResolvedValue({ id: '1', name: 'P', responsible_admin_id: '3' });
+    const res = mockRes();
+
+    await updateProjectController(renameReq({ name: 'P', responsible_admin_id: '7' }), res);
+
+    expect(updateProjectName).toHaveBeenCalledTimes(1);
+    expect(updateProjectName).toHaveBeenCalledWith(1, 'P');
   });
 });

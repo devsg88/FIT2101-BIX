@@ -71,3 +71,19 @@ export async function listProjectsForResponsibleAdmin(adminId) {
   );
   return rows;
 }
+
+// Renames a project - its board's name (US-04c). Callers pass a name that has
+// already been validated and trimmed, for a project whose responsible Admin
+// has already been checked (requireProjectResponsibility). Only the name is
+// written; responsible_admin_id is never changed here. Returns the updated
+// row, or null if no project matched (e.g. it was removed in the meantime).
+export async function updateProjectName(projectId, name) {
+  const { rows } = await pool.query(
+    `UPDATE projects
+        SET name = $1
+      WHERE id = $2
+      RETURNING ${PROJECT_COLUMNS}`,
+    [name, projectId]
+  );
+  return rows[0] ?? null;
+}

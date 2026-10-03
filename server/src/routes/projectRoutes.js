@@ -1,8 +1,13 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
+import {
+  requireAuth,
+  requireRole,
+  requireProjectResponsibility
+} from '../middleware/authMiddleware.js';
 import {
   createProjectController,
-  listResponsibleProjectsController
+  listResponsibleProjectsController,
+  updateProjectController
 } from '../controllers/projectController.js';
 
 // Mounted at /api/projects (see app.js). Project-level routes that are not
@@ -22,5 +27,16 @@ router.post('/', requireAuth, requireRole('admin'), createProjectController);
 // navigate to their boards. Developers get 403 here; their own project list
 // comes from project membership (see dashboardController).
 router.get('/', requireAuth, requireRole('admin'), listResponsibleProjectsController);
+
+// PATCH /api/projects/:projectId   body: { name }
+// US-04c / SCRUM-17. Renames the project (its board). Only the Admin
+// responsible for the project (projects.responsible_admin_id) may do this.
+router.patch(
+  '/:projectId',
+  requireAuth,
+  requireRole('admin'),
+  requireProjectResponsibility,
+  updateProjectController
+);
 
 export default router;

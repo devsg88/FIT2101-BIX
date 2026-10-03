@@ -8,7 +8,8 @@ import { pool } from '../config/db.js';
 import {
   createProject,
   getProjectResponsibility,
-  listProjectsForResponsibleAdmin
+  listProjectsForResponsibleAdmin,
+  updateProjectName
 } from './projectModel.js';
 
 describe('projectModel', () => {
@@ -147,6 +148,36 @@ describe('projectModel', () => {
       pool.query.mockRejectedValue(new Error('connection refused'));
 
       await expect(listProjectsForResponsibleAdmin('3')).rejects.toThrow('connection refused');
+    });
+  });
+
+  describe('updateProjectName (US-04c)', () => {
+    it('updates only the name of the given project and returns the row', async () => {
+      const row = { id: '1', name: 'BIX Platform v2', responsible_admin_id: '3' };
+      pool.query.mockResolvedValue({ rows: [row] });
+
+      const result = await updateProjectName(1, 'BIX Platform v2');
+
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toMatch(/UPDATE projects\s+SET name = \$1\s+WHERE id = \$2/);
+      expect(sql).toMatch(/RETURNING id, name, responsible_admin_id/);
+      expect(sql).not.toMatch(/responsible_admin_id\s*=/);
+      expect(params).toEqual(['BIX Platform v2', 1]);
+      expect(result).toEqual(row);
+    });
+
+    it('returns null when no project matched', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+
+      const result = await updateProjectName(999, 'Anything');
+
+      expect(result).toBeNull();
+    });
+
+    it('propagates a database failure instead of swallowing it', async () => {
+      pool.query.mockRejectedValue(new Error('connection refused'));
+
+      await expect(updateProjectName(1, 'P')).rejects.toThrow('connection refused');
     });
   });
 });
