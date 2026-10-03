@@ -525,7 +525,7 @@ describe('Board page', () => {
       );
     });
 
-    it('shows task name, Sprint, completion date and effort for a completed PBI, and keeps its tasks/sub-tasks nested', async () => {
+    it('shows task name, Sprint, completion date, effort and collaborators for a completed PBI, and keeps its tasks/sub-tasks nested', async () => {
       getCompletedWork.mockResolvedValue({
         project: { id: 7, name: 'BIX Platform' },
         pbis: [
@@ -536,6 +536,7 @@ describe('Board page', () => {
             sprint_name: 'Sprint 1',
             actual_hours: '10.50',
             updated_at: '2026-08-07T16:00:00.000Z',
+            collaborators: [{ id: 2, name: 'Pang', email: 'pang@bix.app', role: 'developer' }],
             tasks: [
               {
                 id: 5,
@@ -558,10 +559,12 @@ describe('Board page', () => {
       expect(item).toHaveTextContent('Aug 7');
       expect(item).toHaveTextContent('Effort');
       expect(item).toHaveTextContent('10.5h');
+      expect(item).toHaveTextContent('Collaborators');
+      expect(item).toHaveTextContent('Pang');
       expect(item).toHaveTextContent('Wire the form to the auth API');
     });
 
-    it('shows "Not recorded" for Sprint and Effort when that data has not been captured', async () => {
+    it('shows "Not recorded" for Sprint and Effort, and "No collaborators recorded" for Collaborators, when that data has not been captured', async () => {
       getCompletedWork.mockResolvedValue({
         project: { id: 7, name: 'BIX Platform' },
         pbis: [
@@ -572,6 +575,7 @@ describe('Board page', () => {
             sprint_name: null,
             actual_hours: null,
             updated_at: null,
+            collaborators: [],
             tasks: []
           }
         ]
@@ -586,6 +590,40 @@ describe('Board page', () => {
       // link, US-11 has not recorded hours, no updated_at) - all read the
       // same "Not recorded" rather than a blank or a misleading default.
       expect(item.textContent.match(/Not recorded/g)).toHaveLength(3);
+      // Collaborators gets its own wording, consistent with "Not recorded"
+      // but distinct since "nobody recorded" is a different kind of absence
+      // than "the hours weren't logged".
+      expect(item).toHaveTextContent('No collaborators recorded');
+    });
+
+    it('lists every collaborator, comma-separated, when more than one worked on a completed PBI', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: 'Sprint 1',
+            actual_hours: '10.50',
+            updated_at: '2026-08-07T16:00:00.000Z',
+            collaborators: [
+              { id: 2, name: 'Pang', email: 'pang@bix.app', role: 'developer' },
+              { id: 3, name: 'Dave', email: 'dev@bix.local', role: 'developer' },
+              { id: 1, name: 'Admin', email: 'admin@bix.app', role: 'admin' }
+            ],
+            tasks: []
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      const item = await waitFor(() =>
+        screen.getByRole('heading', { name: 'Login page' }).closest('li')
+      );
+      expect(item).toHaveTextContent('Collaborators');
+      expect(item).toHaveTextContent('Pang, Dave, Admin');
     });
 
     it('distinguishes multiple completed records, each showing its own Sprint/date/effort', async () => {
