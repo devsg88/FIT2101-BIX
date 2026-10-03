@@ -15,21 +15,21 @@ function middlewareNamesFor(method, path) {
 const SUB_TASK_PATH = '/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId';
 
 describe('subTaskRoutes', () => {
-  it('guards PATCH .../sub-tasks/:subTaskId with requireAuth then requireRole(\'admin\')', () => {
+  it('guards PATCH .../sub-tasks/:subTaskId with requireAuth, requireRole(\'admin\') then requireProjectResponsibility', () => {
     const names = middlewareNamesFor('patch', SUB_TASK_PATH);
 
-    expect(names).toEqual(['requireAuth', 'roleGuard', 'editSubTaskController']);
+    expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'editSubTaskController']);
   });
 
-  it('guards DELETE .../sub-tasks/:subTaskId with requireAuth then requireRole(\'admin\')', () => {
+  it('guards DELETE .../sub-tasks/:subTaskId with requireAuth, requireRole(\'admin\') then requireProjectResponsibility', () => {
     const names = middlewareNamesFor('delete', SUB_TASK_PATH);
 
-    expect(names).toEqual(['requireAuth', 'roleGuard', 'deleteSubTaskController']);
+    expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'deleteSubTaskController']);
   });
 
-  it('guards PATCH .../sub-tasks/:subTaskId/assignee with requireAuth then requireRole(\'admin\')', () => {
+  it('guards PATCH .../sub-tasks/:subTaskId/assignee with requireAuth, requireRole(\'admin\') then requireProjectResponsibility', () => {
     const names = middlewareNamesFor('patch', `${SUB_TASK_PATH}/assignee`);
 
-    expect(names).toEqual(['requireAuth', 'roleGuard', 'assignSubTaskController']);
+    expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'assignSubTaskController']);
   });
 });

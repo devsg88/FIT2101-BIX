@@ -261,11 +261,6 @@ describe('assignSubTaskController', () => {
   });
 });
 
-// See the identical, more detailed comment in taskController.test.js - this
-// mirrors it for sub-tasks. Skipped on purpose: no data model yet to set up
-// "admin not responsible for this project" against. See US-04d.
-describe('project-responsibility scoping', () => {
-  it.skip('blocks an admin from managing sub-tasks in a project they are not responsible for (US-04d)', async () => {
-    // Left unimplemented on purpose - see US-04d.
-  });
-});
+// Project-responsibility scoping (US-04a AC 5) is enforced by
+// requireProjectResponsibility on the routes, so it is tested over HTTP in
+// ../routes/taskRoutes.responsibility.test.js rather than here.

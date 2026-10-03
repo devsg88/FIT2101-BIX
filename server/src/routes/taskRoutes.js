@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
+import {
+  requireAuth,
+  requireRole,
+  requireProjectResponsibility
+} from '../middleware/authMiddleware.js';
 import {
   editTaskController,
   deleteTaskController,
@@ -13,35 +17,35 @@ import { completePbiController } from '../controllers/completionController.js';
 const router = Router();
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
-// US-04a / SCRUM-121. requireRole('admin') here is its first real use in
-// the codebase (see authMiddleware.js).
-// TODO: insert requireProjectResponsibility after requireRole('admin') once
-// US-04d's "admin responsible for project" data exists - right now this
-// only checks the caller is an authenticated admin, not that they are
-// responsible for this specific project. Tracked, not an oversight - see
-// the US-04a implementation prompt's "Known gaps" #1.
+// US-04a / SCRUM-121. Admin-only, and only for the Admin responsible for
+// this project (requireProjectResponsibility, US-04d's
+// projects.responsible_admin_id check). The controller still checks the
+// PBI belongs to the project and the task to the PBI.
 router.patch(
   '/:projectId/pbis/:pbiId/tasks/:taskId',
   requireAuth,
   requireRole('admin'),
+  requireProjectResponsibility,
   editTaskController
 );
 
 // DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
-// Same requireProjectResponsibility TODO as above.
+// Same guards as above.
 router.delete(
   '/:projectId/pbis/:pbiId/tasks/:taskId',
   requireAuth,
   requireRole('admin'),
+  requireProjectResponsibility,
   deleteTaskController
 );
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/assignee
-// US-04a / SCRUM-122. Same requireProjectResponsibility TODO as above.
+// US-04a / SCRUM-122. Same guards as above.
 router.patch(
   '/:projectId/pbis/:pbiId/tasks/:taskId/assignee',
   requireAuth,
   requireRole('admin'),
+  requireProjectResponsibility,
   assignTaskController
 );
 

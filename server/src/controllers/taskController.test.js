@@ -455,22 +455,6 @@ describe('assignTaskController', () => {
   });
 });
 
-// --- Project-responsibility scoping (blocked on US-04d) ---------------------
-//
-// US-04a's acceptance criteria include "an admin cannot manage Tasks or
-// Sub-tasks in projects they are not responsible for" (AC 5), but that
-// concept - which admin is responsible for which project - does not exist
-// anywhere in this codebase yet. It is owned by US-04d, a separate,
-// not-yet-shipped story (see the implementation prompt's "Known gaps" #1
-// and the TODO in taskRoutes.js). This test is intentionally skipped rather
-// than deleted or faked, so it stays visible as exactly what SCRUM-121/122
-// still owe once US-04d lands: un-skip it here once
-// requireProjectResponsibility (or equivalent) exists and is wired into
-// taskRoutes.js/subTaskRoutes.js after requireRole('admin').
-describe('project-responsibility scoping', () => {
-  it.skip('blocks an admin from managing tasks in a project they are not responsible for (US-04d)', async () => {
-    // Left unimplemented on purpose - there is no data model yet (e.g. a
-    // projects.responsible_admin_id column or equivalent) to set up this
-    // scenario against. See US-04d.
-  });
-});
+// Project-responsibility scoping (US-04a AC 5) is enforced by
+// requireProjectResponsibility on the routes, so it is tested over HTTP in
+// ../routes/taskRoutes.responsibility.test.js rather than here.

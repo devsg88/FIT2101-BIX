@@ -1,23 +1,18 @@
 import { describe, it, expect } from 'vitest';
 import router from './taskRoutes.js';
 
-// This codebase has no HTTP-level (supertest-style) test setup anywhere -
-// every existing *.test.js either unit-tests a controller against a mocked
-// model, or a model against a mocked pool (see pbiController.test.js /
-// pbiModel.test.js). requireRole('admin')'s own behaviour (403 for a
-// non-admin, next() for an admin) is already fully covered generically in
-// authMiddleware.test.js and is not re-tested here.
+// These tests verify middleware ordering: that each US-04a route puts
+// requireAuth, requireRole('admin') and requireProjectResponsibility in front
+// of its controller, in that order. A typo or a dropped middleware in
+// taskRoutes.js would not be caught by authMiddleware.test.js, which tests the
+// guards' own behaviour generically. They inspect the actual Express Router
+// object: requireAuth and requireProjectResponsibility keep their own names
+// when passed by reference, and requireRole(...) returns a function
+// explicitly named roleGuard (see authMiddleware.js) - so the middleware
+// chain's function names prove the guards are really there, in the right order.
 //
-// What IS specific to SCRUM-121/122, and worth a real test, is that these
-// two routes actually put requireAuth and requireRole('admin') in front of
-// their controllers - that wiring is exactly what "confirming a non-admin
-// is blocked" depends on, and a typo or a dropped middleware in taskRoutes.js
-// would not be caught by authMiddleware.test.js at all. Rather than add a
-// new HTTP-testing dependency (supertest) just for this, this inspects the
-// actual Express Router object: requireAuth keeps its own name when passed
-// by reference, and requireRole(...) returns a function explicitly named
-// roleGuard (see authMiddleware.js) - so the middleware chain's function
-// names prove both guards are really there, in the right order.
+// The responsibility behaviour itself (403 / 404 / 400, and no write on a
+// refused request) is covered over HTTP in taskRoutes.responsibility.test.js.
 function middlewareNamesFor(method, path) {
   const layer = router.stack.find(
     (entry) => entry.route?.path === path && entry.route.methods[method]
@@ -29,21 +24,21 @@ function middlewareNamesFor(method, path) {
 }
 
 describe('taskRoutes', () => {
-  it('guards PATCH .../tasks/:taskId with requireAuth then requireRole(\'admin\') before the controller', () => {
+  it('guards PATCH .../tasks/:taskId with requireAuth, requireRole(\'admin\') then requireProjectResponsibility before the controller', () => {
     const names = middlewareNamesFor('patch', '/:projectId/pbis/:pbiId/tasks/:taskId');
 
-    expect(names).toEqual(['requireAuth', 'roleGuard', 'editTaskController']);
+    expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'editTaskController']);
   });
 
-  it('guards DELETE .../tasks/:taskId with requireAuth then requireRole(\'admin\') before the controller', () => {
+  it('guards DELETE .../tasks/:taskId with requireAuth, requireRole(\'admin\') then requireProjectResponsibility before the controller', () => {
     const names = middlewareNamesFor('delete', '/:projectId/pbis/:pbiId/tasks/:taskId');
 
-    expect(names).toEqual(['requireAuth', 'roleGuard', 'deleteTaskController']);
+    expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'deleteTaskController']);
   });
 
-  it('guards PATCH .../tasks/:taskId/assignee with requireAuth then requireRole(\'admin\') before the controller', () => {
+  it('guards PATCH .../tasks/:taskId/assignee with requireAuth, requireRole(\'admin\') then requireProjectResponsibility before the controller', () => {
     const names = middlewareNamesFor('patch', '/:projectId/pbis/:pbiId/tasks/:taskId/assignee');
 
-    expect(names).toEqual(['requireAuth', 'roleGuard', 'assignTaskController']);
+    expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'assignTaskController']);
   });
 });

@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
+import {
+  requireAuth,
+  requireRole,
+  requireProjectResponsibility
+} from '../middleware/authMiddleware.js';
 import {
   editSubTaskController,
   deleteSubTaskController,
@@ -12,13 +16,13 @@ import {
 const router = Router();
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
-// US-04a / SCRUM-121.
-// TODO: same requireProjectResponsibility gap as taskRoutes.js, blocked on
-// US-04d.
+// US-04a / SCRUM-121. Same guards as taskRoutes.js: Admin-only, and only for
+// the Admin responsible for this project (requireProjectResponsibility).
 router.patch(
   '/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId',
   requireAuth,
   requireRole('admin'),
+  requireProjectResponsibility,
   editSubTaskController
 );
 
@@ -27,6 +31,7 @@ router.delete(
   '/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId',
   requireAuth,
   requireRole('admin'),
+  requireProjectResponsibility,
   deleteSubTaskController
 );
 
@@ -36,6 +41,7 @@ router.patch(
   '/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee',
   requireAuth,
   requireRole('admin'),
+  requireProjectResponsibility,
   assignSubTaskController
 );
 
