@@ -69,6 +69,28 @@ export function getProjectPbis(projectId, token) {
   });
 }
 
+// POST /api/projects/:projectId/pbis  (US-04b, SCRUM-101)
+// `pbi` is { title, description? }. The server always creates it in the
+// Product Backlog of the project in the URL. Resolves with { pbi }.
+export function createPbi(projectId, pbi, token) {
+  return request(`/projects/${projectId}/pbis`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify(pbi)
+  });
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId  (US-04b, SCRUM-101)
+// `changes` holds only the fields to change: { title?, description? }.
+// Resolves with { pbi: <updated PBI> }.
+export function updatePbi(projectId, pbiId, changes, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify(changes)
+  });
+}
+
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
 // Moves a PBI to a new stage. `stage` is the target stage's machine name
 // (e.g. 'sprint_planning'). Resolves with { pbi: <updated PBI> } on success,

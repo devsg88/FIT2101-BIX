@@ -3,10 +3,14 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import ProductBacklog from './ProductBacklog.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getProjectPbis } from '../services/api.js';
+import { createPbi, getProjectPbis, updatePbi } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({ getProjectPbis: vi.fn() }));
+vi.mock('../services/api.js', () => ({
+  getProjectPbis: vi.fn(),
+  createPbi: vi.fn(),
+  updatePbi: vi.fn()
+}));
 
 function renderBacklog(path = '/projects/1/backlog') {
   return render(
@@ -113,5 +117,75 @@ describe('ProductBacklog page (US-04b, SCRUM-151)', () => {
       '/projects/7/board'
     );
     await screen.findByText('This project has no Product Backlog Items yet.');
+  });
+});
+
+describe('ProductBacklog page - create and edit (US-04b, SCRUM-101)', () => {
+  const PBI = { id: 1, title: 'User can reset password', description: null, stage: 'product_backlog' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', name: 'Admin', token: 'tok' } });
+  });
+
+  it('offers "+ New item" even when the backlog is empty', async () => {
+    getProjectPbis.mockResolvedValue({ pbis: [] });
+
+    renderBacklog();
+
+    await screen.findByText('This project has no Product Backlog Items yet.');
+    fireEvent.click(screen.getByRole('button', { name: '+ New item' }));
+
+    expect(screen.getByRole('heading', { name: 'New Backlog Item' })).toBeInTheDocument();
+  });
+
+  it('creates an item and shows it in the refreshed list', async () => {
+    const created = { id: 2, title: 'Brand new item', stage: 'product_backlog' };
+    getProjectPbis
+      .mockResolvedValueOnce({ pbis: [PBI] })
+      .mockResolvedValueOnce({ pbis: [PBI, created] });
+    createPbi.mockResolvedValue({ pbi: created });
+
+    renderBacklog('/projects/1/backlog');
+
+    fireEvent.click(await screen.findByRole('button', { name: '+ New item' }));
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Brand new item' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create item' }));
+
+    expect(await screen.findByText('Brand new item')).toBeInTheDocument();
+    expect(createPbi).toHaveBeenCalledWith('1', { title: 'Brand new item' }, 'tok');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('opens the edit form pre-filled for that row, and shows the saved change', async () => {
+    getProjectPbis
+      .mockResolvedValueOnce({ pbis: [PBI] })
+      .mockResolvedValueOnce({ pbis: [{ ...PBI, title: 'Reset password by email' }] });
+    updatePbi.mockResolvedValue({ pbi: { ...PBI, title: 'Reset password by email' } });
+
+    renderBacklog('/projects/1/backlog');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit User can reset password' }));
+    expect(screen.getByLabelText('Title')).toHaveValue('User can reset password');
+
+    fireEvent.change(screen.getByLabelText('Title'), { target: { value: 'Reset password by email' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Reset password by email')).toBeInTheDocument();
+    expect(updatePbi).toHaveBeenCalledWith('1', 1, { title: 'Reset password by email' }, 'tok');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('closes the form on Cancel without saving', async () => {
+    getProjectPbis.mockResolvedValue({ pbis: [PBI] });
+
+    renderBacklog();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit User can reset password' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(updatePbi).not.toHaveBeenCalled();
   });
 });

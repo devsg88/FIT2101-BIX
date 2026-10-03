@@ -2294,9 +2294,36 @@ input {
   color: #000;
 }
 
+.pbi-backlog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
 .pbi-backlog__heading {
-  margin: 0 0 1rem;
+  margin: 0;
   font-size: 1.375rem;
+}
+
+.pbi-backlog__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pbi-backlog__actions .admin-btn {
+  padding: 5px 12px;
+}
+
+/* The description <textarea> reuses .admin-modal__search, which is sized
+   for a one-line input. */
+.pbi-form__description {
+  height: auto;
+  min-height: 6rem;
+  padding: 10px 14px;
+  resize: vertical;
+  font-family: inherit;
 }
 
 .pbi-backlog__empty {
@@ -2309,7 +2336,7 @@ input {
 .pbi-backlog__columns,
 .pbi-backlog__row {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(0, 1fr) minmax(0, 1fr) auto;
   gap: 1rem;
   align-items: center;
   padding: 0.625rem 0.875rem;
@@ -2379,7 +2406,7 @@ input {
   }
 
   .pbi-backlog__row {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
   }
 
   .pbi-backlog__title {

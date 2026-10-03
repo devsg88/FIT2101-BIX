@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  createPbi,
   getBoard,
   getProjectPbis,
+  updatePbi,
   movePbi,
   startSprint,
   updatePbiPlanning
@@ -117,5 +119,38 @@ describe('getProjectPbis (US-04b)', () => {
     await expect(getProjectPbis(2, 'tok')).rejects.toThrow(
       'You are not responsible for this project'
     );
+  });
+});
+
+describe('createPbi / updatePbi (US-04b, SCRUM-101)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({ pbi: { id: 1 } }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('createPbi POSTs the PBI as JSON with both headers', async () => {
+    await createPbi(7, { title: 'New item' }, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis');
+    expect(options.method).toBe('POST');
+    expect(options.body).toBe(JSON.stringify({ title: 'New item' }));
+    expect(options.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer tok-123'
+    });
+  });
+
+  it('updatePbi PATCHes only the given changes on that PBI', async () => {
+    await updatePbi(7, 42, { description: null }, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis/42');
+    expect(options.method).toBe('PATCH');
+    expect(options.body).toBe(JSON.stringify({ description: null }));
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
   });
 });
