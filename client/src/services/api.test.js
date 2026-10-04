@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask } from './api.js';
+import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, getCompletedWork } from './api.js';
 
 function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
@@ -86,5 +86,36 @@ describe('board api helpers', () => {
     expect(url).toBe('http://localhost:4000/api/projects/7/tasks/3/complete');
     expect(options.method).toBe('POST');
     expect(options.body).toBe(JSON.stringify({ actual_hours: 4 }));
+  });
+
+  it('getCompletedWork performs a GET with the Bearer token (US-12)', async () => {
+    global.fetch.mockImplementation(() =>
+      okJson({ project: { id: 7, name: 'BIX Platform' }, pbis: [] })
+    );
+
+    await getCompletedWork(7, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/completed-work');
+    expect(options.method).toBeUndefined();
+    expect(options.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer tok-123'
+    });
+  });
+
+  it('attaches the response status to a thrown error, so callers can tell a 403 apart from other failures', async () => {
+    global.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ message: 'Not permitted' })
+      })
+    );
+
+    await expect(getCompletedWork(7, 'tok-123')).rejects.toMatchObject({
+      message: 'Not permitted',
+      status: 403
+    });
   });
 });

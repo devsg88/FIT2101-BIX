@@ -72,3 +72,22 @@ export async function getCollaboratorsForPbi(pbiId) {
   );
   return rows;
 }
+
+// US-12: Completed Work History reads every completed PBI's collaborators in
+// one pass (same convention as pbiModel.js's getTasksByProject /
+// getSubTasksByProject: one query per project, not one query per PBI), so
+// the history list never fires an extra round trip per row. Each returned
+// row carries pbi_id alongside the collaborator's fields so the caller can
+// group rows by pbi_id itself - same shape getTasksByProject already uses.
+export async function getCollaboratorsByProject(projectId) {
+  const { rows } = await pool.query(
+    `SELECT pc.pbi_id, u.id, u.name, u.email, u.role
+       FROM pbi_collaborators pc
+       JOIN users u ON u.id = pc.user_id
+       JOIN product_backlog_items p ON p.id = pc.pbi_id
+      WHERE p.project_id = $1
+      ORDER BY pc.pbi_id, u.name`,
+    [projectId]
+  );
+  return rows;
+}

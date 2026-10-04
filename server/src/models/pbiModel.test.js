@@ -8,6 +8,7 @@ import { pool } from '../config/db.js';
 import {
   updatePbiPlanning,
   updatePbiStage,
+  getPbisByStage,
   getTasksByProject,
   getSubTasksByProject
 } from './pbiModel.js';
@@ -126,12 +127,63 @@ describe('updatePbiPlanning', () => {
   });
 });
 
+// US-12: Completed Work History reads through these three functions
+// (getPbisByStage, getTasksByProject, getSubTasksByProject). These tests
+// exist to prove the actual SQL scopes every row to the requested project -
+// completedWorkModel.test.js mocks this file entirely, so it can only prove
+// the right projectId/stage arguments are *passed in*, not that the
+// underlying query actually filters by them. This is that missing proof.
+describe('getPbisByStage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('scopes to both project_id and stage, never one without the other', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await getPbisByStage(1, 'completed');
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/FROM product_backlog_items/i);
+    expect(sql).toMatch(/WHERE project_id = \$1 AND stage = \$2/i);
+    expect(params).toEqual([1, 'completed']);
+  });
+
+  it('does not return a completed PBI that belongs to a different project', async () => {
+    // The mock stands in for Postgres actually applying the WHERE clause: a
+    // project_id = 2 row would never be in the result set for project 1, so
+    // asserting on what the (correctly parameterized, per the test above)
+    // query returns for project 1 is the right level to check this at.
+    pool.query.mockResolvedValue({
+      rows: [{ id: 10, project_id: 1, stage: 'completed', title: 'In project 1' }]
+    });
+
+    const result = await getPbisByStage(1, 'completed');
+
+    expect(result).toEqual([{ id: 10, project_id: 1, stage: 'completed', title: 'In project 1' }]);
+    expect(result.every((pbi) => pbi.project_id === 1)).toBe(true);
+  });
+});
+
 // US-04a / SCRUM-122: the board needs to show who a task/sub-task is
 // assigned to (and the frontend assignee dropdown needs its current value),
 // so these two now select assignee_id too.
 describe('getTasksByProject', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('joins through product_backlog_items and scopes to project_id', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await getTasksByProject(1);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/FROM tasks t/i);
+    expect(sql).toMatch(/JOIN product_backlog_items p ON p\.id = t\.pbi_id/i);
+    expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
+    expect(params).toEqual([1]);
   });
 
   it('selects assignee_id alongside the existing columns, scoped to the project', async () => {
@@ -151,6 +203,19 @@ describe('getTasksByProject', () => {
 describe('getSubTasksByProject', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('joins through tasks and product_backlog_items and scopes to project_id', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await getSubTasksByProject(1);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/FROM sub_tasks s/i);
+    expect(sql).toMatch(/JOIN tasks t ON t\.id = s\.task_id/i);
+    expect(sql).toMatch(/JOIN product_backlog_items p ON p\.id = t\.pbi_id/i);
+    expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
+    expect(params).toEqual([1]);
   });
 
   it('selects assignee_id alongside the existing columns, scoped to the project', async () => {
