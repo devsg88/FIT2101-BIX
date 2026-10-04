@@ -61,10 +61,11 @@ router.patch(
 );
 
 // POST /api/projects/:projectId/tasks/:taskId/complete
-// US-11 — Yichi Zhang (SCRUM-128 / SCRUM-129)
+// US-11 - Yichi Zhang (SCRUM-128 / SCRUM-129)
 router.post(
   '/:projectId/tasks/:taskId/complete',
   requireAuth,
+  requireProjectAccess,
   completeTaskController
 );
 
@@ -72,6 +73,7 @@ router.post(
 router.post(
   '/:projectId/sub-tasks/:subTaskId/complete',
   requireAuth,
+  requireProjectAccess,
   completeSubTaskController
 );
 
@@ -79,6 +81,7 @@ router.post(
 router.post(
   '/:projectId/pbis/:pbiId/complete',
   requireAuth,
+  requireProjectAccess,
   completePbiController
 );
 
