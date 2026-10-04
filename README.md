@@ -101,6 +101,17 @@ that already exist, and its US-04d `UPDATE` assigns the seeded Admin to BIX
 Platform (project 1) only when `responsible_admin_id` is `NULL`. Mobile App
 (project 2) intentionally remains unowned.
 
+**Task descriptions (US-08c).** A fresh database set up with the current
+`schema.sql` already has `tasks.description` and `sub_tasks.description`.
+
+A database set up before US-08c lacks both columns, so the project board fails
+to load ("Failed to load the project board", PostgreSQL error `42703`). Run
+migration 004 on it; it is safe to run more than once:
+
+```bash
+psql "postgresql://<username>:<password>@localhost:5432/<database>" -v ON_ERROR_STOP=1 -f server/db/migrations/004_us08c_task_descriptions.sql
+```
+
 More database information is available in:
 
 ```text
