@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getCompletedWorkController } from './completedWorkController.js';
 import { getCompletedWorkByProject } from '../models/completedWorkModel.js';
-import { isProjectMember } from '../models/projectMembershipModel.js';
 
 vi.mock('../models/completedWorkModel.js');
-vi.mock('../models/projectMembershipModel.js');
 
 function mockRes() {
   const res = {};
@@ -13,10 +11,17 @@ function mockRes() {
   return res;
 }
 
-function mockReq({ projectId = '1', role = 'admin', userId = 1 } = {}) {
-  return { params: { projectId }, user: { id: userId, role } };
+function mockReq({ projectId = '1' } = {}) {
+  return { params: { projectId } };
 }
 
+// Role/membership access control used to be checked by hand in this
+// controller; it is now enforced upstream by requireProjectAccess (see
+// completedWorkRoutes.js), which has its own thorough coverage in
+// authMiddleware.test.js ("project access" - admin responsible/not,
+// developer member/not, invalid role, invalid projectId, missing project,
+// a failed lookup). Re-testing that here would just duplicate it against a
+// controller that no longer makes any of those decisions itself.
 describe('getCompletedWorkController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -28,11 +33,10 @@ describe('getCompletedWorkController', () => {
     await getCompletedWorkController(mockReq({ projectId: 'abc' }), res);
 
     expect(res.status).toHaveBeenCalledWith(400);
-    expect(isProjectMember).not.toHaveBeenCalled();
     expect(getCompletedWorkByProject).not.toHaveBeenCalled();
   });
 
-  it('lets a responsible admin retrieve the project\'s completed work, without checking project membership', async () => {
+  it('returns the completed work history for the requested project', async () => {
     const completedWork = {
       project: { id: 1, name: 'BIX Platform' },
       pbis: [
@@ -48,51 +52,18 @@ describe('getCompletedWorkController', () => {
     getCompletedWorkByProject.mockResolvedValue(completedWork);
     const res = mockRes();
 
-    await getCompletedWorkController(mockReq({ role: 'admin' }), res);
+    await getCompletedWorkController(mockReq(), res);
 
-    expect(isProjectMember).not.toHaveBeenCalled();
-    expect(getCompletedWorkByProject).toHaveBeenCalledWith(1);
-    // A full success: no error/forbidden/not-found status was ever set, and
-    // the exact data the model returned is what the client receives.
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith(completedWork);
-  });
-
-  it('allows an assigned developer to retrieve completed work for that project', async () => {
-    const completedWork = {
-      project: { id: 1, name: 'BIX Platform' },
-      pbis: [{ id: 10, title: 'User can reset password', stage: 'completed', tasks: [] }]
-    };
-    isProjectMember.mockResolvedValue(true);
-    getCompletedWorkByProject.mockResolvedValue(completedWork);
-    const res = mockRes();
-
-    await getCompletedWorkController(mockReq({ role: 'developer', userId: 7 }), res);
-
-    expect(isProjectMember).toHaveBeenCalledWith(1, 7);
     expect(getCompletedWorkByProject).toHaveBeenCalledWith(1);
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(completedWork);
-  });
-
-  it('returns 403 for a developer who is not assigned to the project, and never loads the data', async () => {
-    isProjectMember.mockResolvedValue(false);
-    const res = mockRes();
-
-    await getCompletedWorkController(mockReq({ role: 'developer', userId: 7 }), res);
-
-    expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith({
-      message: "You do not have permission to view this project's completed work"
-    });
-    expect(getCompletedWorkByProject).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the project does not exist', async () => {
     getCompletedWorkByProject.mockResolvedValue(null);
     const res = mockRes();
 
-    await getCompletedWorkController(mockReq({ role: 'admin' }), res);
+    await getCompletedWorkController(mockReq(), res);
 
     expect(res.status).toHaveBeenCalledWith(404);
     expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
@@ -103,42 +74,20 @@ describe('getCompletedWorkController', () => {
     getCompletedWorkByProject.mockResolvedValue(emptyResult);
     const res = mockRes();
 
-    await getCompletedWorkController(mockReq({ role: 'admin' }), res);
+    await getCompletedWorkController(mockReq(), res);
 
     // An empty pbis array is a legitimate result, not the null the model
-    // returns for a missing project - this must not be confused with 404,
-    // 403, or any other error status.
+    // returns for a missing project - this must not be confused with 404
+    // or any other error status.
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith(emptyResult);
-  });
-
-  it('returns an empty completed-work result for an assigned (non-admin) developer too', async () => {
-    isProjectMember.mockResolvedValue(true);
-    const emptyResult = { project: { id: 1, name: 'BIX Platform' }, pbis: [] };
-    getCompletedWorkByProject.mockResolvedValue(emptyResult);
-    const res = mockRes();
-
-    await getCompletedWorkController(mockReq({ role: 'developer', userId: 7 }), res);
-
-    expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith(emptyResult);
-  });
-
-  it('returns 500 without leaking the error when the membership check throws', async () => {
-    isProjectMember.mockRejectedValue(new Error('connection terminated unexpectedly'));
-    const res = mockRes();
-
-    await getCompletedWorkController(mockReq({ role: 'developer', userId: 7 }), res);
-
-    expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to load completed work history' });
   });
 
   it('returns 500 without leaking the error when the model throws', async () => {
     getCompletedWorkByProject.mockRejectedValue(new Error('relation "x" does not exist'));
     const res = mockRes();
 
-    await getCompletedWorkController(mockReq({ role: 'admin' }), res);
+    await getCompletedWorkController(mockReq(), res);
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'Failed to load completed work history' });
