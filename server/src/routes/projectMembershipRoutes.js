@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth } from '../middleware/authMiddleware.js';
+import { requireAuth, requireProjectAccess } from '../middleware/authMiddleware.js';
 import { getProjectMembersController } from '../controllers/projectMembershipController.js';
 
 // Mounted at /api/projects (see app.js). See projectMembershipController.js
@@ -7,6 +7,9 @@ import { getProjectMembersController } from '../controllers/projectMembershipCon
 const router = Router();
 
 // GET /api/projects/:projectId/members
-router.get('/:projectId/members', requireAuth, getProjectMembersController);
+// Only an admin responsible for this project or a developer assigned to it
+// may see who else is on it - same project-access rule as the board/PBI/
+// sprint/task routes.
+router.get('/:projectId/members', requireAuth, requireProjectAccess, getProjectMembersController);
 
 export default router;
