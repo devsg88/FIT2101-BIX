@@ -634,4 +634,36 @@ describe('Board top bar: Manage backlog link (US-04b)', () => {
     await screen.findByText('BIX Platform');
     expect(screen.queryByRole('link', { name: 'Manage backlog' })).not.toBeInTheDocument();
   });
+
+  // Integration with US-04c: the top bar keeps <ProjectTitle /> (name,
+  // Rename, Delete board), then the US-04b link, then the user controls.
+  it('keeps ProjectTitle first, then Manage backlog, then the user, for an Admin', async () => {
+    useAuth.mockReturnValue({ user: { id: 3, name: 'Admin', role: 'admin', token: 'tok' } });
+
+    renderBoard('/projects/7/board');
+
+    const name = await screen.findByText('BIX Platform');
+    const rename = screen.getByRole('button', { name: 'Rename' });
+    const deleteBoard = screen.getByRole('button', { name: 'Delete board' });
+    const backlog = screen.getByRole('link', { name: 'Manage backlog' });
+    const userName = screen.getByText('Admin');
+    const follows = (a, b) =>
+      Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+    expect(follows(name, rename)).toBe(true);
+    expect(follows(rename, deleteBoard)).toBe(true);
+    expect(follows(deleteBoard, backlog)).toBe(true);
+    expect(follows(backlog, userName)).toBe(true);
+  });
+
+  it('shows a Developer the board name but no Rename, Delete board or Manage backlog', async () => {
+    useAuth.mockReturnValue({ user: { id: 2, name: 'Developer', role: 'developer', token: 'tok' } });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete board' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Manage backlog' })).not.toBeInTheDocument();
+  });
 });
