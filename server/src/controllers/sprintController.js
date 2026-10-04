@@ -10,10 +10,9 @@ import { checkStageTransition } from '../constants/stageTransitions.js';
 // sprint is rejected. Each PBI's move is still checked with
 // checkStageTransition (the same shared guard moveStageController uses).
 //
-// Also needs project-membership authorization (see requireProjectMembership
-// in ../middleware/authMiddleware.js) before it may change data — right now
-// any authenticated user can start any project's sprint, same known gap as
-// the PBI mutation endpoints.
+// Guarded by requireProjectAccess at the route (../routes/sprintRoutes.js):
+// a Developer must be a member of the project, an Admin its responsible
+// Admin.
 
 function hasPlanningDetails(pbi) {
   return (

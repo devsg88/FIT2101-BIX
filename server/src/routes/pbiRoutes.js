@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   requireAuth,
   requireRole,
+  requireProjectAccess,
   requireProjectResponsibility
 } from '../middleware/authMiddleware.js';
 import {
@@ -61,19 +62,26 @@ router.delete(
   deletePbiController
 );
 
+// The two board actions below are used by Developers AND Admins, so they use
+// requireProjectAccess (authMiddleware.js), the same guard as the board read:
+// a Developer must be a member of the project (project_members), an Admin
+// must be its responsible Admin (projects.responsible_admin_id). Ownership is
+// never taken from project_members.
+
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
-// TODO: insert requireProjectMembership after requireAuth once project
-// membership data exists (see authMiddleware.js) - right now this only
-// checks the caller is logged in, not that they belong to this project.
-router.patch('/:projectId/pbis/:pbiId/stage', requireAuth, moveStageController);
+router.patch(
+  '/:projectId/pbis/:pbiId/stage',
+  requireAuth,
+  requireProjectAccess,
+  moveStageController
+);
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/planning
 // US-08b — Yichi Zhang. Saves estimate and planned dates; does not change stage.
-// TODO: insert requireProjectMembership after requireAuth once project
-// membership data exists (see authMiddleware.js).
 router.patch(
   '/:projectId/pbis/:pbiId/planning',
   requireAuth,
+  requireProjectAccess,
   updatePlanningController
 );
 

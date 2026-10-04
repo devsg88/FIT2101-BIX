@@ -12,11 +12,10 @@ import { checkStageTransition } from '../constants/stageTransitions.js';
 // PBI mutation endpoints.
 //
 // moveStageController is implemented (US-08a's move-to-Sprint-Planning path,
-// and the general controlled-transition mechanics from US-06). It still
-// needs project-membership authorization once that exists (see
-// requireProjectMembership in ../middleware/authMiddleware.js) - right now
-// any authenticated user can move any project's PBIs, which is a known,
-// tracked gap, not an oversight.
+// and the general controlled-transition mechanics from US-06). It is
+// guarded by requireProjectAccess at the route (../routes/pbiRoutes.js):
+// a Developer must be a member of the project, an Admin its responsible
+// Admin.
 //
 // updatePlanningController (US-08b, Yichi Zhang) writes planned dates and
 // Estimated Hours onto a PBI that is already in Sprint Planning. It does
