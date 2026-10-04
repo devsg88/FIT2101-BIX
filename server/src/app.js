@@ -8,6 +8,8 @@ import pbiRoutes from './routes/pbiRoutes.js';
 import sprintRoutes from './routes/sprintRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
 import completedWorkRoutes from './routes/completedWorkRoutes.js';
+import subTaskRoutes from './routes/subTaskRoutes.js';
+import projectMembershipRoutes from './routes/projectMembershipRoutes.js';
 
 const app = express();
 
@@ -18,12 +20,15 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/projects', projectRoutes);
 
-// Project board, PBI and sprint routes all live under /api/projects/:projectId.
+// Project board, PBI, sprint, task, sub-task and membership routes all
+// live under /api/projects/:projectId.
 app.use('/api/projects', boardRoutes);
 app.use('/api/projects', pbiRoutes);
 app.use('/api/projects', sprintRoutes);
 app.use('/api/projects', taskRoutes);
 app.use('/api/projects', completedWorkRoutes);
+app.use('/api/projects', subTaskRoutes);
+app.use('/api/projects', projectMembershipRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

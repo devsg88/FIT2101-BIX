@@ -57,6 +57,40 @@ export function createProject(name, token) {
   });
 }
 
+// GET /api/projects  (US-04c, Admin only)
+// The projects the logged-in Admin is responsible for, as { projects: [{ id,
+// name }] }. The server decides which projects those are from the token -
+// nothing here says which Admin is asking. Throws with the backend's message
+// on failure, like every other call in this file.
+export function getResponsibleProjects(token) {
+  return request('/projects', {
+    headers: authHeader(token)
+  });
+}
+
+// PATCH /api/projects/:projectId  (US-04c, responsible Admin only)
+// Renames the project - its board's name. Only the name is sent; who may
+// rename is decided by the server. Resolves with { project }, or throws with
+// the backend's message (blank name, not responsible, ...).
+export function updateProject(projectId, name, token) {
+  return request(`/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
+// DELETE /api/projects/:projectId  (US-04c, responsible Admin only)
+// Deletes the project - its board - only while it has no PBIs or sprints.
+// Resolves with { message, id }, or throws with the backend's message (409
+// when the board still has work, 403 when not responsible, ...).
+export function deleteProject(projectId, token) {
+  return request(`/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
@@ -75,6 +109,34 @@ export function getBoard(projectId, token) {
 export function getCompletedWork(projectId, token) {
   return request(`/projects/${projectId}/completed-work`, {
     headers: authHeader(token)
+  });
+}
+
+export function getPbiBreakdown(projectId, pbiId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}`, { headers: authHeader(token) });
+}
+
+export function createTask(projectId, pbiId, fields, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks`, {
+    method: 'POST', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
+export function updateTask(projectId, taskId, fields, token) {
+  return request(`/projects/${projectId}/tasks/${taskId}`, {
+    method: 'PATCH', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
+export function createSubTask(projectId, taskId, fields, token) {
+  return request(`/projects/${projectId}/tasks/${taskId}/sub-tasks`, {
+    method: 'POST', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
+export function updateSubTask(projectId, subTaskId, fields, token) {
+  return request(`/projects/${projectId}/sub-tasks/${subTaskId}`, {
+    method: 'PATCH', headers: authHeader(token), body: JSON.stringify(fields)
   });
 }
 
@@ -110,6 +172,81 @@ export function updatePbiPlanning(projectId, pbiId, planning, token) {
 export function startSprint(projectId, sprintId, token) {
   return request(`/projects/${projectId}/sprints/${sprintId}/start`, {
     method: 'POST',
+    headers: authHeader(token)
+  });
+}
+
+// --- Tasks and sub-tasks (US-04a, SCRUM-121/122) ----------------------------
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
+// `payload` is { title, status }. Admin-only on the backend (requireRole);
+// a non-admin caller gets the backend's 403 message back through `request`.
+export function updateTaskInPbi(projectId, pbiId, taskId, payload, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify(payload)
+  });
+}
+
+// DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
+// Throws with the backend's message on a completed-PBI 409, a 404, etc.
+export function deleteTask(projectId, pbiId, taskId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
+export function updateSubTaskInTask(projectId, pbiId, taskId, subTaskId, payload, token) {
+  return request(
+    `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}`,
+    {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify(payload)
+    }
+  );
+}
+
+// DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
+export function deleteSubTask(projectId, pbiId, taskId, subTaskId, token) {
+  return request(
+    `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}`,
+    {
+      method: 'DELETE',
+      headers: authHeader(token)
+    }
+  );
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/assignee  (SCRUM-122)
+// assigneeId may be null to unassign.
+export function assignTask(projectId, pbiId, taskId, assigneeId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/assignee`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ assignee_id: assigneeId })
+  });
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee
+export function assignSubTask(projectId, pbiId, taskId, subTaskId, assigneeId, token) {
+  return request(
+    `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}/assignee`,
+    {
+      method: 'PATCH',
+      headers: authHeader(token),
+      body: JSON.stringify({ assignee_id: assigneeId })
+    }
+  );
+}
+
+// GET /api/projects/:projectId/members  (SCRUM-122's own endpoint, added so
+// this dropdown has something to source from). Resolves with { members }.
+export function getProjectMembers(projectId, token) {
+  return request(`/projects/${projectId}/members`, {
     headers: authHeader(token)
   });
 }

@@ -1,5 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { getProjectResponsibility } from '../models/projectModel.js';
+import { isProjectMember } from '../models/projectMembershipModel.js';
+import { getProjectById } from '../models/boardModel.js';
 
 export function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -42,23 +44,39 @@ export function requireRole(...allowedRoles) {
   };
 }
 
-// INTEGRATION POINT - NOT IMPLEMENTED.
-//
-// The board workflow stories ("a permitted team member can ...") require
-// knowing whether the authenticated user belongs to the team that owns a given
-// project. This repository has no such data: there is no membership table, no
-// project_members join, nothing linking a user to a project. A global role
-// ('admin' | 'developer') does not establish membership of a specific project.
-//
-// Until that data model and the permission rules are agreed with the team that
-// owns the users table, this guard refuses the request instead of guessing.
-// When membership exists: replace the body with a real lookup
-// (req.user.id + req.params.projectId -> membership row) and add this guard to
-// the project-scoped mutation routes after requireAuth.
-export function requireProjectMembership(req, res, next) {
-  return res
-    .status(501)
-    .json({ message: 'Project membership checks are not implemented yet' });
+// Developer project access uses explicit membership, not team membership.
+export async function requireProjectMembership(req, res, next) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  const projectId = Number(req.params?.projectId);
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+  try {
+    if (!await getProjectById(projectId)) {
+      return res.status(404).json({ message: 'Project not found' });
+    }
+    if (!await isProjectMember(projectId, req.user.id)) {
+      return res.status(403).json({ message: 'You are not a member of this project' });
+    }
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to check project membership' });
+  }
+  next();
+}
+
+export function requireProjectAccess(req, res, next) {
+  if (!req.user?.id) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  if (req.user.role === 'admin') {
+    return requireProjectResponsibility(req, res, next);
+  }
+  if (req.user.role === 'developer') {
+    return requireProjectMembership(req, res, next);
+  }
+  return res.status(403).json({ message: 'You do not have permission to access this project' });
 }
 
 // Restrict a project-scoped route to the Admin responsible for that project
@@ -84,7 +102,7 @@ export async function requireProjectResponsibility(req, res, next) {
   }
 
   const projectId = Number(req.params?.projectId);
-  if (!Number.isInteger(projectId) || projectId <= 0) {
+  if (!Number.isSafeInteger(projectId) || projectId <= 0) {
     return res.status(400).json({ message: 'A valid projectId is required' });
   }
 
@@ -108,4 +126,28 @@ export async function requireProjectResponsibility(req, res, next) {
   }
 
   next();
+}
+
+// Restrict Admins - and only Admins - to the projects they are responsible for
+// (US-04c), on routes that other roles may also use, such as reading a board.
+// A non-Admin is passed straight through unchanged: whether a Developer may
+// use the route is decided elsewhere (project membership, US-05), not here.
+// An Admin is handed to requireProjectResponsibility, so the 400 / 404 / 403
+// / 500 behaviour and the single ownership lookup are exactly the same as on
+// Admin-only routes - this adds no second ownership query and never consults
+// project_members.
+//
+// Must be placed AFTER requireAuth. Responds 401 if authentication has not run.
+//
+//   router.get('/:projectId/board', requireAuth, requireAdminProjectResponsibility, handler)
+export function requireAdminProjectResponsibility(req, res, next) {
+  if (!req.user?.role) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  if (req.user.role !== 'admin') {
+    return next();
+  }
+
+  return requireProjectResponsibility(req, res, next);
 }

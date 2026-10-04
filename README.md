@@ -71,6 +71,17 @@ psql "postgresql://<username>:<password>@localhost:5432/<database>" -f server/db
 
 Run `schema.sql` first, followed by `seed.sql`.
 
+Then apply the task/sub-task migrations. `schema.sql` does not include US-04a's,
+and a database set up before US-11 also lacks US-11's task effort columns and
+`pbi_collaborators` table; the project board needs both. They are safe to run
+more than once, so run both on a fresh database and on any existing database
+that has not had them yet:
+
+```bash
+psql "postgresql://<username>:<password>@localhost:5432/<database>" -v ON_ERROR_STOP=1 -f server/db/migrations/001_task_subtask_assignee_and_status.sql
+psql "postgresql://<username>:<password>@localhost:5432/<database>" -v ON_ERROR_STOP=1 -f server/db/migrations/001_us11_task_actual_effort.sql
+```
+
 **Project responsibility (US-04d).** A fresh database set up with the current
 `schema.sql` (from US-04d onwards) already gets `projects.responsible_admin_id`,
 so migration 003 is not needed for that column on a fresh setup.

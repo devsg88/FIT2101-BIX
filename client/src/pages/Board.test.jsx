@@ -15,16 +15,7 @@ import {
 } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({
-  getBoard: vi.fn(),
-  movePbi: vi.fn(),
-  updatePbiPlanning: vi.fn(),
-  startSprint: vi.fn(),
-  completeTask: vi.fn(),
-  completeSubTask: vi.fn(),
-  completePbi: vi.fn(),
-  getCompletedWork: vi.fn()
-}));
+vi.mock('../services/api.js');
 
 // Registers both routes App.jsx does for the board, since the Completed Work
 // History sidebar (US-12) is reached by navigating between them, not by a
