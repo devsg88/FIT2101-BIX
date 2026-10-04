@@ -98,13 +98,13 @@ describe('moveStageController', () => {
     getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'product_backlog' });
     const res = mockRes();
 
-    // product_backlog -> completed skips stages, the transition map
-    // (US-06/6.3) does not allow it.
+    // product_backlog -> completed is both an illegal skip and a move that
+    // US-11 requires to go through the complete-PBI action.
     await moveStageController(mockReq({ stage: 'completed' }), res);
 
     expect(res.status).toHaveBeenCalledWith(400);
     expect(res.json).toHaveBeenCalledWith({
-      message: expect.stringMatching(/cannot move a pbi/i)
+      message: 'Cannot move a PBI into Completed without recording actual hours. Complete the PBI instead.'
     });
     expect(updatePbiStage).not.toHaveBeenCalled();
   });

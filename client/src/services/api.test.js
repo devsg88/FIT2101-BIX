@@ -1,12 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
+  completeTask,
   createPbi,
   deletePbi,
   getBoard,
   getProjectPbis,
-  updatePbi,
   movePbi,
   startSprint,
+  updatePbi,
   updatePbiPlanning
 } from './api.js';
 
@@ -86,6 +87,15 @@ describe('board api helpers', () => {
     await expect(startSprint(7, 3, 'tok-123')).rejects.toThrow(
       'Cannot start an empty sprint'
     );
+  });
+
+  it('completeTask posts actual hours', async () => {
+    await completeTask(7, 3, 4, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/tasks/3/complete');
+    expect(options.method).toBe('POST');
+    expect(options.body).toBe(JSON.stringify({ actual_hours: 4 }));
   });
 });
 
