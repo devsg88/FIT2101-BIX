@@ -621,6 +621,29 @@ describe('deletePbiController (US-04b)', () => {
     });
   });
 
+  // US-11 integration: a PBI completed through the complete-PBI action has
+  // pbi_collaborators rows (also ON DELETE RESTRICT); the 409 must name that,
+  // not tasks.
+  it('returns 409 naming completed-work history when collaborators block the delete', async () => {
+    getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'completed' });
+    deletePbi.mockRejectedValue(
+      Object.assign(
+        new Error(
+          'update or delete on table "product_backlog_items" violates RESTRICT setting of foreign key constraint "pbi_collaborators_pbi_id_fkey" on table "pbi_collaborators"'
+        ),
+        { code: '23001', constraint: 'pbi_collaborators_pbi_id_fkey' }
+      )
+    );
+    const res = mockRes();
+
+    await deletePbiController(deleteReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Cannot delete a completed PBI: its collaborators are part of the completed-work history.'
+    });
+  });
+
   it('returns 409 if the PBI changed between the check and the delete', async () => {
     getPbiById.mockResolvedValue({ id: 2, project_id: 1, stage: 'sprint_planning' });
     deletePbi.mockResolvedValue(null);

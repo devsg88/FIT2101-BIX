@@ -172,11 +172,22 @@ export async function updatePbiDetailsController(req, res) {
   }
 }
 
-// PostgreSQL error codes for deleting a PBI that tasks still reference.
-// tasks.pbi_id is ON DELETE RESTRICT, which PostgreSQL reports as
-// restrict_violation (23001); foreign_key_violation (23503) is what the
-// default NO ACTION reports, kept so a future schema change still maps here.
+// PostgreSQL error codes for deleting a PBI that other rows still reference.
+// tasks.pbi_id and pbi_collaborators.pbi_id (US-11) are ON DELETE RESTRICT,
+// which PostgreSQL reports as restrict_violation (23001); foreign_key_violation
+// (23503) is what the default NO ACTION reports, kept so a future schema
+// change still maps here.
 const PBI_STILL_REFERENCED = new Set(['23001', '23503']);
+
+// The 409 message names what is blocking the delete. pbi_collaborators rows
+// exist only for a PBI completed through US-11, and are completed-work history
+// (US-12/US-13), so that case says so instead of mentioning tasks.
+function stillReferencedMessage(err) {
+  if (String(err?.constraint ?? '').startsWith('pbi_collaborators')) {
+    return 'Cannot delete a completed PBI: its collaborators are part of the completed-work history.';
+  }
+  return 'Cannot delete a PBI that still has tasks. Remove its tasks first.';
+}
 
 // DELETE /api/projects/:projectId/pbis/:pbiId
 // US-04b. Same guards as create/edit: only the Admin responsible for this
@@ -222,9 +233,7 @@ export async function deletePbiController(req, res) {
     return res.json({ pbi: deletedPbi });
   } catch (err) {
     if (PBI_STILL_REFERENCED.has(err?.code)) {
-      return res.status(409).json({
-        message: 'Cannot delete a PBI that still has tasks. Remove its tasks first.'
-      });
+      return res.status(409).json({ message: stillReferencedMessage(err) });
     }
     return res.status(500).json({ message: 'Failed to delete the PBI' });
   }
