@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { requireAuth } from '../middleware/authMiddleware.js';
+import { requireAuth, requireProjectAccess } from '../middleware/authMiddleware.js';
 import { getCompletedWorkController } from '../controllers/completedWorkController.js';
 import completedWorkRoutes from './completedWorkRoutes.js';
 
@@ -28,16 +28,21 @@ describe('completedWorkRoutes', () => {
     expect(layer.route.methods.get).toBe(true);
   });
 
-  it('runs requireAuth before getCompletedWorkController, so an unauthenticated request never reaches it', () => {
+  it('runs requireAuth then requireProjectAccess before getCompletedWorkController, so neither an unauthenticated nor an unauthorized request ever reaches it', () => {
     const layer = completedWorkRoutes.stack.find(
       (entry) => entry.route?.path === '/:projectId/completed-work'
     );
     const handlerNames = layer.route.stack.map((handlerLayer) => handlerLayer.name);
 
-    expect(handlerNames).toEqual([requireAuth.name, getCompletedWorkController.name]);
-    // Equivalent, more direct check: requireAuth is literally the first
-    // function that runs, by identity, not just by name.
+    expect(handlerNames).toEqual([
+      requireAuth.name,
+      requireProjectAccess.name,
+      getCompletedWorkController.name
+    ]);
+    // Equivalent, more direct check: each guard is literally the function
+    // that runs at that position, by identity, not just by name.
     expect(layer.route.stack[0].handle).toBe(requireAuth);
-    expect(layer.route.stack[1].handle).toBe(getCompletedWorkController);
+    expect(layer.route.stack[1].handle).toBe(requireProjectAccess);
+    expect(layer.route.stack[2].handle).toBe(getCompletedWorkController);
   });
 });
