@@ -54,6 +54,19 @@ describe('App redirect logic', () => {
     renderApp('/projects/7/board', null);
     expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
   });
+
+  it('renders the completed-work route (US-12) for an authenticated user', () => {
+    // Board.jsx itself decides whether to show the history sidebar based on
+    // the URL (see Board.test.jsx) - this only checks the route reaches the
+    // same protected page, same as /board.
+    renderApp('/projects/7/completed-work', { id: 1, role: 'developer', token: 'abc' });
+    expect(screen.getByText('Board Page')).toBeInTheDocument();
+  });
+
+  it('redirects an unauthenticated user from the completed-work route to login', () => {
+    renderApp('/projects/7/completed-work', null);
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+  });
 });
 
 describe('Product Backlog route (US-04b)', () => {

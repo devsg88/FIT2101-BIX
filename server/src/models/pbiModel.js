@@ -124,7 +124,7 @@ export async function updatePbiStage(projectId, pbiId, newStage) {
   return rows[0] ?? null;
 }
 
-// Writes Sprint Planning fields (US-08b — Yichi Zhang). Same scoping as
+// Writes Sprint Planning fields (US-08b  Yichi Zhang). Same scoping as
 // updatePbiStage: one UPDATE on the existing row, matched by id AND project,
 // so the PBI is never deleted/recreated and a pbiId from another project
 // cannot be touched. Only the three planning columns are set; stage,
@@ -147,7 +147,7 @@ export async function updatePbiPlanning(
   return rows[0] ?? null;
 }
 
-// Used by Start Sprint (US-10 — Yichi Zhang) to load every PBI currently
+// Used by Start Sprint (US-10  Yichi Zhang) to load every PBI currently
 // sitting in one stage for a project, without assembling the whole board.
 export async function getPbisByStage(projectId, stage) {
   const { rows } = await pool.query(

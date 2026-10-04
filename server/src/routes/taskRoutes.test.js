@@ -41,4 +41,27 @@ describe('taskRoutes', () => {
 
     expect(names).toEqual(['requireAuth', 'roleGuard', 'requireProjectResponsibility', 'assignTaskController']);
   });
+
+  // The three US-11 completion routes used to run with requireAuth only -
+  // any authenticated user, not just an admin or an assigned project member,
+  // could complete a task/sub-task/PBI on a project they had no access to.
+  // requireProjectAccess now closes that the same way the US-04a routes
+  // above are already guarded.
+  it('guards POST .../tasks/:taskId/complete with requireAuth then requireProjectAccess before the controller', () => {
+    const names = middlewareNamesFor('post', '/:projectId/tasks/:taskId/complete');
+
+    expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'completeTaskController']);
+  });
+
+  it('guards POST .../sub-tasks/:subTaskId/complete with requireAuth then requireProjectAccess before the controller', () => {
+    const names = middlewareNamesFor('post', '/:projectId/sub-tasks/:subTaskId/complete');
+
+    expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'completeSubTaskController']);
+  });
+
+  it('guards POST .../pbis/:pbiId/complete with requireAuth then requireProjectAccess before the controller', () => {
+    const names = middlewareNamesFor('post', '/:projectId/pbis/:pbiId/complete');
+
+    expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'completePbiController']);
+  });
 });

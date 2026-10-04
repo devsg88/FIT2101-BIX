@@ -311,7 +311,7 @@ input {
 }
 
 /* =========================================================
-   Admin dashboard — Organization Overview
+   Admin dashboard  Organization Overview
    ========================================================= */
 
 .admin-dashboard {
@@ -1583,8 +1583,18 @@ input {
   font-size: 0.875rem;
 }
 
-.project-board__user {
+.project-board__history-button {
   margin-left: auto;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 999px;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.project-board__user {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -1816,7 +1826,7 @@ input {
   font-size: 0.75rem;
 }
 
-/* US-08b / US-10 — Yichi Zhang: planning form under the card, Start Sprint
+/* US-08b / US-10 - Yichi Zhang: planning form under the card, Start Sprint
    in the Sprint Planning column (not an overlay). */
 
 .project-board__planning-form {
@@ -1987,6 +1997,155 @@ input {
 
   .project-board__user-name {
     display: none;
+  }
+}
+
+/* =========================================================================
+   Completed Work History sidebar (US-12).
+   Pops out over the board rather than being a separate page - see the
+   design note on Board.jsx's CompletedWorkSidebar. Kept in the project-board
+   colour language (cream/white cards, black borders) rather than the
+   original white/blue mock, to stay consistent with the rest of this page.
+   ========================================================================= */
+
+.completed-work {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.completed-work__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.completed-work__panel {
+  position: relative;
+  width: min(420px, 100%);
+  height: 100%;
+  background: #fdfaf0;
+  border-left: 1px solid #000;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.completed-work__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #000;
+  background: #fff;
+}
+
+.completed-work__title {
+  margin: 0;
+  font-size: 1.0625rem;
+}
+
+.completed-work__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.completed-work__close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.completed-work__body {
+  padding: 1.25rem;
+  flex: 1;
+}
+
+.completed-work__status {
+  padding: 1rem 0;
+}
+
+.completed-work__empty {
+  color: #555;
+  font-size: 0.875rem;
+}
+
+.completed-work__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.completed-work__item {
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 6px;
+  padding: 0.75rem 0.875rem;
+}
+
+.completed-work__item-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.9375rem;
+}
+
+/* Sprint / Completed / Effort / Collaborators, shown as a small label-over-value
+   grid so these fields read clearly and consistently across every record,
+   rather than as a run-on sentence. */
+.completed-work__item-fields {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+.completed-work__item-field {
+  min-width: 5rem;
+}
+
+/* Collaborators can be a comma-separated list of several names, much longer
+   than a sprint label or an hour count - let it claim a full row of its own
+   instead of squeezing into the same narrow column as the other fields. */
+.completed-work__item-field--wide {
+  flex-basis: 100%;
+}
+
+.completed-work__item-field dt {
+  margin: 0;
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: #777;
+}
+
+.completed-work__item-field dd {
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #1d1d1b;
+}
+
+.completed-work__item-taskcount {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: #555;
+}
+
+@media (max-width: 480px) {
+  .completed-work__panel {
+    width: 100%;
   }
 }
 

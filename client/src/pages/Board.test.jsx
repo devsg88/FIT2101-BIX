@@ -3,16 +3,29 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Board from './Board.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, completePbi } from '../services/api.js';
+import {
+  getBoard,
+  movePbi,
+  startSprint,
+  updatePbiPlanning, 
+  getCompletedWork, 
+  completeTask, 
+  completeSubTask, 
+  completePbi
+} from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
 vi.mock('../services/api.js');
 
+// Registers both routes App.jsx does for the board, since the Completed Work
+// History sidebar (US-12) is reached by navigating between them, not by a
+// separate page - see Board.jsx's BoardView (isHistoryOpen).
 function renderBoard(path = '/projects/7/board') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/projects/:projectId/board" element={<Board />} />
+        <Route path="/projects/:projectId/completed-work" element={<Board />} />
       </Routes>
     </MemoryRouter>
   );
@@ -477,6 +490,223 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Product Backlog' })
       .closest('section');
     expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  describe('Completed Work History sidebar (US-12)', () => {
+    beforeEach(() => {
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: []
+      });
+    });
+
+    it('is closed on the plain board route, and opens the completed-work route when clicked', async () => {
+      getCompletedWork.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, pbis: [] });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('BIX Platform')).toBeInTheDocument());
+      expect(screen.queryByRole('dialog', { name: 'Completed work history' })).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Work History/ }));
+
+      await waitFor(() =>
+        expect(screen.getByRole('dialog', { name: 'Completed work history' })).toBeInTheDocument()
+      );
+    });
+
+    it('shows task name, Sprint, completion date, effort and collaborators for a completed PBI, and keeps its tasks/sub-tasks nested', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: 'Sprint 1',
+            actual_hours: '10.50',
+            updated_at: '2026-08-07T16:00:00.000Z',
+            collaborators: [{ id: 2, name: 'Pang', email: 'pang@bix.app', role: 'developer' }],
+            tasks: [
+              {
+                id: 5,
+                title: 'Wire the form to the auth API',
+                status: 'done',
+                subTasks: []
+              }
+            ]
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(getCompletedWork).toHaveBeenCalledWith('7', 'tok'));
+      const item = screen.getByRole('heading', { name: 'Login page' }).closest('li');
+      expect(item).toHaveTextContent('Sprint');
+      expect(item).toHaveTextContent('Sprint 1');
+      expect(item).toHaveTextContent('Completed');
+      expect(item).toHaveTextContent('Aug 7');
+      expect(item).toHaveTextContent('Effort');
+      expect(item).toHaveTextContent('10.5h');
+      expect(item).toHaveTextContent('Collaborators');
+      expect(item).toHaveTextContent('Pang');
+      expect(item).toHaveTextContent('Wire the form to the auth API');
+    });
+
+    it('shows "Not recorded" for Sprint and Effort, and "No collaborators recorded" for Collaborators, when that data has not been captured', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: null,
+            actual_hours: null,
+            updated_at: null,
+            collaborators: [],
+            tasks: []
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      const item = await waitFor(() =>
+        screen.getByRole('heading', { name: 'Login page' }).closest('li')
+      );
+      // Three distinct fields, all missing for different reasons (no sprint
+      // link, US-11 has not recorded hours, no updated_at) - all read the
+      // same "Not recorded" rather than a blank or a misleading default.
+      expect(item.textContent.match(/Not recorded/g)).toHaveLength(3);
+      // Collaborators gets its own wording, consistent with "Not recorded"
+      // but distinct since "nobody recorded" is a different kind of absence
+      // than "the hours weren't logged".
+      expect(item).toHaveTextContent('No collaborators recorded');
+    });
+
+    it('lists every collaborator, comma-separated, when more than one worked on a completed PBI', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: 'Sprint 1',
+            actual_hours: '10.50',
+            updated_at: '2026-08-07T16:00:00.000Z',
+            collaborators: [
+              { id: 2, name: 'Pang', email: 'pang@bix.app', role: 'developer' },
+              { id: 3, name: 'Dave', email: 'dev@bix.local', role: 'developer' },
+              { id: 1, name: 'Admin', email: 'admin@bix.app', role: 'admin' }
+            ],
+            tasks: []
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      const item = await waitFor(() =>
+        screen.getByRole('heading', { name: 'Login page' }).closest('li')
+      );
+      expect(item).toHaveTextContent('Collaborators');
+      expect(item).toHaveTextContent('Pang, Dave, Admin');
+    });
+
+    it('distinguishes multiple completed records, each showing its own Sprint/date/effort', async () => {
+      getCompletedWork.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        pbis: [
+          {
+            id: 4,
+            title: 'Login page',
+            stage: 'completed',
+            sprint_name: 'Sprint 1',
+            actual_hours: '10.50',
+            updated_at: '2026-08-07T16:00:00.000Z',
+            tasks: []
+          },
+          {
+            id: 6,
+            title: 'Password reset flow',
+            stage: 'completed',
+            sprint_name: 'Sprint 2',
+            actual_hours: '4.00',
+            updated_at: '2026-08-20T09:00:00.000Z',
+            tasks: []
+          }
+        ]
+      });
+
+      renderBoard('/projects/7/completed-work');
+
+      const firstItem = await waitFor(() =>
+        screen.getByRole('heading', { name: 'Login page' }).closest('li')
+      );
+      const secondItem = screen.getByRole('heading', { name: 'Password reset flow' }).closest('li');
+
+      expect(firstItem).toHaveTextContent('Sprint 1');
+      expect(firstItem).toHaveTextContent('10.5h');
+      expect(secondItem).toHaveTextContent('Sprint 2');
+      expect(secondItem).toHaveTextContent('4h');
+      // Each record's fields stay with its own card, not mixed into the other's.
+      expect(firstItem).not.toHaveTextContent('Sprint 2');
+      expect(secondItem).not.toHaveTextContent('Sprint 1');
+    });
+
+    it('shows a dedicated access-denied message on a 403, not the generic error state', async () => {
+      const forbidden = new Error("You do not have permission to view this project's completed work");
+      forbidden.status = 403;
+      getCompletedWork.mockRejectedValue(forbidden);
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByText(/don.t have permission to view this project/)).toBeInTheDocument();
+      // Not the generic "Couldn't load" / Retry treatment a plain failure gets.
+      expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    });
+
+    it('shows a generic error with a Retry button on a non-403 failure', async () => {
+      getCompletedWork.mockRejectedValue(new Error('Failed to load completed work history'));
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+      expect(screen.getByText(/Failed to load completed work history/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    });
+
+    it('shows an empty message rather than an error when nothing has been completed yet', async () => {
+      getCompletedWork.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, pbis: [] });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() =>
+        expect(screen.getByText('Nothing has been completed on this project yet.')).toBeInTheDocument()
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('closes the sidebar and returns to the board when the close button is clicked', async () => {
+      getCompletedWork.mockResolvedValue({ project: { id: 7, name: 'BIX Platform' }, pbis: [] });
+
+      renderBoard('/projects/7/completed-work');
+
+      await waitFor(() =>
+        expect(screen.getByRole('dialog', { name: 'Completed work history' })).toBeInTheDocument()
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Close work history' }));
+
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog', { name: 'Completed work history' })).not.toBeInTheDocument()
+      );
+    });
   });
 
   it('lets the assigned developer complete a task with actual hours', async () => {

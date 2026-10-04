@@ -7,6 +7,7 @@ import boardRoutes from './routes/boardRoutes.js';
 import pbiRoutes from './routes/pbiRoutes.js';
 import sprintRoutes from './routes/sprintRoutes.js';
 import taskRoutes from './routes/taskRoutes.js';
+import completedWorkRoutes from './routes/completedWorkRoutes.js';
 import subTaskRoutes from './routes/subTaskRoutes.js';
 import projectMembershipRoutes from './routes/projectMembershipRoutes.js';
 
@@ -25,6 +26,7 @@ app.use('/api/projects', boardRoutes);
 app.use('/api/projects', pbiRoutes);
 app.use('/api/projects', sprintRoutes);
 app.use('/api/projects', taskRoutes);
+app.use('/api/projects', completedWorkRoutes);
 app.use('/api/projects', subTaskRoutes);
 app.use('/api/projects', projectMembershipRoutes);
 

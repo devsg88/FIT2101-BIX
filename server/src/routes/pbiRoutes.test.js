@@ -65,6 +65,21 @@ describe('pbiRoutes wiring', () => {
       'deletePbiController'
     ]);
   });
+
+  // Stage and planning are used by Developers AND Admins, so they use
+  // requireProjectAccess (Developer = project member, Admin = responsible
+  // Admin). Previously they ran with requireAuth only.
+  it('guards PATCH .../pbis/:pbiId/stage with requireAuth then requireProjectAccess before the controller', () => {
+    const names = middlewareNamesFor('patch', '/:projectId/pbis/:pbiId/stage');
+
+    expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'moveStageController']);
+  });
+
+  it('guards PATCH .../pbis/:pbiId/planning with requireAuth then requireProjectAccess before the controller', () => {
+    const names = middlewareNamesFor('patch', '/:projectId/pbis/:pbiId/planning');
+
+    expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'updatePlanningController']);
+  });
 });
 
 // End to end through the real app (app.js mount + middleware + controller),
