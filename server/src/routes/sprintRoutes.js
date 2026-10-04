@@ -6,7 +6,9 @@ import { startSprintController } from '../controllers/sprintController.js';
 const router = Router();
 
 // POST /api/projects/:projectId/sprints/:sprintId/start
-// US-10 - Yichi Zhang. Starts the planned sprint (bulk move into Active Sprint).
+// US-10 — Yichi Zhang. Starts the planned sprint (bulk move into Active Sprint).
+// Developers and Admins both start sprints, so this uses requireProjectAccess
+// like the board read: Developer = project member, Admin = responsible Admin.
 router.post(
   '/:projectId/sprints/:sprintId/start',
   requireAuth,

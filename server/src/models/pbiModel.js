@@ -30,6 +30,73 @@ export async function getPbiById(projectId, pbiId) {
   return rows[0] ?? null;
 }
 
+// Creates a PBI in a project (US-04b). Callers pass a title that has already
+// been validated and trimmed, and a description that is either trimmed text
+// or null. Only those columns are written: stage and sprint_id are left to
+// their schema defaults, so a new PBI always starts in the Product Backlog
+// with no sprint, and planning fields / hours start empty.
+export async function createPbi(projectId, { title, description }) {
+  const { rows } = await pool.query(
+    `INSERT INTO product_backlog_items (project_id, title, description)
+     VALUES ($1, $2, $3)
+     RETURNING ${PBI_COLUMNS}`,
+    [projectId, title, description]
+  );
+  return rows[0];
+}
+
+// The PBI detail columns an Admin may edit (US-04b). Stage, sprint, planning
+// dates and hours are deliberately not here - they have their own endpoints
+// and workflow rules (US-06 / US-08a / US-08b / US-10).
+const EDITABLE_PBI_COLUMNS = Object.freeze(['title', 'description']);
+
+// Updates a PBI's details (US-04b). `changes` holds only the fields to change,
+// already validated by the caller; anything not in EDITABLE_PBI_COLUMNS is
+// ignored, so column names in the SQL never come from request data. Same
+// scoping as updatePbiStage: one UPDATE matched by id AND project, returning
+// null when no row matches (wrong project or no such PBI).
+export async function updatePbiDetails(projectId, pbiId, changes) {
+  const columns = EDITABLE_PBI_COLUMNS.filter((column) =>
+    Object.prototype.hasOwnProperty.call(changes, column)
+  );
+
+  if (columns.length === 0) {
+    throw new Error('updatePbiDetails called with no editable fields');
+  }
+
+  const setClause = columns
+    .map((column, index) => `${column} = $${index + 1}`)
+    .join(', ');
+  const values = columns.map((column) => changes[column]);
+
+  const { rows } = await pool.query(
+    `UPDATE product_backlog_items
+        SET ${setClause}
+      WHERE id = $${columns.length + 1} AND project_id = $${columns.length + 2}
+      RETURNING ${PBI_COLUMNS}`,
+    [...values, pbiId, projectId]
+  );
+  return rows[0] ?? null;
+}
+
+// Deletes a PBI (US-04b), scoped to its id AND project like every other
+// write here. The stage condition is repeated in the DELETE itself, so a PBI
+// that moved into Active Sprint after the controller's check is still never
+// deleted - this returns null instead, for the caller to report.
+//
+// A PBI that still has tasks cannot be deleted: tasks.pbi_id is ON DELETE
+// RESTRICT (see server/db/schema.sql), so PostgreSQL rejects the DELETE with
+// a restrict_violation (code 23001), which is passed through to the caller.
+export async function deletePbi(projectId, pbiId) {
+  const { rows } = await pool.query(
+    `DELETE FROM product_backlog_items
+      WHERE id = $1 AND project_id = $2 AND stage <> 'active_sprint'
+      RETURNING ${PBI_COLUMNS}`,
+    [pbiId, projectId]
+  );
+  return rows[0] ?? null;
+}
+
 // Moves a PBI to a new stage (US-08a). This is a single UPDATE on the
 // existing row, scoped to both its id AND its project, so:
 //   - the PBI is never deleted/recreated, its id and every column other than

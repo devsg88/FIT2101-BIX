@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard.jsx';
 import MyProjects from './pages/MyProjects.jsx';
 import Board from './pages/Board.jsx';
 import TeamDetail from './pages/TeamDetail.jsx';
+import ProductBacklog from './pages/ProductBacklog.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
 
 export default function App() {
@@ -47,6 +48,16 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Board />
+          </ProtectedRoute>
+        }
+      />
+      {/* Admin: a project's Product Backlog list (US-04b). Admin-only here;
+          the backend also requires the Admin to be responsible for it. */}
+      <Route
+        path="/projects/:projectId/backlog"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <ProductBacklog />
           </ProtectedRoute>
         }
       />

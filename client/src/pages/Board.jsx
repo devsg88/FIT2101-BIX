@@ -880,12 +880,19 @@ function ProjectTitle({ project }) {
 // on the board having finished loading.
 function BoardTopBar({ project, onOpenHistory }) {
   const { user } = useAuth();
+  const { projectId } = useBoard();
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?';
 
   return (
     <header className="project-board__topbar">
       <Link to="/dashboard" className="project-board__brand">BIX</Link>
       <ProjectTitle project={project} />
+      {/* US-04b: Admins manage PBIs from the backlog page. */}
+      {user?.role === 'admin' && (
+        <Link to={`/projects/${projectId}/backlog`} className="pbi-backlog__board-link">
+          Manage backlog
+        </Link>
+      )}
       <button
         type="button"
         className="project-board__history-button"

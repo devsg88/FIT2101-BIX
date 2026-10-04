@@ -1,5 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, getCompletedWork } from './api.js';
+import {
+  completeTask,
+  createPbi,
+  deletePbi,
+  getBoard,
+  getCompletedWork,
+  getProjectPbis,
+  movePbi,
+  startSprint,
+  updatePbi,
+  updatePbiPlanning
+} from './api.js';
 
 function okJson(body) {
   return Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
@@ -117,5 +128,106 @@ describe('board api helpers', () => {
       message: 'Not permitted',
       status: 403
     });
+  });
+});
+
+describe('getProjectPbis (US-04b)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({ pbis: [] }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('performs a GET on the project PBI list with the Bearer token', async () => {
+    const result = await getProjectPbis(7, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis');
+    expect(options.method).toBeUndefined();
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
+    expect(result).toEqual({ pbis: [] });
+  });
+
+  it("throws the backend's message when the request is refused", async () => {
+    global.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 403,
+        json: () => Promise.resolve({ message: 'You are not responsible for this project' })
+      })
+    );
+
+    await expect(getProjectPbis(2, 'tok')).rejects.toThrow(
+      'You are not responsible for this project'
+    );
+  });
+});
+
+describe('createPbi / updatePbi (US-04b, SCRUM-101)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({ pbi: { id: 1 } }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('createPbi POSTs the PBI as JSON with both headers', async () => {
+    await createPbi(7, { title: 'New item' }, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis');
+    expect(options.method).toBe('POST');
+    expect(options.body).toBe(JSON.stringify({ title: 'New item' }));
+    expect(options.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer tok-123'
+    });
+  });
+
+  it('updatePbi PATCHes only the given changes on that PBI', async () => {
+    await updatePbi(7, 42, { description: null }, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis/42');
+    expect(options.method).toBe('PATCH');
+    expect(options.body).toBe(JSON.stringify({ description: null }));
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
+  });
+});
+
+describe('deletePbi (US-04b, SCRUM-102)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({ pbi: { id: 42 } }));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sends DELETE for that PBI with the Bearer token', async () => {
+    const result = await deletePbi(7, 42, 'tok-123');
+
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/projects/7/pbis/42');
+    expect(options.method).toBe('DELETE');
+    expect(options.headers).toMatchObject({ Authorization: 'Bearer tok-123' });
+    expect(result).toEqual({ pbi: { id: 42 } });
+  });
+
+  it("throws the backend's reason when the delete is refused", async () => {
+    global.fetch.mockImplementation(() =>
+      Promise.resolve({
+        ok: false,
+        status: 400,
+        json: () => Promise.resolve({ message: 'Cannot delete a PBI that is in the Active Sprint' })
+      })
+    );
+
+    await expect(deletePbi(7, 3, 'tok')).rejects.toThrow(
+      'Cannot delete a PBI that is in the Active Sprint'
+    );
   });
 });

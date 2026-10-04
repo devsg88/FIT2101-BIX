@@ -100,6 +100,48 @@ export function getBoard(projectId, token) {
   });
 }
 
+// GET /api/projects/:projectId/pbis  (US-04b, SCRUM-151)
+// The project's Product Backlog Items, for the Admin responsible for that
+// project. Resolves with { pbis: [...] }, or throws with the backend's
+// message (not logged in, not responsible for this project, not found, ...).
+export function getProjectPbis(projectId, token) {
+  return request(`/projects/${projectId}/pbis`, {
+    headers: authHeader(token)
+  });
+}
+
+// POST /api/projects/:projectId/pbis  (US-04b, SCRUM-101)
+// `pbi` is { title, description? }. The server always creates it in the
+// Product Backlog of the project in the URL. Resolves with { pbi }.
+export function createPbi(projectId, pbi, token) {
+  return request(`/projects/${projectId}/pbis`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify(pbi)
+  });
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId  (US-04b, SCRUM-101)
+// `changes` holds only the fields to change: { title?, description? }.
+// Resolves with { pbi: <updated PBI> }.
+export function updatePbi(projectId, pbiId, changes, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify(changes)
+  });
+}
+
+// DELETE /api/projects/:projectId/pbis/:pbiId  (US-04b, SCRUM-102)
+// Resolves with { pbi: <the deleted PBI> }, or throws with the backend's
+// message - e.g. the PBI is in the Active Sprint, or still has tasks.
+export function deletePbi(projectId, pbiId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
 // GET /api/projects/:projectId/completed-work  (US-12)
 // Resolves with { project, pbis: [...] } - pbis is every PBI moved to
 // Completed, each with sprint_name (joined from sprint_id), its tasks/sub-tasks

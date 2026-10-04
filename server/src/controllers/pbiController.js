@@ -1,18 +1,243 @@
-import { getPbiById, updatePbiPlanning, updatePbiStage } from '../models/pbiModel.js';
+import {
+  createPbi,
+  deletePbi,
+  getPbiById,
+  getPbisByProject,
+  updatePbiDetails,
+  updatePbiPlanning,
+  updatePbiStage
+} from '../models/pbiModel.js';
 import { checkStageTransition } from '../constants/stageTransitions.js';
 
 // PBI mutation endpoints.
 //
 // moveStageController is implemented (US-08a's move-to-Sprint-Planning path,
-// and the general controlled-transition mechanics from US-06). It still
-// needs project-membership authorization once that exists (see
-// requireProjectMembership in ../middleware/authMiddleware.js) - right now
-// any authenticated user can move any project's PBIs, which is a known,
-// tracked gap, not an oversight.
+// and the general controlled-transition mechanics from US-06). It is
+// guarded by requireProjectAccess at the route (../routes/pbiRoutes.js):
+// a Developer must be a member of the project, an Admin its responsible
+// Admin.
 //
 // updatePlanningController (US-08b, Yichi Zhang) writes planned dates and
 // Estimated Hours onto a PBI that is already in Sprint Planning. It does
 // not change stage.
+//
+// listPbisController (US-04b) lists a project's PBIs for the Admin
+// responsible for that project.
+
+// GET /api/projects/:projectId/pbis
+// US-04b. The route (see ../routes/pbiRoutes.js) is requireAuth +
+// requireRole('admin') + requireProjectResponsibility, so by the time this
+// runs the caller is the Admin responsible for an existing project. The
+// projectId is still validated here so the controller is safe on its own.
+// Returns the PBIs only, flat - their Tasks and Sub-tasks are US-04a.
+export async function listPbisController(req, res) {
+  const projectId = Number(req.params.projectId);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+
+  try {
+    const pbis = await getPbisByProject(projectId);
+    return res.json({ pbis });
+  } catch (err) {
+    // Same convention as the other controllers: never leak the raw DB error.
+    return res.status(500).json({ message: 'Failed to load the Product Backlog Items' });
+  }
+}
+
+// Pulls title and description out of a create request body and turns any
+// problem into a message the controller can send as a 400. Only these two
+// fields are read; anything else (stage, sprint_id, hours, project_id, ...)
+// is ignored, so a new PBI cannot be created part-way through the workflow
+// or into a different project from the one in the route.
+function parsePbiPayload(body) {
+  const rawTitle = body?.title;
+  const rawDescription = body?.description;
+
+  if (rawTitle === undefined || rawTitle === null) {
+    return { error: 'A PBI title is required' };
+  }
+
+  if (typeof rawTitle !== 'string') {
+    return { error: 'The PBI title must be text' };
+  }
+
+  const title = rawTitle.trim();
+  if (title === '') {
+    return { error: 'A PBI title is required' };
+  }
+
+  // Description is optional. Missing, null or blank is stored as NULL.
+  let description = null;
+  if (rawDescription !== undefined && rawDescription !== null) {
+    if (typeof rawDescription !== 'string') {
+      return { error: 'The PBI description must be text' };
+    }
+    description = rawDescription.trim() || null;
+  }
+
+  return { pbi: { title, description } };
+}
+
+// POST /api/projects/:projectId/pbis
+// US-04b. Same guards as listPbisController: only the Admin responsible for
+// this (existing) project gets here. The project always comes from the
+// route's :projectId, never from the body.
+export async function createPbiController(req, res) {
+  const projectId = Number(req.params.projectId);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+
+  const parsed = parsePbiPayload(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ message: parsed.error });
+  }
+
+  try {
+    const pbi = await createPbi(projectId, parsed.pbi);
+    return res.status(201).json({ pbi });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to create the PBI' });
+  }
+}
+
+// Pulls the editable fields out of an edit request body (US-04b). Partial:
+// only the fields actually present are changed, but at least one is needed.
+// Title, if sent, follows the same rules as on create. Description, if sent,
+// may be text or null; blank or null clears it. Anything else in the body
+// (stage, sprint_id, hours, project_id, ...) is ignored.
+function parsePbiChanges(body) {
+  const changes = {};
+
+  if (body?.title !== undefined) {
+    if (typeof body.title !== 'string') {
+      return { error: 'The PBI title must be text' };
+    }
+    const title = body.title.trim();
+    if (title === '') {
+      return { error: 'The PBI title cannot be blank' };
+    }
+    changes.title = title;
+  }
+
+  if (body?.description !== undefined) {
+    if (body.description !== null && typeof body.description !== 'string') {
+      return { error: 'The PBI description must be text' };
+    }
+    changes.description = body.description?.trim() || null;
+  }
+
+  if (Object.keys(changes).length === 0) {
+    return { error: 'Provide a title or description to update' };
+  }
+
+  return { changes };
+}
+
+// PATCH /api/projects/:projectId/pbis/:pbiId
+// US-04b. Same guards as create: only the Admin responsible for this project
+// gets here. Edits details in any stage; it never changes stage, sprint,
+// planning dates or hours.
+export async function updatePbiDetailsController(req, res) {
+  const projectId = Number(req.params.projectId);
+  const pbiId = Number(req.params.pbiId);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+
+  if (!Number.isInteger(pbiId) || pbiId <= 0) {
+    return res.status(400).json({ message: 'A valid pbiId is required' });
+  }
+
+  const parsed = parsePbiChanges(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ message: parsed.error });
+  }
+
+  try {
+    // Scoped to this project, so a PBI id from another project is a 404 and
+    // cannot be edited through a project this Admin is responsible for.
+    const updatedPbi = await updatePbiDetails(projectId, pbiId, parsed.changes);
+    if (!updatedPbi) {
+      return res.status(404).json({ message: 'PBI not found' });
+    }
+
+    return res.json({ pbi: updatedPbi });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to update the PBI' });
+  }
+}
+
+// PostgreSQL error codes for deleting a PBI that other rows still reference.
+// tasks.pbi_id and pbi_collaborators.pbi_id (US-11) are ON DELETE RESTRICT,
+// which PostgreSQL reports as restrict_violation (23001); foreign_key_violation
+// (23503) is what the default NO ACTION reports, kept so a future schema
+// change still maps here.
+const PBI_STILL_REFERENCED = new Set(['23001', '23503']);
+
+// The 409 message names what is blocking the delete. pbi_collaborators rows
+// exist only for a PBI completed through US-11, and are completed-work history
+// (US-12/US-13), so that case says so instead of mentioning tasks.
+function stillReferencedMessage(err) {
+  if (String(err?.constraint ?? '').startsWith('pbi_collaborators')) {
+    return 'Cannot delete a completed PBI: its collaborators are part of the completed-work history.';
+  }
+  return 'Cannot delete a PBI that still has tasks. Remove its tasks first.';
+}
+
+// DELETE /api/projects/:projectId/pbis/:pbiId
+// US-04b. Same guards as create/edit: only the Admin responsible for this
+// project gets here. Business safety rules:
+//   - a PBI in Active Sprint is being worked on and cannot be deleted (400);
+//   - a PBI that still has tasks cannot be deleted (409) - its Tasks and
+//     Sub-tasks are managed under US-04a and are never removed from here.
+// Responds 200 with the deleted PBI (not 204), because the client's request
+// helper always parses a JSON body.
+export async function deletePbiController(req, res) {
+  const projectId = Number(req.params.projectId);
+  const pbiId = Number(req.params.pbiId);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+
+  if (!Number.isInteger(pbiId) || pbiId <= 0) {
+    return res.status(400).json({ message: 'A valid pbiId is required' });
+  }
+
+  try {
+    const pbi = await getPbiById(projectId, pbiId);
+    if (!pbi) {
+      return res.status(404).json({ message: 'PBI not found' });
+    }
+
+    if (pbi.stage === 'active_sprint') {
+      return res.status(400).json({
+        message: 'Cannot delete a PBI that is in the Active Sprint'
+      });
+    }
+
+    const deletedPbi = await deletePbi(projectId, pbiId);
+    if (!deletedPbi) {
+      // Only reachable if the PBI was removed, or moved into Active Sprint,
+      // between the check above and the DELETE.
+      return res.status(409).json({
+        message: 'The PBI changed while it was being deleted. Reload and try again.'
+      });
+    }
+
+    return res.json({ pbi: deletedPbi });
+  } catch (err) {
+    if (PBI_STILL_REFERENCED.has(err?.code)) {
+      return res.status(409).json({ message: stillReferencedMessage(err) });
+    }
+    return res.status(500).json({ message: 'Failed to delete the PBI' });
+  }
+}
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
 export async function moveStageController(req, res) {
