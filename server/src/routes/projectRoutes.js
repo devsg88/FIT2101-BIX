@@ -1,6 +1,15 @@
 import { Router } from 'express';
-import { requireAuth, requireRole } from '../middleware/authMiddleware.js';
-import { createProjectController } from '../controllers/projectController.js';
+import {
+  requireAuth,
+  requireRole,
+  requireProjectResponsibility
+} from '../middleware/authMiddleware.js';
+import {
+  createProjectController,
+  listResponsibleProjectsController,
+  updateProjectController,
+  deleteProjectController
+} from '../controllers/projectController.js';
 
 // Mounted at /api/projects (see app.js). Project-level routes that are not
 // scoped to one existing project; the board, PBI and sprint routes under
@@ -12,5 +21,35 @@ const router = Router();
 // responsible Admin (see projectController.js). There is no :projectId yet,
 // so requireProjectResponsibility does not apply here.
 router.post('/', requireAuth, requireRole('admin'), createProjectController);
+
+// GET /api/projects
+// US-04c / SCRUM-17. Admin-only: the projects the logged-in Admin is
+// responsible for (projects.responsible_admin_id = req.user.id), used to
+// navigate to their boards. Developers get 403 here; their own project list
+// comes from project membership (see dashboardController).
+router.get('/', requireAuth, requireRole('admin'), listResponsibleProjectsController);
+
+// PATCH /api/projects/:projectId   body: { name }
+// US-04c / SCRUM-17. Renames the project (its board). Only the Admin
+// responsible for the project (projects.responsible_admin_id) may do this.
+router.patch(
+  '/:projectId',
+  requireAuth,
+  requireRole('admin'),
+  requireProjectResponsibility,
+  updateProjectController
+);
+
+// DELETE /api/projects/:projectId
+// US-04c / SCRUM-17. Deletes the project (its board) while it has no PBIs or
+// sprints - 409 otherwise. Only the Admin responsible for the project
+// (projects.responsible_admin_id) may do this.
+router.delete(
+  '/:projectId',
+  requireAuth,
+  requireRole('admin'),
+  requireProjectResponsibility,
+  deleteProjectController
+);
 
 export default router;

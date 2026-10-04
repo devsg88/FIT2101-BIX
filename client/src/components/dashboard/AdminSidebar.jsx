@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { getResponsibleProjects } from '../../services/api.js';
 import { allTeams } from '../../data/orgMockData.js';
 
 // The left-hand nav shown on every admin page (Organization Overview and each
@@ -12,11 +13,45 @@ import { allTeams } from '../../data/orgMockData.js';
 // org overview) the first team is shown highlighted, matching the Figma
 // default. This way the sidebar can be dropped into either page and always
 // agree with what's actually on screen.
+//
+// "Your projects" (US-04c) is real data, unlike the mock team list: the
+// projects this Admin is responsible for, from GET /api/projects. The server
+// decides which projects those are from the token, so this only displays what
+// it returns - each one a link to that project's board.
 export default function AdminSidebar() {
   const { teamId } = useParams();
   const [searchQuery, setSearchQuery] = useState('');
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const token = user?.token;
+
+  const [projects, setProjects] = useState([]);
+  const [projectsStatus, setProjectsStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error'
+
+  useEffect(() => {
+    if (!token) {
+      return undefined;
+    }
+
+    let isMounted = true;
+    setProjectsStatus('loading');
+
+    getResponsibleProjects(token)
+      .then((data) => {
+        if (!isMounted) return;
+        setProjects(Array.isArray(data?.projects) ? data.projects : []);
+        setProjectsStatus('ready');
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setProjects([]);
+        setProjectsStatus('error');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [token]);
 
   const activeTeamId = teamId ? Number(teamId) : allTeams[0]?.id;
 
@@ -70,6 +105,30 @@ export default function AdminSidebar() {
           </Link>
         ))}
       </div>
+
+      <p className="admin-sidebar__label" id="admin-sidebar-projects-label">Your projects</p>
+      {projectsStatus === 'loading' && (
+        <p className="admin-sidebar__label" role="status">Loading projects...</p>
+      )}
+      {projectsStatus === 'error' && (
+        <p className="admin-sidebar__label" role="alert">Couldn&apos;t load projects.</p>
+      )}
+      {projectsStatus === 'ready' && projects.length === 0 && (
+        <p className="admin-sidebar__label">No responsible projects yet.</p>
+      )}
+      {projectsStatus === 'ready' && projects.length > 0 && (
+        <nav className="admin-sidebar__team-list" aria-labelledby="admin-sidebar-projects-label">
+          {projects.map((project) => (
+            <Link
+              to={`/projects/${project.id}/board`}
+              key={project.id}
+              className="admin-sidebar__team-btn"
+            >
+              {project.name}
+            </Link>
+          ))}
+        </nav>
+      )}
 
       <div className="admin-sidebar__bottom">
         <button type="button" className="admin-sidebar__settings">

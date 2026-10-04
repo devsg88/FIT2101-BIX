@@ -6,6 +6,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { pool } from './config/db.js';
 import * as tasks from './models/taskModel.js';
+import * as subTasks from './models/subTaskModel.js';
 import { getBoard, getPbiBreakdown } from './models/boardModel.js';
 import { startSprint } from './models/sprintModel.js';
 
@@ -25,6 +26,7 @@ describe.skipIf(process.env.US08C_DB_TEST !== '1')('Task breakdown PostgreSQL in
     created = true;
     pool.options.options = `-c search_path=${schema}`;
     await pool.query(await readFile(new URL('../db/schema.sql', import.meta.url), 'utf8'));
+    await pool.query(await readFile(new URL('../db/migrations/001_task_subtask_assignee_and_status.sql', import.meta.url), 'utf8'));
     // Exercise the upgrade path as well as the fresh schema, before any fixtures.
     await pool.query('ALTER TABLE tasks DROP COLUMN description; ALTER TABLE sub_tasks DROP COLUMN description');
     const migration = await readFile(new URL('../db/migrations/004_us08c_task_descriptions.sql', import.meta.url), 'utf8');
@@ -68,6 +70,30 @@ describe.skipIf(process.env.US08C_DB_TEST !== '1')('Task breakdown PostgreSQL in
     const sub = await tasks.createSubTask(projectId, task.id, fields);
     expect(await tasks.updateSubTask(otherProjectId, sub.id, fields)).toBeNull();
     expect(await getPbiBreakdown(otherProjectId, pbiId)).toBeNull();
+  });
+
+  it('shares created work with admin editing, assignment and deletion without losing descriptions', async () => {
+    const user = (await pool.query(
+      "INSERT INTO users (name, email, role, password_hash) VALUES ('Developer', $1, 'developer', 'test') RETURNING id",
+      [`${randomUUID()}@example.test`]
+    )).rows[0];
+    const task = await tasks.createTask(projectId, pbiId, fields);
+    const sub = await tasks.createSubTask(projectId, task.id, fields);
+    expect(await tasks.updateTaskInPbi(otherProjectId, task.id, { title: 'Wrong parent', status: 'todo' })).toBeNull();
+    await tasks.updateTaskInPbi(pbiId, task.id, { title: 'Admin task', status: 'in_progress' });
+    await subTasks.updateSubTask(task.id, sub.id, { title: 'Admin sub-task', status: 'in_progress' });
+    await tasks.assignTask(pbiId, task.id, user.id);
+    await subTasks.assignSubTask(task.id, sub.id, user.id);
+    await tasks.updateTask(projectId, task.id, { title: 'Planning task', description: 'Revised details' });
+    await tasks.updateSubTask(projectId, sub.id, { title: 'Planning sub-task', description: 'Revised sub-task' });
+    const nested = (await getPbiBreakdown(projectId, pbiId)).tasks[0];
+    expect(nested).toMatchObject({ id: task.id, status: 'in_progress', assignee_id: user.id, description: 'Revised details' });
+    expect(nested.subTasks[0]).toMatchObject({ id: sub.id, status: 'in_progress', assignee_id: user.id, description: 'Revised sub-task' });
+    expect((await getBoard(projectId)).pbis[0].tasks[0]).toEqual(nested);
+    await subTasks.deleteSubTasksByTaskId(task.id);
+    expect(await tasks.deleteTask(pbiId, task.id)).toBe(true);
+    expect((await getPbiBreakdown(projectId, pbiId)).tasks).toEqual([]);
+    expect((await getBoard(projectId)).pbis).toHaveLength(1);
   });
 
   it('retains the full hierarchy through Start Sprint and Completed history', async () => {

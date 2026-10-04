@@ -5,7 +5,12 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { updatePbiPlanning, updatePbiStage } from './pbiModel.js';
+import {
+  updatePbiPlanning,
+  updatePbiStage,
+  getTasksByProject,
+  getSubTasksByProject
+} from './pbiModel.js';
 
 describe('updatePbiStage', () => {
   beforeEach(() => {
@@ -118,5 +123,46 @@ describe('updatePbiPlanning', () => {
     expect(sql).toMatch(/estimated_hours = \$3/i);
     expect(sql).not.toMatch(/SET stage/i);
     expect(params).toEqual(['2026-09-15', '2026-09-22', 16, 2, 1]);
+  });
+});
+
+// US-04a / SCRUM-122: the board needs to show who a task/sub-task is
+// assigned to (and the frontend assignee dropdown needs its current value),
+// so these two now select assignee_id too.
+describe('getTasksByProject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('selects assignee_id alongside the existing columns, scoped to the project', async () => {
+    pool.query.mockResolvedValue({
+      rows: [{ id: 1, pbi_id: 2, title: 'x', status: 'todo', assignee_id: null }]
+    });
+
+    await getTasksByProject(1);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/SELECT t\.id, t\.pbi_id, t\.title, t\.description, t\.status,\s*t\.assignee_id, t\.actual_hours, t\.completed_at/i);
+    expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
+    expect(params).toEqual([1]);
+  });
+});
+
+describe('getSubTasksByProject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('selects assignee_id alongside the existing columns, scoped to the project', async () => {
+    pool.query.mockResolvedValue({
+      rows: [{ id: 1, task_id: 2, title: 'x', status: 'todo', assignee_id: null }]
+    });
+
+    await getSubTasksByProject(1);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/SELECT s\.id, s\.task_id, s\.title, s\.description, s\.status, s\.assignee_id/i);
+    expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
+    expect(params).toEqual([1]);
   });
 });

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
 import {
@@ -69,22 +69,222 @@ function PbiMeta({ pbi }) {
   return <p className="project-board__card-meta">{parts.join(' | ')}</p>;
 }
 
+// The title + status inline edit form shown in place of a checklist row's
+// normal display while it is being edited. Shared by both tasks and
+// sub-tasks (kind picks which board action gets called on save).
+//
+// Edit never completes or reopens work - that is the US-11 Complete action,
+// which records actual hours and checks its prerequisites (the backend rejects
+// it too). So an open item can only move between To do and In progress, and a
+// done item keeps its status locked at Done while its title is edited.
+function ChecklistEditForm({ item, onSave, onCancel }) {
+  const [title, setTitle] = useState(item.title);
+  const [status, setStatus] = useState(item.status);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const isDoneItem = item.status === 'done';
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    setIsSaving(true);
+    setError(null);
+    try {
+      await onSave({ title, status });
+      // No local reset of isEditing here - the parent (ChecklistRow) owns
+      // that state and closes the form on a successful save.
+    } catch (err) {
+      setError(err?.message || 'Something went wrong saving this item. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form className="project-board__checklist-edit" onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={title}
+        onChange={(event) => setTitle(event.target.value)}
+        disabled={isSaving}
+        aria-label="Title"
+        required
+      />
+      <select
+        value={status}
+        onChange={(event) => setStatus(event.target.value)}
+        disabled={isSaving || isDoneItem}
+        aria-label="Status"
+      >
+        {isDoneItem ? (
+          <option value="done">Done</option>
+        ) : (
+          <>
+            <option value="todo">To do</option>
+            <option value="in_progress">In progress</option>
+          </>
+        )}
+      </select>
+      <div className="project-board__checklist-edit-actions">
+        <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+          {isSaving ? 'Saving...' : 'Save'}
+        </button>
+        <button type="button" onClick={onCancel} disabled={isSaving}>
+          Cancel
+        </button>
+      </div>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </form>
+  );
+}
+
+// Assignee dropdown (US-04a / SCRUM-124). Shown only when canManage (admin),
+// same gating as Edit/Delete - the backend's assign endpoints are also
+// requireRole('admin'). Sourced from the project's member list
+// (BoardContext's `members`, loaded via SCRUM-122's
+// GET /api/projects/:projectId/members). Changing the selection assigns
+// immediately, there is no separate Save step - a native <select> normally
+// works that way, and it keeps this control as a single click rather than
+// a mini-form.
+function AssigneeSelect({ item, kind, pbiId, taskId }) {
+  const { members, assignTask, assignSubTask } = useBoard();
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleChange = async (event) => {
+    const rawValue = event.target.value;
+    const assigneeId = rawValue === '' ? null : Number(rawValue);
+    setIsSaving(true);
+    setError(null);
+    try {
+      if (kind === 'task') {
+        await assignTask(pbiId, item.id, assigneeId);
+      } else {
+        await assignSubTask(pbiId, taskId, item.id, assigneeId);
+      }
+    } catch (err) {
+      setError(err?.message || 'Something went wrong saving the assignment. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // item.assignee_id comes back from the API as a string (Postgres bigint -
+  // see the identical note in server/src/controllers/taskController.js), so
+  // it is coerced to a string here too for a reliable <select> value match
+  // regardless of whether it arrived as a string or a number.
+  const currentValue = item.assignee_id == null ? '' : String(item.assignee_id);
+
+  return (
+    <span className="project-board__checklist-assignee">
+      <select
+        value={currentValue}
+        onChange={handleChange}
+        disabled={isSaving}
+        aria-label={`Assignee for ${item.title}`}
+      >
+        <option value="">Unassigned</option>
+        {members.map((member) => (
+          <option key={member.id} value={String(member.id)}>
+            {member.name}
+          </option>
+        ))}
+      </select>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </span>
+  );
+}
+
+// One row in a task/sub-task checklist. Read-only display + checkbox always
+// shows (there is still no "toggle status" feature) - editing status happens
+// through Edit, not the checkbox. Edit/Delete controls (US-04a/SCRUM-123)
+// only render for an admin, matching the backend's requireRole('admin') on
+// every endpoint they call: a developer would only ever see the same 403
+// this component already knows how to display as an error, so the controls
+// are hidden rather than offered and then rejected.
+function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
+  const { editTask, deleteTask, editSubTask, deleteSubTask } = useBoard();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleSave = async (payload) => {
+    if (kind === 'task') {
+      await editTask(pbiId, item.id, payload);
+    } else {
+      await editSubTask(pbiId, taskId, item.id, payload);
+    }
+    setIsEditing(false);
+  };
+
+  const handleDelete = async () => {
+    // A real confirm dialog, not a custom one - deleting a task/sub-task is
+    // destructive and there is no undo (see taskController.js), so this
+    // deliberately interrupts rather than being one accidental click away.
+    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    setError(null);
+    try {
+      if (kind === 'task') {
+        await deleteTask(pbiId, item.id);
+      } else {
+        await deleteSubTask(pbiId, taskId, item.id);
+      }
+      // No local "removed" state to reset on success: the item is gone from
+      // the refreshed board and this component unmounts along with it.
+    } catch (err) {
+      setError(err?.message || 'Something went wrong deleting this item. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <ChecklistEditForm
+        item={item}
+        onSave={handleSave}
+        onCancel={() => setIsEditing(false)}
+      />
+    );
+  }
+
+  return (
+    <div className="project-board__checklist-row">
+      <label className="project-board__checklist-item">
+        <input type="checkbox" checked={item.status === 'done'} disabled readOnly />
+        <span>{item.title}</span>
+      </label>
+      {canManage && (
+        <AssigneeSelect item={item} kind={kind} pbiId={pbiId} taskId={taskId} />
+      )}
+      {canManage && (
+        <span className="project-board__checklist-actions">
+          <button type="button" onClick={() => setIsEditing(true)}>
+            Edit
+          </button>
+          <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete'}
+          </button>
+        </span>
+      )}
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </div>
+  );
+}
+
 function sameUserId(left, right) {
   return left != null && right != null && String(left) === String(right);
 }
 
 function isDone(status) {
   return status === 'done';
-}
-
-// One row in a task/sub-task checklist. Read-only outside Active Sprint.
-function ChecklistRow({ item }) {
-  return (
-    <label className="project-board__checklist-item">
-      <input type="checkbox" checked={isDone(item.status)} disabled readOnly />
-      <span>{item.title}</span>
-    </label>
-  );
 }
 
 function SubTaskCompleteButton({ subTask }) {
@@ -174,16 +374,16 @@ function TaskCompleteForm({ task }) {
   );
 }
 
-function TaskWork({ task, pbiStage }) {
+function TaskWork({ task, pbiStage, pbiId, canManage }) {
   const canComplete = pbiStage === 'active_sprint' && !isDone(task.status);
   const logged = task.actual_hours != null ? Number(task.actual_hours) : null;
 
   return (
     <li>
-      <ChecklistRow item={task} />
+      <ChecklistRow item={task} kind="task" pbiId={pbiId} canManage={canManage} />
       {task.description && <p className="project-board__work-description">{task.description}</p>}
       {pbiStage === 'sprint_planning' && (
-        <WorkItemEditor kind="task" parentId={task.pbi_id} item={task} />
+        <WorkItemEditor kind="task" parentId={pbiId} item={task} />
       )}
       {logged != null && (
         <p className="project-board__logged-effort">Logged: {logged}h</p>
@@ -193,7 +393,13 @@ function TaskWork({ task, pbiStage }) {
         <ul className="project-board__checklist project-board__checklist--nested">
           {task.subTasks.map((subTask) => (
             <li key={subTask.id}>
-              <ChecklistRow item={subTask} />
+              <ChecklistRow
+                item={subTask}
+                kind="subTask"
+                pbiId={pbiId}
+                taskId={task.id}
+                canManage={canManage}
+              />
               {subTask.description && <p className="project-board__work-description">{subTask.description}</p>}
               {pbiStage === 'sprint_planning' && (
                 <WorkItemEditor kind="subTask" parentId={task.id} item={subTask} />
@@ -214,7 +420,10 @@ function TaskWork({ task, pbiStage }) {
   );
 }
 
-function TaskChecklist({ tasks, pbiStage }) {
+// Shows a PBI's tasks, and each task's sub-tasks nested underneath it. Renders
+// nothing if the PBI has no tasks yet, same as the design has no checklist on
+// a card with no tasks.
+function TaskChecklist({ tasks, pbiStage, pbiId, canManage }) {
   if (!tasks || tasks.length === 0) {
     return null;
   }
@@ -222,7 +431,13 @@ function TaskChecklist({ tasks, pbiStage }) {
   return (
     <ul className="project-board__checklist">
       {tasks.map((task) => (
-        <TaskWork key={task.id} task={task} pbiStage={pbiStage} />
+        <TaskWork
+          key={task.id}
+          task={task}
+          pbiStage={pbiStage}
+          pbiId={pbiId}
+          canManage={canManage}
+        />
       ))}
     </ul>
   );
@@ -489,8 +704,9 @@ function StartSprintButton() {
   );
 }
 
-// One PBI card shown inside a column.
-function PbiCard({ pbi }) {
+// One PBI card shown inside a column. canManage (true for an admin) gates
+// the task/sub-task Edit/Delete controls - see ChecklistRow.
+function PbiCard({ pbi, canManage }) {
   return (
     <article className="project-board__card">
       <h3 className="project-board__card-title">{pbi.title}</h3>
@@ -498,7 +714,12 @@ function PbiCard({ pbi }) {
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
-      <TaskChecklist tasks={pbi.tasks} pbiStage={pbi.stage} />
+      <TaskChecklist
+        tasks={pbi.tasks}
+        pbiStage={pbi.stage}
+        pbiId={pbi.id}
+        canManage={canManage}
+      />
       {pbi.stage === 'sprint_planning' && (
         <WorkItemEditor kind="task" parentId={pbi.id} parentTitle={pbi.title} />
       )}
@@ -514,6 +735,10 @@ function PbiCard({ pbi }) {
 // The four columns, one per stage, each showing its own PBIs (or an empty message).
 function BoardColumns() {
   const { stages, pbisByStage } = useBoard();
+  // US-04a: only an admin can edit/delete Tasks/Sub-tasks (matches the
+  // backend's requireRole('admin') on every one of those endpoints).
+  const { user } = useAuth();
+  const canManage = user?.role === 'admin';
 
   return (
     <div className="project-board__columns">
@@ -526,13 +751,125 @@ function BoardColumns() {
             {pbisByStage[stage].length === 0 ? (
               <p className="project-board__empty">No items</p>
             ) : (
-              pbisByStage[stage].map((pbi) => <PbiCard key={pbi.id} pbi={pbi} />)
+              pbisByStage[stage].map((pbi) => (
+                <PbiCard key={pbi.id} pbi={pbi} canManage={canManage} />
+              ))
             )}
             {stage === 'sprint_planning' && <StartSprintButton />}
           </div>
         </section>
       ))}
     </div>
+  );
+}
+
+// The board's (project's) name, with Rename and Delete for an Admin (US-04c).
+// The board route only lets an Admin load a board they are responsible for,
+// so any Admin who can see this title may manage it; the backend still checks
+// responsibility on each action itself. Everyone else sees just the name.
+function ProjectTitle({ project }) {
+  const { user } = useAuth();
+  const { renameProject, deleteCurrentProject } = useBoard();
+  const navigate = useNavigate();
+  const [isEditing, setIsEditing] = useState(false);
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+  const canManageBoard = user?.role === 'admin' && project != null;
+
+  const startEditing = () => {
+    setName(project.name);
+    setError(null);
+    setDeleteError(null);
+    setIsEditing(true);
+  };
+
+  // Deleting the board deletes the project. The backend only allows it while
+  // the board has no PBIs or sprints (409 otherwise), so a refusal is shown
+  // here and the board stays as it is.
+  const handleDelete = async () => {
+    if (!window.confirm(`Delete "${project.name}"? This cannot be undone.`)) {
+      return;
+    }
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteCurrentProject();
+      navigate('/dashboard');
+    } catch (err) {
+      setDeleteError(err?.message || 'Something went wrong deleting this board. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('A project name is required');
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await renameProject(trimmedName);
+      setIsEditing(false);
+    } catch (err) {
+      // Stay in the form so the name can be corrected and saved again.
+      setError(err?.message || 'Something went wrong renaming this board. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <form className="project-board__checklist-edit" onSubmit={handleSubmit} noValidate>
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSaving}
+          aria-label="Project name"
+        />
+        <div className="project-board__checklist-edit-actions">
+          <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+            {isSaving ? 'Saving...' : 'Save'}
+          </button>
+          <button type="button" onClick={() => setIsEditing(false)} disabled={isSaving}>
+            Cancel
+          </button>
+        </div>
+        {error && (
+          <p className="project-board__card-error" role="alert">{error}</p>
+        )}
+      </form>
+    );
+  }
+
+  return (
+    <>
+      <span className="project-board__project-pill">
+        {project?.name ?? 'Project board'}
+      </span>
+      {canManageBoard && (
+        <span className="project-board__checklist-edit-actions">
+          <button type="button" onClick={startEditing} disabled={isDeleting}>
+            Rename
+          </button>
+          {/* "Delete board", not just "Delete": the task/sub-task rows below
+              have their own Delete buttons, and this removes the whole board. */}
+          <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete board'}
+          </button>
+        </span>
+      )}
+      {deleteError && (
+        <p className="project-board__card-error" role="alert">{deleteError}</p>
+      )}
+    </>
   );
 }
 
@@ -546,9 +883,7 @@ function BoardTopBar({ project }) {
   return (
     <header className="project-board__topbar">
       <Link to="/dashboard" className="project-board__brand">BIX</Link>
-      <span className="project-board__project-pill">
-        {project?.name ?? 'Project board'}
-      </span>
+      <ProjectTitle project={project} />
       <div className="project-board__user">
         <span className="project-board__user-name">{user?.name}</span>
         <span className="project-board__avatar" aria-hidden="true">{initial}</span>

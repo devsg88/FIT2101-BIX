@@ -4,7 +4,8 @@ import {
   requireRole,
   requireProjectMembership,
   requireProjectAccess,
-  requireProjectResponsibility
+  requireProjectResponsibility,
+  requireAdminProjectResponsibility
 } from './authMiddleware.js';
 import jwt from 'jsonwebtoken';
 import { getProjectResponsibility } from '../models/projectModel.js';
@@ -322,5 +323,120 @@ describe('requireProjectResponsibility (US-04d)', () => {
       message: 'You do not have permission to perform this action'
     });
     expect(getProjectResponsibility).not.toHaveBeenCalled();
+  });
+});
+
+describe('requireAdminProjectResponsibility (US-04c)', () => {
+  const admin = { id: '3', role: 'admin' };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('lets a Developer through unchanged, with no ownership lookup', async () => {
+    const req = { user: { id: '2', role: 'developer' }, params: { projectId: '2' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(getProjectResponsibility).not.toHaveBeenCalled();
+  });
+
+  it('lets a Developer through even for an invalid projectId - that is the route\'s own concern', async () => {
+    const req = { user: { id: '2', role: 'developer' }, params: { projectId: 'abc' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 without a lookup if authentication has not run (no req.user)', async () => {
+    const req = { params: { projectId: '1' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(next).not.toHaveBeenCalled();
+    expect(getProjectResponsibility).not.toHaveBeenCalled();
+  });
+
+  it('lets the responsible Admin through, using the one existing ownership lookup', async () => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible: true });
+    const req = { user: admin, params: { projectId: '1' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(getProjectResponsibility).toHaveBeenCalledTimes(1);
+    expect(getProjectResponsibility).toHaveBeenCalledWith(1, '3');
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an Admin who is not responsible', { isResponsible: false }, '1'],
+    ['an unowned project (responsible_admin_id NULL)', { isResponsible: false }, '2']
+  ])('returns 403 for %s', async (_label, responsibility, projectId) => {
+    getProjectResponsibility.mockResolvedValue(responsibility);
+    const req = { user: { id: '7', role: 'admin' }, params: { projectId } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'You are not responsible for this project'
+    });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('keeps 404 for an Admin and a project that does not exist', async () => {
+    getProjectResponsibility.mockResolvedValue(null);
+    const req = { user: admin, params: { projectId: '999' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Project not found' });
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('keeps 400 for an Admin and an invalid projectId, without a lookup', async () => {
+    const req = { user: admin, params: { projectId: 'abc' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(getProjectResponsibility).not.toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('keeps the generic 500 for an Admin when the lookup fails', async () => {
+    getProjectResponsibility.mockRejectedValue(new Error('connection refused'));
+    const req = { user: admin, params: { projectId: '1' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    await requireAdminProjectResponsibility(req, res, next);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: 'Failed to check project responsibility'
+    });
+    expect(next).not.toHaveBeenCalled();
   });
 });

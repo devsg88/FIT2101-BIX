@@ -127,3 +127,27 @@ export async function requireProjectResponsibility(req, res, next) {
 
   next();
 }
+
+// Restrict Admins - and only Admins - to the projects they are responsible for
+// (US-04c), on routes that other roles may also use, such as reading a board.
+// A non-Admin is passed straight through unchanged: whether a Developer may
+// use the route is decided elsewhere (project membership, US-05), not here.
+// An Admin is handed to requireProjectResponsibility, so the 400 / 404 / 403
+// / 500 behaviour and the single ownership lookup are exactly the same as on
+// Admin-only routes - this adds no second ownership query and never consults
+// project_members.
+//
+// Must be placed AFTER requireAuth. Responds 401 if authentication has not run.
+//
+//   router.get('/:projectId/board', requireAuth, requireAdminProjectResponsibility, handler)
+export function requireAdminProjectResponsibility(req, res, next) {
+  if (!req.user?.role) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+
+  if (req.user.role !== 'admin') {
+    return next();
+  }
+
+  return requireProjectResponsibility(req, res, next);
+}

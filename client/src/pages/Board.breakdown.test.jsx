@@ -146,4 +146,24 @@ describe('Sprint Planning breakdown', () => {
     expect(within(active).getByText('Validate input')).toBeInTheDocument();
     expect(api.startSprint).toHaveBeenCalledWith('7', '3', 'tok');
   });
+
+  it('offers an admin both planning edits and status management without mixing endpoints', async () => {
+    useAuth.mockReturnValue({ user: { id: '3', role: 'admin', token: 'admin-tok' } });
+    api.getProjectMembers.mockResolvedValue({ members: [] });
+    renderBoard();
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit task: Build API' }));
+    fireEvent.change(screen.getByLabelText('task description: Build API'), { target: { value: 'Updated details' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save task' }));
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith('7', '11', {
+      title: 'Build API', description: 'Updated details'
+    }, 'admin-tok'));
+    await screen.findByRole('button', { name: 'Edit task: Build API' });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit', exact: true })[0]);
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'in_progress' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save', exact: true }));
+    await waitFor(() => expect(api.updateTaskInPbi).toHaveBeenCalledWith('7', '10', '11', {
+      title: 'Build API', status: 'in_progress'
+    }, 'admin-tok'));
+    expect(api.updateTask).toHaveBeenCalledOnce();
+  });
 });

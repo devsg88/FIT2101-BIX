@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createTask, updateTask, createSubTask, updateSubTask, getPbiBreakdown } from './api.js';
+import {
+  createTask, updateTask, createSubTask, updateSubTask, getPbiBreakdown,
+  updateTaskInPbi, updateSubTaskInTask
+} from './api.js';
 
 describe('breakdown API', () => {
   beforeEach(() => vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) })));
@@ -22,6 +25,18 @@ describe('breakdown API', () => {
     await getPbiBreakdown(7, 10, 'tok');
     expect(fetch).toHaveBeenCalledWith('http://localhost:4000/api/projects/7/pbis/10', {
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok' }
+    });
+  });
+
+  it.each([
+    [updateTaskInPbi, [7, 10, 11], '/projects/7/pbis/10/tasks/11'],
+    [updateSubTaskInTask, [7, 10, 11, 12], '/projects/7/pbis/10/tasks/11/sub-tasks/12']
+  ])('%s keeps admin title/status updates separate from planning edits', async (call, ids, path) => {
+    const fields = { title: 'Work', status: 'in_progress' };
+    await call(...ids, fields, 'tok');
+    expect(fetch).toHaveBeenCalledWith(`http://localhost:4000/api${path}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer tok' },
+      body: JSON.stringify(fields)
     });
   });
 
