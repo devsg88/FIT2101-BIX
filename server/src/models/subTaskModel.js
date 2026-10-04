@@ -4,7 +4,7 @@ import { pool } from '../config/db.js';
 // every sub-task belongs to exactly one task, so every read/write here is
 // scoped by BOTH taskId AND the sub-task's own id.
 
-const SUB_TASK_COLUMNS = `id, task_id, title, status, assignee_id`;
+const SUB_TASK_COLUMNS = `id, task_id, title, description, status, assignee_id`;
 
 export async function getSubTaskById(taskId, subTaskId) {
   const { rows } = await pool.query(

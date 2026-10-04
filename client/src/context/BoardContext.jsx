@@ -8,13 +8,17 @@ import {
 } from 'react';
 import { useAuth } from './AuthContext.jsx';
 import {
+  createTask,
+  updateTask,
+  createSubTask,
+  updateSubTask,
   getBoard,
   movePbi,
   startSprint,
   updatePbiPlanning,
-  updateTask as apiUpdateTask,
+  updateTaskInPbi as apiUpdateTask,
   deleteTask as apiDeleteTask,
-  updateSubTask as apiUpdateSubTask,
+  updateSubTaskInTask as apiUpdateSubTask,
   deleteSubTask as apiDeleteSubTask,
   assignTask as apiAssignTask,
   assignSubTask as apiAssignSubTask,
@@ -156,7 +160,9 @@ export function BoardProvider({ projectId, children }) {
         const data = await getBoard(projectId, token);
         applyBoardData(data);
       } catch (err) {
-        throw new Error(`${savedMessage}: ${err.message}`);
+        const refreshError = new Error(`${savedMessage}: ${err.message}`);
+        refreshError.saved = true;
+        throw refreshError;
       }
     },
     [projectId, token, applyBoardData]
@@ -287,6 +293,15 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  const saveTask = useCallback(
+    async (pbiId, taskId, fields) => {
+      if (taskId == null) await createTask(projectId, pbiId, fields, token);
+      else await updateTask(projectId, taskId, fields, token);
+      await refreshBoardAfterSave('The task was saved, but the board could not be refreshed');
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-04c. Renames the project (its board), then shows the name the server
   // actually saved, the same refresh-after-save pattern as the actions above.
   const renameProject = useCallback(
@@ -299,6 +314,14 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  const saveSubTask = useCallback(
+    async (taskId, subTaskId, fields) => {
+      if (subTaskId == null) await createSubTask(projectId, taskId, fields, token);
+      else await updateSubTask(projectId, subTaskId, fields, token);
+      await refreshBoardAfterSave('The sub-task was saved, but the board could not be refreshed');
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
   // US-04c. Deletes the project (its board) - the backend only allows it while
   // the board has no PBIs or sprints. No refresh afterwards: on success the
   // page navigates away, and on failure the board is unchanged.
@@ -344,6 +367,8 @@ export function BoardProvider({ projectId, children }) {
       completeAssignedTask,
       completeAssignedSubTask,
       completeActivePbi,
+      saveTask,
+      saveSubTask,
       renameProject,
       deleteCurrentProject
     }),
@@ -369,6 +394,8 @@ export function BoardProvider({ projectId, children }) {
       completeAssignedTask,
       completeAssignedSubTask,
       completeActivePbi,
+      saveTask,
+      saveSubTask,
       renameProject,
       deleteCurrentProject
     ]

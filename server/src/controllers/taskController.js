@@ -6,7 +6,7 @@ import {
   getSubTasksByTaskId,
   getTaskById,
   getTaskInPbi,
-  updateTask,
+  updateTaskInPbi,
   deleteTask,
   assignTask
 } from '../models/taskModel.js';
@@ -236,7 +236,7 @@ export async function editTaskController(req, res) {
       return res.status(400).json({ message: transitionError });
     }
 
-    const updatedTask = await updateTask(pbiId, taskId, parsed.task);
+    const updatedTask = await updateTaskInPbi(pbiId, taskId, parsed.task);
     if (!updatedTask) {
       // Only reachable if the task was removed between the check above and
       // this update - same convention as pbiController.moveStageController.

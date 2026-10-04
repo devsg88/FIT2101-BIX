@@ -14,24 +14,7 @@ import {
 // Kept in its own file, apart from Board.test.jsx, Board.admin.test.jsx (US-04a)
 // and Board.rename.test.jsx (Stage 4).
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({
-  getBoard: vi.fn(),
-  movePbi: vi.fn(),
-  updatePbiPlanning: vi.fn(),
-  startSprint: vi.fn(),
-  updateTask: vi.fn(),
-  deleteTask: vi.fn(),
-  updateSubTask: vi.fn(),
-  deleteSubTask: vi.fn(),
-  assignTask: vi.fn(),
-  assignSubTask: vi.fn(),
-  getProjectMembers: vi.fn(),
-  completeTask: vi.fn(),
-  completeSubTask: vi.fn(),
-  completePbi: vi.fn(),
-  updateProject: vi.fn(),
-  deleteProject: vi.fn()
-}));
+vi.mock('../services/api.js');
 
 // The board, plus a stand-in dashboard so navigation after a delete is visible.
 function renderBoard(path = '/projects/7/board') {

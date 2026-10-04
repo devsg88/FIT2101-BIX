@@ -8,9 +8,9 @@ import {
   movePbi,
   updatePbiPlanning,
   startSprint,
-  updateTask,
+  updateTaskInPbi as updateTask,
   deleteTask,
-  updateSubTask,
+  updateSubTaskInTask as updateSubTask,
   deleteSubTask,
   assignTask,
   assignSubTask,
@@ -24,19 +24,7 @@ import {
 // than growing that already-large file further - same reason a new
 // resource gets its own model/controller/route file on the backend.
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({
-  getBoard: vi.fn(),
-  movePbi: vi.fn(),
-  updatePbiPlanning: vi.fn(),
-  startSprint: vi.fn(),
-  updateTask: vi.fn(),
-  deleteTask: vi.fn(),
-  updateSubTask: vi.fn(),
-  deleteSubTask: vi.fn(),
-  assignTask: vi.fn(),
-  assignSubTask: vi.fn(),
-  getProjectMembers: vi.fn()
-}));
+vi.mock('../services/api.js');
 
 function renderBoard(path = '/projects/7/board') {
   return render(

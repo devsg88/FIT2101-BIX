@@ -3,14 +3,19 @@ import {
   requireAuth,
   requireRole,
   requireProjectMembership,
+  requireProjectAccess,
   requireProjectResponsibility,
   requireAdminProjectResponsibility
 } from './authMiddleware.js';
 import jwt from 'jsonwebtoken';
 import { getProjectResponsibility } from '../models/projectModel.js';
+import { isProjectMember } from '../models/projectMembershipModel.js';
+import { getProjectById } from '../models/boardModel.js';
 
 vi.mock('jsonwebtoken');
 vi.mock('../models/projectModel.js');
+vi.mock('../models/projectMembershipModel.js');
+vi.mock('../models/boardModel.js');
 
 function mockRes() {
   const res = {};
@@ -115,16 +120,63 @@ describe('requireRole', () => {
   });
 });
 
-describe('requireProjectMembership (integration point)', () => {
-  it('is not implemented and returns 501', () => {
+describe('project access', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    getProjectById.mockResolvedValue({ id: 1 });
+  });
+
+  it.each([true, false])('permits a developer only when membership is %s', async (member) => {
+    isProjectMember.mockResolvedValue(member);
     const req = { user: { id: 1, role: 'developer' }, params: { projectId: '1' } };
     const res = mockRes();
     const next = vi.fn();
+    await requireProjectAccess(req, res, next);
+    expect(isProjectMember).toHaveBeenCalledWith(1, 1);
+    if (member) expect(next).toHaveBeenCalledOnce();
+    else {
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).not.toHaveBeenCalled();
+    }
+  });
 
-    requireProjectMembership(req, res, next);
+  it.each([true, false])('permits an admin only when responsibility is %s', async (isResponsible) => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible });
+    const res = mockRes();
+    const next = vi.fn();
+    await requireProjectAccess({ user: { id: 3, role: 'admin' }, params: { projectId: '1' } }, res, next);
+    expect(isProjectMember).not.toHaveBeenCalled();
+    if (isResponsible) expect(next).toHaveBeenCalledOnce();
+    else expect(res.status).toHaveBeenCalledWith(403);
+  });
 
-    expect(res.status).toHaveBeenCalledWith(501);
+  it.each([
+    [{ params: { projectId: '1' } }, 401],
+    [{ user: { id: 1, role: 'unknown' }, params: { projectId: '1' } }, 403],
+    [{ user: { id: 1, role: 'developer' }, params: { projectId: 'bad' } }, 400]
+  ])('rejects invalid access before querying membership', async (req, status) => {
+    const res = mockRes();
+    const next = vi.fn();
+    await requireProjectAccess(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(status);
+    expect(isProjectMember).not.toHaveBeenCalled();
     expect(next).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for a missing project', async () => {
+    getProjectById.mockResolvedValue(null);
+    const res = mockRes();
+    await requireProjectMembership({ user: { id: 1 }, params: { projectId: '1' } }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(isProjectMember).not.toHaveBeenCalled();
+  });
+
+  it('does not leak membership database errors', async () => {
+    isProjectMember.mockRejectedValue(new Error('private database error'));
+    const res = mockRes();
+    await requireProjectMembership({ user: { id: 1 }, params: { projectId: '1' } }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to check project membership' });
   });
 });
 

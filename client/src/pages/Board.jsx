@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
 import {
   BoardProvider,
   useBoard,
@@ -380,6 +381,10 @@ function TaskWork({ task, pbiStage, pbiId, canManage }) {
   return (
     <li>
       <ChecklistRow item={task} kind="task" pbiId={pbiId} canManage={canManage} />
+      {task.description && <p className="project-board__work-description">{task.description}</p>}
+      {pbiStage === 'sprint_planning' && (
+        <WorkItemEditor kind="task" parentId={pbiId} item={task} />
+      )}
       {logged != null && (
         <p className="project-board__logged-effort">Logged: {logged}h</p>
       )}
@@ -395,12 +400,21 @@ function TaskWork({ task, pbiStage, pbiId, canManage }) {
                 taskId={task.id}
                 canManage={canManage}
               />
+              {subTask.description && <p className="project-board__work-description">{subTask.description}</p>}
+              {pbiStage === 'sprint_planning' && (
+                <WorkItemEditor kind="subTask" parentId={task.id} item={subTask} />
+              )}
               {pbiStage === 'active_sprint' && !isDone(subTask.status) && (
                 <SubTaskCompleteButton subTask={subTask} />
               )}
             </li>
           ))}
         </ul>
+      )}
+      {pbiStage === 'sprint_planning' && (
+        <div className="project-board__checklist--nested">
+          <WorkItemEditor kind="subTask" parentId={task.id} parentTitle={task.title} />
+        </div>
       )}
     </li>
   );
@@ -706,6 +720,9 @@ function PbiCard({ pbi, canManage }) {
         pbiId={pbi.id}
         canManage={canManage}
       />
+      {pbi.stage === 'sprint_planning' && (
+        <WorkItemEditor kind="task" parentId={pbi.id} parentTitle={pbi.title} />
+      )}
       {pbi.stage === 'product_backlog' && (
         <MoveToSprintPlanningButton pbiId={pbi.id} />
       )}

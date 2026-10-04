@@ -9,23 +9,7 @@ import { getBoard, getProjectMembers, updateProject } from '../services/api.js';
 // Kept in its own file, apart from Board.test.jsx (developer / workflow
 // flows) and Board.admin.test.jsx (US-04a task controls).
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({
-  getBoard: vi.fn(),
-  movePbi: vi.fn(),
-  updatePbiPlanning: vi.fn(),
-  startSprint: vi.fn(),
-  updateTask: vi.fn(),
-  deleteTask: vi.fn(),
-  updateSubTask: vi.fn(),
-  deleteSubTask: vi.fn(),
-  assignTask: vi.fn(),
-  assignSubTask: vi.fn(),
-  getProjectMembers: vi.fn(),
-  completeTask: vi.fn(),
-  completeSubTask: vi.fn(),
-  completePbi: vi.fn(),
-  updateProject: vi.fn()
-}));
+vi.mock('../services/api.js');
 
 function renderBoard(path = '/projects/7/board') {
   return render(

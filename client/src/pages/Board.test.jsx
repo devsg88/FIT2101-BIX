@@ -6,15 +6,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { getBoard, movePbi, startSprint, updatePbiPlanning, completeTask, completePbi } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../services/api.js', () => ({
-  getBoard: vi.fn(),
-  movePbi: vi.fn(),
-  updatePbiPlanning: vi.fn(),
-  startSprint: vi.fn(),
-  completeTask: vi.fn(),
-  completeSubTask: vi.fn(),
-  completePbi: vi.fn()
-}));
+vi.mock('../services/api.js');
 
 function renderBoard(path = '/projects/7/board') {
   return render(

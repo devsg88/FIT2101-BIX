@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vites
 import jwt from 'jsonwebtoken';
 import router from './boardRoutes.js';
 import app from '../app.js';
-import { getBoard } from '../models/boardModel.js';
+import { getBoard, getProjectById } from '../models/boardModel.js';
 import { getProjectResponsibility } from '../models/projectModel.js';
+import { isProjectMember } from '../models/projectMembershipModel.js';
 
 // Replace the real database-backed models with fakes we control per test.
 vi.mock('../models/boardModel.js');
 vi.mock('../models/projectModel.js');
+vi.mock('../models/projectMembershipModel.js');
 
 // Wiring: inspects the actual Express Router object, the same approach the
 // project routes use - each guard keeps its own name when passed by reference.
@@ -22,10 +24,10 @@ function middlewareNamesFor(method, path) {
 }
 
 describe('boardRoutes wiring (US-04c)', () => {
-  it('guards GET /:projectId/board with requireAuth then requireAdminProjectResponsibility', () => {
+  it('guards GET /:projectId/board with requireAuth then requireProjectAccess', () => {
     expect(middlewareNamesFor('get', '/:projectId/board')).toEqual([
       'requireAuth',
-      'requireAdminProjectResponsibility',
+      'requireProjectAccess',
       'getBoardController'
     ]);
   });
@@ -74,6 +76,8 @@ describe('GET /api/projects/:projectId/board (US-04c)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getBoard.mockResolvedValue(emptyBoard);
+    getProjectById.mockResolvedValue(emptyBoard.project);
+    isProjectMember.mockResolvedValue(true);
   });
 
   it('returns 401 with no token, and loads nothing', async () => {
@@ -121,11 +125,20 @@ describe('GET /api/projects/:projectId/board (US-04c)', () => {
     expect(getBoard).not.toHaveBeenCalled();
   });
 
-  it('leaves Developer board access unchanged: no responsibility check, board loads', async () => {
+  it('allows a project member to read the board without an admin responsibility check', async () => {
     const res = await getBoardAs('2', developer);
 
     expect(res.status).toBe(200);
     expect(getProjectResponsibility).not.toHaveBeenCalled();
+    expect(isProjectMember).toHaveBeenCalledWith(2, '2');
     expect(getBoard).toHaveBeenCalledWith(2);
+  });
+
+  it('refuses a developer outside the project without loading the board', async () => {
+    isProjectMember.mockResolvedValue(false);
+    const res = await getBoardAs('2', developer);
+    expect(res.status).toBe(403);
+    expect(getBoard).not.toHaveBeenCalled();
+    expect(getProjectResponsibility).not.toHaveBeenCalled();
   });
 });

@@ -93,6 +93,34 @@ export function getBoard(projectId, token) {
   });
 }
 
+export function getPbiBreakdown(projectId, pbiId, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}`, { headers: authHeader(token) });
+}
+
+export function createTask(projectId, pbiId, fields, token) {
+  return request(`/projects/${projectId}/pbis/${pbiId}/tasks`, {
+    method: 'POST', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
+export function updateTask(projectId, taskId, fields, token) {
+  return request(`/projects/${projectId}/tasks/${taskId}`, {
+    method: 'PATCH', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
+export function createSubTask(projectId, taskId, fields, token) {
+  return request(`/projects/${projectId}/tasks/${taskId}/sub-tasks`, {
+    method: 'POST', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
+export function updateSubTask(projectId, subTaskId, fields, token) {
+  return request(`/projects/${projectId}/sub-tasks/${subTaskId}`, {
+    method: 'PATCH', headers: authHeader(token), body: JSON.stringify(fields)
+  });
+}
+
 // PATCH /api/projects/:projectId/pbis/:pbiId/stage
 // Moves a PBI to a new stage. `stage` is the target stage's machine name
 // (e.g. 'sprint_planning'). Resolves with { pbi: <updated PBI> } on success,
@@ -134,7 +162,7 @@ export function startSprint(projectId, sprintId, token) {
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
 // `payload` is { title, status }. Admin-only on the backend (requireRole);
 // a non-admin caller gets the backend's 403 message back through `request`.
-export function updateTask(projectId, pbiId, taskId, payload, token) {
+export function updateTaskInPbi(projectId, pbiId, taskId, payload, token) {
   return request(`/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}`, {
     method: 'PATCH',
     headers: authHeader(token),
@@ -152,7 +180,7 @@ export function deleteTask(projectId, pbiId, taskId, token) {
 }
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
-export function updateSubTask(projectId, pbiId, taskId, subTaskId, payload, token) {
+export function updateSubTaskInTask(projectId, pbiId, taskId, subTaskId, payload, token) {
   return request(
     `/projects/${projectId}/pbis/${pbiId}/tasks/${taskId}/sub-tasks/${subTaskId}`,
     {

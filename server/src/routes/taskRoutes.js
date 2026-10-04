@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   requireAuth,
+  requireProjectAccess,
   requireRole,
   requireProjectResponsibility
 } from '../middleware/authMiddleware.js';
@@ -12,10 +13,20 @@ import {
   completeTaskController
 } from '../controllers/taskController.js';
 import { completePbiController } from '../controllers/completionController.js';
+import {
+  createTaskController, updateTaskController,
+  createSubTaskController, updateSubTaskController,
+  getPbiBreakdownController
+} from '../controllers/breakdownController.js';
 
 // Mounted at /api/projects (see app.js), same base as pbiRoutes.js/boardRoutes.js.
 const router = Router();
 
+router.get('/:projectId/pbis/:pbiId', requireAuth, requireProjectAccess, getPbiBreakdownController);
+router.post('/:projectId/pbis/:pbiId/tasks', requireAuth, requireProjectAccess, createTaskController);
+router.patch('/:projectId/tasks/:taskId', requireAuth, requireProjectAccess, updateTaskController);
+router.post('/:projectId/tasks/:taskId/sub-tasks', requireAuth, requireProjectAccess, createSubTaskController);
+router.patch('/:projectId/sub-tasks/:subTaskId', requireAuth, requireProjectAccess, updateSubTaskController);
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
 // US-04a / SCRUM-121. Admin-only, and only for the Admin responsible for
 // this project (requireProjectResponsibility, US-04d's

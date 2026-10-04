@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import { getProjectResponsibility } from '../models/projectModel.js';
 import { getPbiById } from '../models/pbiModel.js';
-import { getTaskInPbi, updateTask, deleteTask, assignTask } from '../models/taskModel.js';
+import { getTaskInPbi, updateTaskInPbi as updateTask, deleteTask, assignTask } from '../models/taskModel.js';
 import {
   getSubTaskById,
   updateSubTask,

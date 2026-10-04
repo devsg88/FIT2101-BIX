@@ -142,7 +142,7 @@ describe('getTasksByProject', () => {
     await getTasksByProject(1);
 
     const [sql, params] = pool.query.mock.calls[0];
-    expect(sql).toMatch(/SELECT t\.id, t\.pbi_id, t\.title, t\.status,\s*t\.assignee_id/i);
+    expect(sql).toMatch(/SELECT t\.id, t\.pbi_id, t\.title, t\.description, t\.status,\s*t\.assignee_id, t\.actual_hours, t\.completed_at/i);
     expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
     expect(params).toEqual([1]);
   });
@@ -161,7 +161,7 @@ describe('getSubTasksByProject', () => {
     await getSubTasksByProject(1);
 
     const [sql, params] = pool.query.mock.calls[0];
-    expect(sql).toMatch(/SELECT s\.id, s\.task_id, s\.title, s\.status, s\.assignee_id/i);
+    expect(sql).toMatch(/SELECT s\.id, s\.task_id, s\.title, s\.description, s\.status, s\.assignee_id/i);
     expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
     expect(params).toEqual([1]);
   });

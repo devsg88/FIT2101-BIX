@@ -102,7 +102,7 @@ export async function getPbisByStage(projectId, stage) {
 // value without a second request per card.
 export async function getTasksByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT t.id, t.pbi_id, t.title, t.status,
+    `SELECT t.id, t.pbi_id, t.title, t.description, t.status,
             t.assignee_id, t.actual_hours, t.completed_at
        FROM tasks t
        JOIN product_backlog_items p ON p.id = t.pbi_id
@@ -115,7 +115,7 @@ export async function getTasksByProject(projectId) {
 
 export async function getSubTasksByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT s.id, s.task_id, s.title, s.status, s.assignee_id
+    `SELECT s.id, s.task_id, s.title, s.description, s.status, s.assignee_id
        FROM sub_tasks s
        JOIN tasks t ON t.id = s.task_id
        JOIN product_backlog_items p ON p.id = t.pbi_id

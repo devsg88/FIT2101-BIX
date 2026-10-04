@@ -14,7 +14,7 @@ import {
   getSubTasksByTaskId,
   getTaskById,
   getTaskInPbi,
-  updateTask,
+  updateTaskInPbi as updateTask,
   deleteTask,
   assignTask
 } from '../models/taskModel.js';
