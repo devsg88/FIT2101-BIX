@@ -2,52 +2,44 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 
-const initialProjects = [
-  {
-    id: 1,
-    name: 'Project Alpha',
-    description: 'Description',
-    status: 'Active',
-    statusType: 'active',
-    progress: 60
-  },
-  {
-    id: 2,
-    name: 'Project Beta',
-    description: 'Description',
-    status: 'Planning',
-    statusType: 'planning',
-    progress: 20
-  },
-  {
-    id: 3,
-    name: 'Project Gamma',
-    description: 'Description',
-    status: 'Not started',
-    statusType: 'not-started',
-    progress: 0
-  }
-];
+const STATUS_LABELS = {
+  active: 'Active',
+  planning: 'Planning',
+  'not-started': 'Not started'
+};
 
-const initialTasks = [
-  {
-    id: 'task-2',
-    title: 'Task 2',
-    project: 'Project Alpha',
-    completedAgo: 'Completed - 4h ago'
-  },
-  {
-    id: 'task-1',
-    title: 'Task 1',
-    project: 'Project Alpha',
-    completedAgo: 'Completed - 3h ago'
-  }
-];
+// Coarse relative time for Task History ("4h ago", "2d ago"). Completed
+// dates here are always in the past and within the last 7 days (the
+// controller already filters to that window), so this never needs to
+// handle future dates or longer ranges.
+function formatRelativeTime(isoString) {
+  const completedMs = new Date(isoString).getTime();
+  const diffMinutes = Math.max(0, Math.round((Date.now() - completedMs) / 60000));
+
+  if (diffMinutes < 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays}d ago`;
+}
 
 export default function DeveloperDashboard({ data }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showUserMenu, setShowUserMenu] = useState(false);
+
+  // status/progress are derived server-side from sprints and tasks (see
+  // getProjectSummariesForUser in projectMembershipModel.js) - progress is
+  // null, not 0, when a project has no tasks at all, so an empty project is
+  // never shown as "0% done".
+  const projects = data?.data?.projects ?? [];
+  const projectCount = data?.data?.projectCount ?? projects.length;
+  const myTasksCount = data?.data?.myTasksCount ?? 0;
+  const overallProgressPercent = data?.data?.overallProgressPercent ?? null;
+  const taskHistory = data?.data?.taskHistory ?? [];
 
   const userName = user?.name || 'Pang';
   const userRole = user?.role
@@ -221,11 +213,11 @@ export default function DeveloperDashboard({ data }) {
               </svg>
             </div>
             <h3 className="dev-stat-card__title stat-card__label">My Projects</h3>
-            <div className="dev-stat-card__value stat-card__value">1</div>
+            <div className="dev-stat-card__value stat-card__value">{projectCount}</div>
             <p className="dev-stat-card__sub">Assigned projects</p>
           </Link>
 
-          {/* Stat 2: My Tasks */}
+          {/* Stat 2: My Tasks - open (not-done) tasks assigned to you */}
           <div className="dev-stat-card stat-card">
             <div className="dev-stat-card__icon dev-stat-card__icon--green">
               <svg
@@ -243,11 +235,11 @@ export default function DeveloperDashboard({ data }) {
               </svg>
             </div>
             <h3 className="dev-stat-card__title stat-card__label">My Tasks</h3>
-            <div className="dev-stat-card__value stat-card__value">1</div>
-            <p className="dev-stat-card__sub">Task in progress</p>
+            <div className="dev-stat-card__value stat-card__value">{myTasksCount}</div>
+            <p className="dev-stat-card__sub">Open tasks assigned to you</p>
           </div>
 
-          {/* Stat 3: Overall Progess */}
+          {/* Stat 3: Overall Progress - tasks done vs total, across your projects */}
           <div className="dev-stat-card stat-card">
             <div className="dev-stat-card__icon dev-stat-card__icon--orange">
               <svg
@@ -267,8 +259,12 @@ export default function DeveloperDashboard({ data }) {
               </svg>
             </div>
             <h3 className="dev-stat-card__title stat-card__label">Overall Progess</h3>
-            <div className="dev-stat-card__value stat-card__value">60%</div>
-            <p className="dev-stat-card__sub">Across active sprint</p>
+            <div className="dev-stat-card__value stat-card__value">
+              {overallProgressPercent === null ? 'N/A' : `${overallProgressPercent}%`}
+            </div>
+            <p className="dev-stat-card__sub">
+              {overallProgressPercent === null ? 'No tasks yet' : 'Tasks done vs total, across your projects'}
+            </p>
           </div>
         </section>
 
@@ -310,28 +306,37 @@ export default function DeveloperDashboard({ data }) {
               </div>
 
               <div className="dev-table-body">
-                {initialProjects.map((proj) => (
+                {projects.length === 0 && (
+                  <p className="dev-history-footer">No projects assigned yet.</p>
+                )}
+
+                {projects.map((proj) => (
                   <div className="dev-table-row" key={proj.id}>
                     <div className="dev-cell dev-cell--project">
                       <strong className="dev-project-name">{proj.name}</strong>
-                      <span className="dev-project-desc">{proj.description}</span>
                     </div>
 
                     <div className="dev-cell dev-cell--status">
-                      <span className={`dev-status-pill dev-status-pill--${proj.statusType}`}>
+                      <span className={`dev-status-pill dev-status-pill--${proj.status}`}>
                         <span className="dev-status-dot" />
-                        {proj.status}
+                        {STATUS_LABELS[proj.status] ?? proj.status}
                       </span>
                     </div>
 
                     <div className="dev-cell dev-cell--progress">
-                      <span className="dev-progress-percent">{proj.progress}%</span>
-                      <div className="dev-progress-track">
-                        <div
-                          className="dev-progress-fill"
-                          style={{ width: `${proj.progress}%` }}
-                        />
-                      </div>
+                      {proj.progress === null ? (
+                        <span className="dev-progress-percent">No tasks yet</span>
+                      ) : (
+                        <>
+                          <span className="dev-progress-percent">{proj.progress}%</span>
+                          <div className="dev-progress-track">
+                            <div
+                              className="dev-progress-fill"
+                              style={{ width: `${proj.progress}%` }}
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     <div className="dev-cell dev-cell--action">
@@ -345,7 +350,7 @@ export default function DeveloperDashboard({ data }) {
             </div>
           </section>
 
-          {/* Right: Task History Card */}
+          {/* Right: Task History Card - tasks you completed in the last 7 days */}
           <aside className="developer-dashboard__sidebar dev-card dev-history-card task-history">
             <div className="dev-card__header">
               <div className="dev-card__title-group">
@@ -368,19 +373,29 @@ export default function DeveloperDashboard({ data }) {
               </div>
             </div>
 
-            <div className="dev-task-history-list">
-              {initialTasks.map((t) => (
-                <div className="dev-task-item" key={t.id}>
-                  <strong className="dev-task-title">{t.title}</strong>
-                  <p className="dev-task-project">{t.project}</p>
-                  <p className="dev-task-time">{t.completedAgo}</p>
+            {taskHistory.length === 0 ? (
+              <p className="dev-history-footer">
+                No tasks completed in the last 7 days.
+              </p>
+            ) : (
+              <>
+                <div className="dev-task-history-list">
+                  {taskHistory.map((task) => (
+                    <div className="dev-task-item" key={task.id}>
+                      <strong className="dev-task-title">{task.title}</strong>
+                      <p className="dev-task-project">{task.projectName}</p>
+                      <p className="dev-task-time">
+                        Completed - {formatRelativeTime(task.completedAt)}
+                      </p>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            <p className="dev-history-footer">
-              That's everything from the last 7 days
-            </p>
+                <p className="dev-history-footer">
+                  That's everything from the last 7 days
+                </p>
+              </>
+            )}
           </aside>
         </div>
       </main>
