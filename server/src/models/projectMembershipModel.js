@@ -80,3 +80,52 @@ export async function listProjectsForUser(userId) {
   );
   return rows;
 }
+
+// Same project list as listProjectsForUser, enriched with a status and a
+// task-completion progress figure for the developer dashboard's "My
+// Projects" table. Neither is a stored column (projects has no status or
+// progress field) - both are derived here, in one round trip:
+//
+//   - status: 'active' if the project has any active sprint, else
+//     'planning' if it has any planning sprint, else 'not-started'. A
+//     project with only completed sprints (or none at all) falls through
+//     to 'not-started' - there is no "completed project" concept yet.
+//   - doneCount/totalCount: every task belonging to the project (via its
+//     PBIs), split by status = 'done' vs everything else. The caller turns
+//     this into a percentage; left as two counts here so a project with no
+//     tasks is not forced into a fake 0% vs "no data" distinction by this
+//     layer.
+export async function getProjectSummariesForUser(userId) {
+  const { rows } = await pool.query(
+    `SELECT
+       p.id,
+       p.name,
+       COALESCE(sprint_status.status, 'not-started') AS status,
+       COALESCE(task_stats.done_count, 0)::int AS done_count,
+       COALESCE(task_stats.total_count, 0)::int AS total_count
+     FROM project_members pm
+     JOIN projects p ON p.id = pm.project_id
+     LEFT JOIN (
+       SELECT project_id,
+              CASE
+                WHEN bool_or(status = 'active') THEN 'active'
+                WHEN bool_or(status = 'planning') THEN 'planning'
+                ELSE 'not-started'
+              END AS status
+         FROM sprints
+        GROUP BY project_id
+     ) sprint_status ON sprint_status.project_id = p.id
+     LEFT JOIN (
+       SELECT pbi.project_id,
+              COUNT(*) FILTER (WHERE t.status = 'done') AS done_count,
+              COUNT(*) AS total_count
+         FROM tasks t
+         JOIN product_backlog_items pbi ON pbi.id = t.pbi_id
+        GROUP BY pbi.project_id
+     ) task_stats ON task_stats.project_id = p.id
+     WHERE pm.user_id = $1
+     ORDER BY p.name`,
+    [userId]
+  );
+  return rows;
+}
