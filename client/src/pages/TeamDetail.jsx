@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import AdminSidebar from '../components/dashboard/AdminSidebar.jsx';
 import { allDevelopers, allTeams, developerIdsByTeam } from '../data/orgMockData.js';
 
@@ -184,6 +184,16 @@ export default function TeamDetail() {
           <h1>{team.name}</h1>
           <p className="team-detail__project">Current Project: {team.currentProject}</p>
           <span className={`admin-status-pill admin-status-pill--${team.statusType}`}>{team.status}</span>
+          {/* Admin route into the board (US-04a): Link keeps the in-memory
+              login, a plain <a href> would reload the page and log out. */}
+          {team.projectId != null && (
+            <Link
+              to={`/projects/${team.projectId}/board`}
+              className="admin-btn admin-btn--solid team-detail__board-link"
+            >
+              View Board
+            </Link>
+          )}
         </div>
 
         <section className="team-members-card">

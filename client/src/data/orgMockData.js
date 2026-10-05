@@ -16,11 +16,15 @@ export const allDevelopers = [
   { id: 105, name: 'Omar Farouk', email: 'omar.farouk@bix.com' }
 ];
 
+// projectId links a mock team to a real seeded project so Team Detail can open
+// that project's board. Stand-in until a real team-to-project mapping exists:
+// only projects 1 and 2 exist in seed.sql, so teams share them for now.
 export const allTeams = [
   {
     id: 1,
     name: 'Team Alpha',
     currentProject: 'Auth Module Upgrade',
+    projectId: 1,
     status: 'On Track',
     statusType: 'on-track',
     sprintProgress: 70,
@@ -34,6 +38,7 @@ export const allTeams = [
     id: 2,
     name: 'Team Bravo',
     currentProject: 'Database Migration',
+    projectId: 2,
     status: 'Blocked',
     statusType: 'blocked',
     sprintProgress: 25,
@@ -56,6 +61,7 @@ export const allTeams = [
     id: 3,
     name: 'Team Charlie',
     currentProject: 'Frontend Dashboard',
+    projectId: 1,
     status: 'On Track',
     statusType: 'on-track',
     sprintProgress: 90,
@@ -68,6 +74,7 @@ export const allTeams = [
     id: 4,
     name: 'Team Delta',
     currentProject: 'Reporting API',
+    projectId: 2,
     status: 'On Track',
     statusType: 'on-track',
     sprintProgress: 45,
