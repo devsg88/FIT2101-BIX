@@ -11,7 +11,8 @@ import {
   addProjectMember,
   removeProjectMember,
   isProjectMember,
-  listProjectsForUser
+  listProjectsForUser,
+  getProjectSummariesForUser
 } from './projectMembershipModel.js';
 
 describe('projectMembershipModel', () => {
@@ -103,5 +104,24 @@ describe('projectMembershipModel', () => {
     const result = await listProjectsForUser(999);
 
     expect(result).toEqual([]);
+  });
+
+  it('getProjectSummariesForUser scopes to the given user and returns status/progress fields', async () => {
+    pool.query.mockResolvedValue({
+      rows: [
+        { id: 1, name: 'BIX Platform', status: 'active', done_count: 3, total_count: 4 }
+      ]
+    });
+
+    const result = await getProjectSummariesForUser(2);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/project_members/);
+    expect(sql).toMatch(/FROM sprints/);
+    expect(sql).toMatch(/FROM tasks t/);
+    expect(params).toEqual([2]);
+    expect(result).toEqual([
+      { id: 1, name: 'BIX Platform', status: 'active', done_count: 3, total_count: 4 }
+    ]);
   });
 });

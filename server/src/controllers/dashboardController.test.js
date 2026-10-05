@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getDashboardController } from './dashboardController.js';
-import { listProjectsForUser } from '../models/projectMembershipModel.js';
+import { getProjectSummariesForUser } from '../models/projectMembershipModel.js';
+import { getTasksAssignedToUser } from '../models/pbiModel.js';
 import { listTeams } from '../models/teamModel.js';
 
 vi.mock('../models/projectMembershipModel.js');
+vi.mock('../models/pbiModel.js');
 vi.mock('../models/teamModel.js');
 
 function mockRes() {
@@ -34,22 +36,71 @@ describe('getDashboardController', () => {
     });
   });
 
-  it('returns real project count and list for a developer', async () => {
-    listProjectsForUser.mockResolvedValue([{ id: 1, name: 'BIX Platform' }]);
+  it('returns project status/progress, task count and recent history for a developer', async () => {
+    getProjectSummariesForUser.mockResolvedValue([
+      { id: 1, name: 'BIX Platform', status: 'active', done_count: 3, total_count: 4 }
+    ]);
+    getTasksAssignedToUser.mockResolvedValue([
+      { id: 10, title: 'Build login form', status: 'done', completed_at: new Date().toISOString(), project_id: 1, project_name: 'BIX Platform' },
+      { id: 11, title: 'Wire auth API', status: 'in_progress', completed_at: null, project_id: 1, project_name: 'BIX Platform' }
+    ]);
     const req = { user: { id: 2, role: 'developer' } };
     const res = mockRes();
 
     await getDashboardController(req, res);
 
-    expect(listProjectsForUser).toHaveBeenCalledWith(2);
-    expect(res.json).toHaveBeenCalledWith({
-      role: 'developer',
-      data: { projectCount: 1, projects: [{ id: 1, name: 'BIX Platform' }] }
-    });
+    expect(getProjectSummariesForUser).toHaveBeenCalledWith(2);
+    expect(getTasksAssignedToUser).toHaveBeenCalledWith(2);
+
+    const [[payload]] = res.json.mock.calls;
+    expect(payload.role).toBe('developer');
+    expect(payload.data.projectCount).toBe(1);
+    expect(payload.data.projects).toEqual([
+      { id: 1, name: 'BIX Platform', status: 'active', progress: 75 }
+    ]);
+    expect(payload.data.myTasksCount).toBe(1);
+    expect(payload.data.overallProgressPercent).toBe(75);
+    expect(payload.data.taskHistory).toEqual([
+      { id: 10, title: 'Build login form', projectName: 'BIX Platform', completedAt: expect.any(String) }
+    ]);
+  });
+
+  it('excludes a task completed more than 7 days ago from Task History', async () => {
+    getProjectSummariesForUser.mockResolvedValue([]);
+    const longAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    getTasksAssignedToUser.mockResolvedValue([
+      { id: 20, title: 'Old task', status: 'done', completed_at: longAgo, project_id: 1, project_name: 'BIX Platform' }
+    ]);
+    const req = { user: { id: 2, role: 'developer' } };
+    const res = mockRes();
+
+    await getDashboardController(req, res);
+
+    const [[payload]] = res.json.mock.calls;
+    expect(payload.data.taskHistory).toEqual([]);
+    expect(payload.data.myTasksCount).toBe(0);
+  });
+
+  it('returns null progress (not 0%) for a project or overall figure with no tasks at all', async () => {
+    getProjectSummariesForUser.mockResolvedValue([
+      { id: 1, name: 'Empty Project', status: 'not-started', done_count: 0, total_count: 0 }
+    ]);
+    getTasksAssignedToUser.mockResolvedValue([]);
+    const req = { user: { id: 5, role: 'developer' } };
+    const res = mockRes();
+
+    await getDashboardController(req, res);
+
+    const [[payload]] = res.json.mock.calls;
+    expect(payload.data.projects).toEqual([
+      { id: 1, name: 'Empty Project', status: 'not-started', progress: null }
+    ]);
+    expect(payload.data.overallProgressPercent).toBeNull();
   });
 
   it('returns projectCount 0 for a developer with no assigned projects', async () => {
-    listProjectsForUser.mockResolvedValue([]);
+    getProjectSummariesForUser.mockResolvedValue([]);
+    getTasksAssignedToUser.mockResolvedValue([]);
     const req = { user: { id: 5, role: 'developer' } };
     const res = mockRes();
 
@@ -57,7 +108,13 @@ describe('getDashboardController', () => {
 
     expect(res.json).toHaveBeenCalledWith({
       role: 'developer',
-      data: { projectCount: 0, projects: [] }
+      data: {
+        projectCount: 0,
+        projects: [],
+        myTasksCount: 0,
+        overallProgressPercent: null,
+        taskHistory: []
+      }
     });
   });
 
@@ -73,7 +130,8 @@ describe('getDashboardController', () => {
   });
 
   it('returns 500 when the developer query fails', async () => {
-    listProjectsForUser.mockRejectedValue(new Error('connection lost'));
+    getProjectSummariesForUser.mockRejectedValue(new Error('connection lost'));
+    getTasksAssignedToUser.mockResolvedValue([]);
     const req = { user: { id: 1, role: 'developer' } };
     const res = mockRes();
 

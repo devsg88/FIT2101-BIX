@@ -11,6 +11,7 @@ import {
   getPbisByStage,
   getSubTasksByProject,
   getTasksByProject,
+  getTasksAssignedToUser,
   updatePbiDetails,
   updatePbiPlanning,
   updatePbiStage
@@ -332,5 +333,52 @@ describe('getSubTasksByProject', () => {
     expect(sql).toMatch(/SELECT s\.id, s\.task_id, s\.title, s\.description, s\.status, s\.assignee_id/i);
     expect(sql).toMatch(/WHERE p\.project_id = \$1/i);
     expect(params).toEqual([1]);
+  });
+});
+
+describe('getTasksAssignedToUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('joins through product_backlog_items and projects, scoped to assignee_id', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await getTasksAssignedToUser(2);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/FROM tasks t/i);
+    expect(sql).toMatch(/JOIN product_backlog_items p ON p\.id = t\.pbi_id/i);
+    expect(sql).toMatch(/JOIN projects pr ON pr\.id = p\.project_id/i);
+    expect(sql).toMatch(/WHERE t\.assignee_id = \$1/i);
+    expect(params).toEqual([2]);
+  });
+
+  it('includes completed_at and the owning project name for each task', async () => {
+    pool.query.mockResolvedValue({
+      rows: [
+        {
+          id: 1,
+          title: 'Build login form',
+          status: 'done',
+          completed_at: '2026-08-07T16:00:00.000Z',
+          project_id: 1,
+          project_name: 'BIX Platform'
+        }
+      ]
+    });
+
+    const result = await getTasksAssignedToUser(2);
+
+    expect(result).toEqual([
+      {
+        id: 1,
+        title: 'Build login form',
+        status: 'done',
+        completed_at: '2026-08-07T16:00:00.000Z',
+        project_id: 1,
+        project_name: 'BIX Platform'
+      }
+    ]);
   });
 });

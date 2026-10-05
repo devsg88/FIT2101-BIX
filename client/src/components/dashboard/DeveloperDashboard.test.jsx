@@ -10,11 +10,29 @@ vi.mock('../../context/AuthContext.jsx', () => ({
 
 const mockLogout = vi.fn();
 
-function renderDashboard(user = { id: 1, name: 'Pang', role: 'developer' }) {
+const sampleData = {
+  role: 'developer',
+  data: {
+    projectCount: 3,
+    projects: [
+      { id: 1, name: 'Project Alpha', status: 'active', progress: 60 },
+      { id: 2, name: 'Project Beta', status: 'planning', progress: 20 },
+      { id: 3, name: 'Project Gamma', status: 'not-started', progress: null }
+    ],
+    myTasksCount: 1,
+    overallProgressPercent: 60,
+    taskHistory: [
+      { id: 'task-2', title: 'Task 2', projectName: 'Project Alpha', completedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
+      { id: 'task-1', title: 'Task 1', projectName: 'Project Alpha', completedAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString() }
+    ]
+  }
+};
+
+function renderDashboard({ user = { id: 1, name: 'Pang', role: 'developer' }, data = sampleData } = {}) {
   useAuth.mockReturnValue({ user, logout: mockLogout });
   return render(
     <MemoryRouter>
-      <DeveloperDashboard />
+      <DeveloperDashboard data={data} />
     </MemoryRouter>
   );
 }
@@ -45,11 +63,12 @@ describe('DeveloperDashboard component', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders all three stat cards with correct metrics', () => {
+  it('renders all three stat cards from real dashboard data', () => {
     renderDashboard();
 
     const myProjectsElements = screen.getAllByText('My Projects');
     expect(myProjectsElements.length).toBe(2); // One in stat card, one in table card
+    expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.getByText('Assigned projects')).toBeInTheDocument();
 
     const statCardLink = myProjectsElements[0].closest('a');
@@ -59,14 +78,26 @@ describe('DeveloperDashboard component', () => {
     expect(viewAllLink).toHaveAttribute('href', '/projects');
 
     expect(screen.getByText('My Tasks')).toBeInTheDocument();
-    expect(screen.getByText('Task in progress')).toBeInTheDocument();
+    expect(screen.getByText('Open tasks assigned to you')).toBeInTheDocument();
 
     expect(screen.getByText('Overall Progess')).toBeInTheDocument();
-    expect(screen.getAllByText('60%').length).toBe(2);
-    expect(screen.getByText('Across active sprint')).toBeInTheDocument();
+    expect(screen.getAllByText('60%').length).toBe(2); // stat card + Project Alpha's row
+    expect(screen.getByText('Tasks done vs total, across your projects')).toBeInTheDocument();
   });
 
-  it('renders the My Projects list with projects, statuses, and Open Board links', () => {
+  it('shows N/A and an honest sub-label when there is no task data at all', () => {
+    renderDashboard({
+      data: {
+        role: 'developer',
+        data: { projectCount: 0, projects: [], myTasksCount: 0, overallProgressPercent: null, taskHistory: [] }
+      }
+    });
+
+    expect(screen.getByText('N/A')).toBeInTheDocument();
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument();
+  });
+
+  it('renders the My Projects list with real statuses, progress and Open Board links', () => {
     renderDashboard();
 
     const projectAlphaElements = screen.getAllByText('Project Alpha');
@@ -75,15 +106,29 @@ describe('DeveloperDashboard component', () => {
 
     expect(screen.getByText('Project Beta')).toBeInTheDocument();
     expect(screen.getByText('Planning')).toBeInTheDocument();
+    expect(screen.getByText('20%')).toBeInTheDocument();
 
     expect(screen.getByText('Project Gamma')).toBeInTheDocument();
     expect(screen.getByText('Not started')).toBeInTheDocument();
+    expect(screen.getByText('No tasks yet')).toBeInTheDocument();
 
     const openBoardLinks = screen.getAllByRole('link', { name: /Open Board/i });
     expect(openBoardLinks).toHaveLength(3);
     expect(openBoardLinks[0]).toHaveAttribute('href', '/projects/1/board');
     expect(openBoardLinks[1]).toHaveAttribute('href', '/projects/2/board');
     expect(openBoardLinks[2]).toHaveAttribute('href', '/projects/3/board');
+  });
+
+  it('shows an honest empty state instead of a fake table row when there are no projects', () => {
+    renderDashboard({
+      data: {
+        role: 'developer',
+        data: { projectCount: 0, projects: [], myTasksCount: 0, overallProgressPercent: null, taskHistory: [] }
+      }
+    });
+
+    expect(screen.getByText('No projects assigned yet.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Open Board/i })).not.toBeInTheDocument();
   });
 
   it('renders Task History with completed tasks and footer note', () => {
@@ -97,6 +142,18 @@ describe('DeveloperDashboard component', () => {
     expect(
       screen.getByText("That's everything from the last 7 days")
     ).toBeInTheDocument();
+  });
+
+  it('shows an honest empty state instead of fake entries when Task History is empty', () => {
+    renderDashboard({
+      data: {
+        role: 'developer',
+        data: { projectCount: 1, projects: [], myTasksCount: 0, overallProgressPercent: null, taskHistory: [] }
+      }
+    });
+
+    expect(screen.getByText('No tasks completed in the last 7 days.')).toBeInTheDocument();
+    expect(screen.queryByText("That's everything from the last 7 days")).not.toBeInTheDocument();
   });
 
   it('opens dropdown and allows signing out', () => {
