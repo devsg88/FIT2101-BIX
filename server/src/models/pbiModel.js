@@ -180,6 +180,24 @@ export async function getTasksByProject(projectId) {
   return rows;
 }
 
+// Every task assigned to one user, across all of their projects - used by
+// the developer dashboard's "My Tasks" count and Task History list (neither
+// is project-scoped the way the board is). Includes the owning project's
+// name so the caller does not need a second query to label each row.
+export async function getTasksAssignedToUser(userId) {
+  const { rows } = await pool.query(
+    `SELECT t.id, t.title, t.status, t.completed_at,
+            p.project_id, pr.name AS project_name
+       FROM tasks t
+       JOIN product_backlog_items p ON p.id = t.pbi_id
+       JOIN projects pr ON pr.id = p.project_id
+      WHERE t.assignee_id = $1
+      ORDER BY t.id`,
+    [userId]
+  );
+  return rows;
+}
+
 export async function getSubTasksByProject(projectId) {
   const { rows } = await pool.query(
     `SELECT s.id, s.task_id, s.title, s.description, s.status, s.assignee_id
