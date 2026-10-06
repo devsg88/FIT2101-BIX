@@ -1635,9 +1635,13 @@ input {
 
 .project-board__columns {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Fixed-width columns: boxes keep one size whatever the window width, and
+     the board scrolls sideways instead of stretching or squashing. */
+  grid-template-columns: repeat(4, 20rem);
+  justify-content: start;
   gap: 1rem;
   align-items: start;
+  overflow-x: auto;
 }
 
 .project-board__column {
@@ -1997,10 +2001,6 @@ input {
 }
 
 @media (max-width: 800px) {
-  .project-board__columns {
-    grid-template-columns: 1fr;
-  }
-
   .project-board__user-name {
     display: none;
   }
