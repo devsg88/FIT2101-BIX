@@ -21,6 +21,17 @@ const SPRINT_STATUS_LABELS = {
   completed: 'Completed'
 };
 
+// What to say instead of a chart, keyed by the backend's emptyReason (see
+// EMPTY_REASONS in server/src/utils/burndown.js).
+export const EMPTY_MESSAGES = {
+  not_started: 'This Sprint has not started yet, so there is no burndown to show.',
+  no_estimates: 'None of this Sprint\'s items have Story Points estimated yet, so there is nothing to burn down.',
+  no_end_date: 'This Sprint\'s items have no planned end dates, so the Sprint end date is unknown.',
+  invalid_dates: 'This Sprint\'s dates cannot be charted: its items\' planned end dates fall before the Sprint start, or too far after it.'
+};
+
+const FALLBACK_EMPTY_MESSAGE = 'There is no burndown data for this Sprint yet.';
+
 // The Sprint to show first: the active one, otherwise the most recently
 // started one, otherwise the first in the list.
 export function pickDefaultSprint(sprints) {
@@ -155,6 +166,12 @@ export default function Burndown() {
           </div>
         )}
 
+        {sprintsStatus === 'ready' && sprints.length === 0 && (
+          <p className="burndown-page__empty">
+            This project has no Sprints yet. A burndown appears once a Sprint is planned and started.
+          </p>
+        )}
+
         {sprintsStatus === 'ready' && sprints.length > 0 && (
           <SprintPicker
             sprints={sprints}
@@ -176,14 +193,22 @@ export default function Burndown() {
 
         {burndownStatus === 'ready' && burndown && (
           <>
-            <p className="burndown-page__summary">
+            <p className="burndown-page__summary" data-testid="burndown-summary">
               <strong>{burndown.sprint.name}</strong>
               {burndown.sprint.startDate && burndown.sprint.endDate && (
-                <> {formatDayLabel(burndown.sprint.startDate)} to {formatDayLabel(burndown.sprint.endDate)}</>
+                <span>
+                  {formatDayLabel(burndown.sprint.startDate)} to {formatDayLabel(burndown.sprint.endDate)}
+                </span>
               )}
-              {' '}{burndown.remainingPoints} of {burndown.totalPoints} Story Points remaining
+              <span>
+                {burndown.remainingPoints} of {burndown.totalPoints} Story Points remaining
+              </span>
             </p>
-            {burndown.series.length > 0 && (
+            {burndown.emptyReason || burndown.series.length === 0 ? (
+              <p className="burndown-page__empty">
+                {EMPTY_MESSAGES[burndown.emptyReason] ?? FALLBACK_EMPTY_MESSAGE}
+              </p>
+            ) : (
               <BurndownChart series={burndown.series} totalPoints={burndown.totalPoints} />
             )}
           </>

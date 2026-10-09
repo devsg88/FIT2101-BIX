@@ -2912,6 +2912,9 @@ input {
 
 .burndown-page__summary {
   margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .burndown-page__picker {
@@ -2946,4 +2949,14 @@ input {
 
 .burndown-page__status p:last-child {
   margin-bottom: 0;
+}
+
+.burndown-page__empty {
+  margin: 0;
+  padding: 1.5rem 1rem;
+  background: #fdfaf0;
+  border: 1px dashed #000;
+  border-radius: 8px;
+  max-width: 48rem;
+  text-align: center;
 }
