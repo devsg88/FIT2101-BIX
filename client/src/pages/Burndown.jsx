@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getProjectSprints, getSprintBurndown } from '../services/api.js';
@@ -59,7 +59,11 @@ export default function Burndown() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [sprints, setSprints] = useState([]);
+  const [sprintsStatus, setSprintsStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  const [sprintsError, setSprintsError] = useState(null);
   const [burndown, setBurndown] = useState(null);
+  const [burndownStatus, setBurndownStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error'
+  const [burndownError, setBurndownError] = useState(null);
 
   // A ?sprint= id only counts if it is one of this project's Sprints;
   // anything else falls back to the default Sprint.
@@ -69,18 +73,65 @@ export default function Burndown() {
 
   const selectSprint = (sprintId) => setSearchParams({ sprint: String(sprintId) });
 
-  useEffect(() => {
-    getProjectSprints(projectId, token).then((data) => {
-      setSprints(Array.isArray(data.sprints) ? data.sprints : []);
-    });
-  }, [projectId, token]);
+  // Each loader takes an `isCurrent` check so a slow response for a previous
+  // project or Sprint cannot overwrite the one now selected. Both double as
+  // the Retry action.
+  const loadSprints = useCallback(
+    async (isCurrent = () => true) => {
+      setSprintsStatus('loading');
+      setSprintsError(null);
+      try {
+        const data = await getProjectSprints(projectId, token);
+        if (!isCurrent()) return;
+        setSprints(Array.isArray(data.sprints) ? data.sprints : []);
+        setSprintsStatus('ready');
+      } catch (err) {
+        if (!isCurrent()) return;
+        setSprintsError(err?.message || 'Something went wrong loading the Sprints.');
+        setSprintsStatus('error');
+      }
+    },
+    [projectId, token]
+  );
+
+  const loadBurndown = useCallback(
+    async (isCurrent = () => true) => {
+      if (!selectedSprintId) {
+        setBurndown(null);
+        setBurndownStatus('idle');
+        return;
+      }
+      setBurndownStatus('loading');
+      setBurndownError(null);
+      try {
+        const data = await getSprintBurndown(projectId, selectedSprintId, token);
+        if (!isCurrent()) return;
+        setBurndown(data);
+        setBurndownStatus('ready');
+      } catch (err) {
+        if (!isCurrent()) return;
+        setBurndownError(err?.message || 'Something went wrong loading the burndown.');
+        setBurndownStatus('error');
+      }
+    },
+    [projectId, selectedSprintId, token]
+  );
 
   useEffect(() => {
-    if (!selectedSprintId) {
-      return;
-    }
-    getSprintBurndown(projectId, selectedSprintId, token).then(setBurndown);
-  }, [projectId, selectedSprintId, token]);
+    let current = true;
+    loadSprints(() => current);
+    return () => {
+      current = false;
+    };
+  }, [loadSprints]);
+
+  useEffect(() => {
+    let current = true;
+    loadBurndown(() => current);
+    return () => {
+      current = false;
+    };
+  }, [loadBurndown]);
 
   return (
     <div className="burndown-page">
@@ -93,7 +144,18 @@ export default function Burndown() {
       </header>
 
       <main className="burndown-page__content">
-        {sprints.length > 0 && (
+        {sprintsStatus === 'loading' && (
+          <p className="burndown-page__status">Loading Sprints...</p>
+        )}
+
+        {sprintsStatus === 'error' && (
+          <div className="burndown-page__status" role="alert">
+            <p>Couldn&apos;t load this project&apos;s Sprints: {sprintsError}</p>
+            <button type="button" onClick={() => loadSprints()}>Retry</button>
+          </div>
+        )}
+
+        {sprintsStatus === 'ready' && sprints.length > 0 && (
           <SprintPicker
             sprints={sprints}
             selectedSprintId={selectedSprintId}
@@ -101,7 +163,18 @@ export default function Burndown() {
           />
         )}
 
-        {burndown && (
+        {burndownStatus === 'loading' && (
+          <p className="burndown-page__status">Loading burndown...</p>
+        )}
+
+        {burndownStatus === 'error' && (
+          <div className="burndown-page__status" role="alert">
+            <p>Couldn&apos;t load the burndown: {burndownError}</p>
+            <button type="button" onClick={() => loadBurndown()}>Retry</button>
+          </div>
+        )}
+
+        {burndownStatus === 'ready' && burndown && (
           <>
             <p className="burndown-page__summary">
               <strong>{burndown.sprint.name}</strong>

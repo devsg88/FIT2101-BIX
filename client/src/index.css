@@ -2930,3 +2930,20 @@ input {
   border-radius: 6px;
   background: #fff;
 }
+
+.burndown-page__status {
+  margin: 0;
+  padding: 1rem;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 8px;
+  max-width: 48rem;
+}
+
+.burndown-page__status p {
+  margin: 0 0 0.5rem;
+}
+
+.burndown-page__status p:last-child {
+  margin-bottom: 0;
+}
