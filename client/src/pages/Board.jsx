@@ -893,6 +893,10 @@ function BoardTopBar({ project, onOpenHistory }) {
           Manage backlog
         </Link>
       )}
+      {/* US-15: the Sprint burndown for this project. */}
+      <Link to={`/projects/${projectId}/burndown`} className="project-board__burndown-link">
+        {'Burndown ->'}
+      </Link>
       <button
         type="button"
         className="project-board__history-button"

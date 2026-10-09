@@ -2873,3 +2873,43 @@ input {
 .burndown-chart__swatch--actual {
   border-color: #d9822b;
 }
+
+/* ---------- Burndown page (US-15) ---------- */
+
+.project-board__burndown-link {
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #000;
+}
+
+.project-board__burndown-link + .project-board__history-button {
+  margin-left: 0;
+}
+
+.burndown-page {
+  min-height: 100vh;
+}
+
+.burndown-page__title {
+  margin: 0;
+  font-size: 1.125rem;
+}
+
+.burndown-page__back {
+  margin-left: auto;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #000;
+}
+
+.burndown-page__content {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.burndown-page__summary {
+  margin: 0;
+}

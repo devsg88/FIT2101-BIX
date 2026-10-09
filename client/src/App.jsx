@@ -6,6 +6,7 @@ import MyProjects from './pages/MyProjects.jsx';
 import Board from './pages/Board.jsx';
 import TeamDetail from './pages/TeamDetail.jsx';
 import ProductBacklog from './pages/ProductBacklog.jsx';
+import Burndown from './pages/Burndown.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
 
 export default function App() {
@@ -71,6 +72,17 @@ export default function App() {
         element={
           <ProtectedRoute>
             <Board />
+          </ProtectedRoute>
+        }
+      />
+      {/* Sprint burndown (US-15). Any logged-in user may open the page; the
+          backend only returns data to a project member or the responsible
+          Admin, and the page shows that refusal as its error state. */}
+      <Route
+        path="/projects/:projectId/burndown"
+        element={
+          <ProtectedRoute>
+            <Burndown />
           </ProtectedRoute>
         }
       />
