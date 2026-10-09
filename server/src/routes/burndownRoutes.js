@@ -1,9 +1,22 @@
 import { Router } from 'express';
 import { requireAuth, requireProjectAccess } from '../middleware/authMiddleware.js';
-import { getBurndownController } from '../controllers/burndownController.js';
+import {
+  getBurndownController,
+  getProjectSprintsController
+} from '../controllers/burndownController.js';
 
 // Mounted at /api/projects (see app.js).
 const router = Router();
+
+// GET /api/projects/:projectId/sprints
+// US-15 (SCRUM-153). The Sprints to choose from in the Burndown view. Same
+// access rule as the burndown itself.
+router.get(
+  '/:projectId/sprints',
+  requireAuth,
+  requireProjectAccess,
+  getProjectSprintsController
+);
 
 // GET /api/projects/:projectId/sprints/:sprintId/burndown
 // US-15 (SCRUM-153). Reuses the shared project access check from
