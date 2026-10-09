@@ -1,4 +1,5 @@
 import { pool } from '../config/db.js';
+import { getSprintById } from './sprintModel.js';
 
 // US-15 Sprint Burndown Chart (SCRUM-153).
 // All reads are scoped to a single project. Callers pass ids that have already
@@ -19,4 +20,18 @@ export async function getSprintScope(projectId, sprintId) {
     [projectId, sprintId]
   );
   return rows;
+}
+
+// The Sprint and its items together. Returns null when the Sprint does not
+// exist in this project, so a Sprint id from another project is a 404 and
+// never leaks that project's data. The Sprint itself is read through the
+// existing sprintModel query rather than a second copy of it.
+export async function getBurndownData(projectId, sprintId) {
+  const sprint = await getSprintById(projectId, sprintId);
+  if (!sprint) {
+    return null;
+  }
+
+  const pbis = await getSprintScope(projectId, sprintId);
+  return { sprint, pbis };
 }
