@@ -2789,3 +2789,87 @@ input {
     grid-column: 1 / -1;
   }
 }
+
+/* ---------- Sprint burndown chart (US-15) ---------- */
+
+.burndown-chart {
+  margin: 0;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 48rem;
+}
+
+.burndown-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.burndown-chart__axis {
+  stroke: #000;
+  stroke-width: 1;
+}
+
+.burndown-chart__grid {
+  stroke: #e2ddc0;
+  stroke-width: 1;
+}
+
+.burndown-chart__tick {
+  font-size: 11px;
+  fill: #555;
+}
+
+.burndown-chart__axis-title {
+  font-size: 12px;
+  font-weight: 600;
+  fill: #1d1d1b;
+}
+
+.burndown-chart__ideal {
+  fill: none;
+  stroke: #8a8a8a;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.burndown-chart__actual {
+  fill: none;
+  stroke: #d9822b;
+  stroke-width: 2.5;
+}
+
+.burndown-chart__actual-point {
+  fill: #d9822b;
+}
+
+.burndown-chart__legend {
+  display: flex;
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.burndown-chart__legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.burndown-chart__swatch {
+  display: inline-block;
+  width: 1.5rem;
+  height: 0;
+  border-top: 2px solid;
+}
+
+.burndown-chart__swatch--ideal {
+  border-top-style: dashed;
+  border-color: #8a8a8a;
+}
+
+.burndown-chart__swatch--actual {
+  border-color: #d9822b;
+}

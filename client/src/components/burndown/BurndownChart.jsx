@@ -43,6 +43,14 @@ export default function BurndownChart({ series, totalPoints }) {
     .map((point, index) => `${x(index)},${y(point.ideal)}`)
     .join(' ');
 
+  // Days after today have actual: null, so the actual line stops at today.
+  const actualPoints = series
+    .map((point, index) => ({ ...point, index }))
+    .filter((point) => point.actual !== null);
+  const actualLine = actualPoints
+    .map((point) => `${x(point.index)},${y(point.actual)}`)
+    .join(' ');
+
   const yTicks = Array.from({ length: Y_TICKS }, (_, i) => (maxY * i) / (Y_TICKS - 1));
   const labelEvery = Math.ceil(series.length / MAX_X_LABELS);
   const bottom = PAD.top + PLOT_HEIGHT;
@@ -105,7 +113,35 @@ export default function BurndownChart({ series, totalPoints }) {
           data-testid="burndown-ideal-line"
           points={idealPoints}
         />
+        {actualPoints.length > 0 && (
+          <polyline
+            className="burndown-chart__actual"
+            data-testid="burndown-actual-line"
+            points={actualLine}
+          />
+        )}
+        {actualPoints.map((point) => (
+          <circle
+            key={point.date}
+            className="burndown-chart__actual-point"
+            cx={x(point.index)}
+            cy={y(point.actual)}
+            r={3.5}
+          >
+            <title>{`${formatDayLabel(point.date)}: ${point.actual} Story Points remaining`}</title>
+          </circle>
+        ))}
       </svg>
+      <figcaption className="burndown-chart__legend">
+        <span className="burndown-chart__legend-item">
+          <span className="burndown-chart__swatch burndown-chart__swatch--ideal" aria-hidden="true" />
+          Ideal burndown
+        </span>
+        <span className="burndown-chart__legend-item">
+          <span className="burndown-chart__swatch burndown-chart__swatch--actual" aria-hidden="true" />
+          Actual remaining work
+        </span>
+      </figcaption>
     </figure>
   );
 }
