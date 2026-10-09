@@ -96,3 +96,21 @@ export function getSprintWindow(sprint, pbis) {
 
   return { startDate, endDate };
 }
+
+// Rounds to 2 decimal places, the precision estimated_hours is stored at, so
+// sums like 0.1 + 0.2 do not show as 0.30000000000000004.
+function round(value) {
+  return Math.round(value * 100) / 100;
+}
+
+// One PBI's Story Points. pg returns numeric columns as strings, and an item
+// with no estimate counts as 0 rather than breaking the totals.
+export function storyPoints(pbi) {
+  const points = Number(pbi.estimated_hours);
+  return Number.isFinite(points) && points > 0 ? points : 0;
+}
+
+// Total Story Points across a list of PBIs.
+export function sumStoryPoints(pbis) {
+  return round(pbis.reduce((total, pbi) => total + storyPoints(pbi), 0));
+}
