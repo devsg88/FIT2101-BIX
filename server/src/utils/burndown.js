@@ -125,3 +125,35 @@ export function idealSeries(totalPoints, dateKeys) {
     ideal: steps === 0 ? 0 : round(totalPoints * (1 - index / steps))
   }));
 }
+
+// The day a PBI became Done, or null while it is not Done. completed_at is
+// set by completePbi (US-11); updated_at is only a fallback for items
+// completed before that column existed.
+export function completionDateKey(pbi) {
+  if (pbi.stage !== 'completed') {
+    return null;
+  }
+  return toDateKey(pbi.completed_at ?? pbi.updated_at);
+}
+
+// The actual line: for each Sprint day, the committed total minus the Story
+// Points of every item completed on or before that day. A Story's points are
+// removed from the day it was completed onward. An item completed before the
+// Sprint started is already removed on day one. Days after today have not
+// happened yet, so their value is null and the line stops at today.
+export function actualSeries(pbis, dateKeys, todayKey) {
+  const totalPoints = sumStoryPoints(pbis);
+  const completed = pbis
+    .map((pbi) => ({ date: completionDateKey(pbi), points: storyPoints(pbi) }))
+    .filter((item) => item.date !== null);
+
+  return dateKeys.map((date) => {
+    if (date > todayKey) {
+      return { date, actual: null };
+    }
+    const donePoints = completed
+      .filter((item) => item.date <= date)
+      .reduce((total, item) => total + item.points, 0);
+    return { date, actual: round(totalPoints - donePoints) };
+  });
+}
