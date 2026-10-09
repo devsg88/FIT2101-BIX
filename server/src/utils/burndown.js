@@ -114,3 +114,14 @@ export function storyPoints(pbi) {
 export function sumStoryPoints(pbis) {
   return round(pbis.reduce((total, pbi) => total + storyPoints(pbi), 0));
 }
+
+// The ideal line: a straight line from the committed total on the first day
+// of the Sprint down to 0 on the last day. A one-day Sprint is already at its
+// end, so its only point is 0.
+export function idealSeries(totalPoints, dateKeys) {
+  const steps = dateKeys.length - 1;
+  return dateKeys.map((date, index) => ({
+    date,
+    ideal: steps === 0 ? 0 : round(totalPoints * (1 - index / steps))
+  }));
+}
