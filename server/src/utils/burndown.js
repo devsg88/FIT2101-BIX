@@ -157,3 +157,73 @@ export function actualSeries(pbis, dateKeys, todayKey) {
     return { date, actual: round(totalPoints - donePoints) };
   });
 }
+
+// A Sprint longer than this is treated as unusable dates rather than drawing
+// a chart with thousands of points from a mistyped planned end date.
+export const MAX_SPRINT_DAYS = 366;
+
+// Whole days from one 'YYYY-MM-DD' key to another.
+function daysBetween(startKey, endKey) {
+  const toUtc = (key) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((toUtc(endKey) - toUtc(startKey)) / DAY_MS);
+}
+
+// Why there is nothing to chart for this Sprint, or null when there is.
+function getEmptyReason(sprint, startDate, endDate, totalPoints) {
+  if (sprint.status === 'planning' || !startDate) {
+    return EMPTY_REASONS.NOT_STARTED;
+  }
+  if (totalPoints === 0) {
+    return EMPTY_REASONS.NO_ESTIMATES;
+  }
+  if (!endDate) {
+    return EMPTY_REASONS.NO_END_DATE;
+  }
+  if (endDate < startDate || daysBetween(startDate, endDate) + 1 > MAX_SPRINT_DAYS) {
+    return EMPTY_REASONS.INVALID_DATES;
+  }
+  return null;
+}
+
+// Builds the full burndown response (see the data contract at the top of this
+// file) from a Sprint row and its PBIs. `today` is a parameter so tests can
+// fix the date; the endpoint passes the real current date.
+export function buildBurndown(sprint, pbis, today = new Date()) {
+  const { startDate, endDate } = getSprintWindow(sprint, pbis);
+  const totalPoints = sumStoryPoints(pbis);
+  const remainingPoints = sumStoryPoints(
+    pbis.filter((pbi) => pbi.stage !== 'completed')
+  );
+
+  const result = {
+    sprint: {
+      id: sprint.id,
+      name: sprint.name,
+      status: sprint.status,
+      startDate,
+      endDate
+    },
+    totalPoints,
+    remainingPoints,
+    series: [],
+    emptyReason: getEmptyReason(sprint, startDate, endDate, totalPoints)
+  };
+
+  if (result.emptyReason) {
+    return result;
+  }
+
+  const dateKeys = listDateKeys(startDate, endDate);
+  const ideal = idealSeries(totalPoints, dateKeys);
+  const actual = actualSeries(pbis, dateKeys, toDateKey(today));
+
+  result.series = dateKeys.map((date, index) => ({
+    date,
+    ideal: ideal[index].ideal,
+    actual: actual[index].actual
+  }));
+  return result;
+}
