@@ -218,6 +218,28 @@ export function startSprint(projectId, sprintId, token) {
   });
 }
 
+// --- Sprint burndown (US-15, SCRUM-153) -------------------------------------
+
+// GET /api/projects/:projectId/sprints
+// The project's Sprints for the Burndown view's picker. Resolves with
+// { sprints: [{ id, name, status, started_at, ... }] }. Same access rule as
+// the board: project member or responsible Admin.
+export function getProjectSprints(projectId, token) {
+  return request(`/projects/${projectId}/sprints`, {
+    headers: authHeader(token)
+  });
+}
+
+// GET /api/projects/:projectId/sprints/:sprintId/burndown
+// Resolves with { sprint, totalPoints, remainingPoints, series, emptyReason }
+// (contract in server/src/utils/burndown.js), or throws with the backend's
+// message and status (403 no access, 404 Sprint not found, ...).
+export function getSprintBurndown(projectId, sprintId, token) {
+  return request(`/projects/${projectId}/sprints/${sprintId}/burndown`, {
+    headers: authHeader(token)
+  });
+}
+
 // --- Tasks and sub-tasks (US-04a, SCRUM-121/122) ----------------------------
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId

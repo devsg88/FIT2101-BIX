@@ -294,6 +294,12 @@ CREATE TABLE IF NOT EXISTS pbi_collaborators (
 
 CREATE INDEX IF NOT EXISTS idx_pbi_collaborators_user_id ON pbi_collaborators (user_id);
 
+-- US-15 (SCRUM-153): when a PBI reached Completed, used by the Sprint
+-- burndown. Set by completePbi (completionModel.js). Existing databases get
+-- it from server/db/migrations/005_us15_pbi_completed_at.sql.
+ALTER TABLE product_backlog_items
+    ADD COLUMN IF NOT EXISTS completed_at timestamptz;
+
 COMMIT;
 
 -- =========================================================================

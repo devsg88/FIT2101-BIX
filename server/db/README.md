@@ -12,6 +12,7 @@ plain `pg` pool against `DATABASE_URL`).
 | `schema.sql` | Creates the tables, constraints, indexes and the `updated_at` trigger. |
 | `seed.sql`   | Inserts a small, consistent set of sample rows for local development. |
 | `migrations/001_task_subtask_assignee_and_status.sql` | US-04a (SCRUM-121). Adds `assignee_id` to `tasks`/`sub_tasks` and a `CHECK` on their `status` column. See [Migrations](#migrations) below. |
+| `migrations/005_us15_pbi_completed_at.sql` | US-15 (SCRUM-153). Adds `completed_at` to `product_backlog_items` for the Sprint burndown and backfills completed rows from `updated_at`. |
 | `README.md`  | This document. |
 
 > **Status:** these scripts have been successfully executed against a fresh

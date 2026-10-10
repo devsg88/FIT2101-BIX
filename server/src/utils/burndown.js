@@ -1,0 +1,229 @@
+// US-15 Sprint Burndown Chart (SCRUM-153).
+//
+// Pure helpers used to build the burndown data. Nothing in this file touches
+// the database, so every rule here can be unit tested on plain objects.
+//
+// Data contract for GET /api/projects/:projectId/sprints/:sprintId/burndown
+//
+//   {
+//     sprint: {
+//       id, name, status,
+//       startDate,          // 'YYYY-MM-DD' or null
+//       endDate             // 'YYYY-MM-DD' or null
+//     },
+//     totalPoints,          // Story Points committed to the Sprint
+//     remainingPoints,      // Story Points of Sprint items not yet Done
+//     series: [             // one entry per Sprint day, start to end
+//       { date, ideal, actual }   // actual is null for days still to come
+//     ],
+//     emptyReason           // null, or one of EMPTY_REASONS below
+//   }
+//
+// When emptyReason is set, series is always an empty array and the client
+// shows an empty state instead of a chart.
+//
+// Where the numbers come from:
+//   Story Points  product_backlog_items.estimated_hours, the field the board
+//                 labels "Story points / hours" (US-08b).
+//   Done          a PBI whose stage is 'completed' (US-11).
+//   Done on       product_backlog_items.completed_at, falling back to
+//                 updated_at for items completed before that column existed.
+//   Sprint start  sprints.started_at, set by Start Sprint (US-10).
+//   Sprint end    the latest planned_end_date of the Sprint's items (US-08b).
+//                 The sprints table has no end date column of its own.
+
+export const EMPTY_REASONS = Object.freeze({
+  NOT_STARTED: 'not_started',
+  NO_ESTIMATES: 'no_estimates',
+  NO_END_DATE: 'no_end_date',
+  INVALID_DATES: 'invalid_dates'
+});
+
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Turns a Date, a timestamp or a 'YYYY-MM-DD' string into a 'YYYY-MM-DD' key.
+// pg returns DATE columns as local midnight, so local getters are used to keep
+// the same calendar day the database stored. Returns null for missing or
+// unreadable values.
+export function toDateKey(value) {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value === 'string' && DATE_KEY.test(value)) {
+    return value;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// Adds whole days to a 'YYYY-MM-DD' key. Done in UTC so daylight saving
+// changes can never skip or repeat a day.
+export function addDays(dateKey, days) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day) + days * DAY_MS);
+  return next.toISOString().slice(0, 10);
+}
+
+// Every date from startKey to endKey, both included. Empty when the end is
+// before the start. 'YYYY-MM-DD' keys sort correctly as plain strings.
+export function listDateKeys(startKey, endKey) {
+  const keys = [];
+  for (let key = startKey; key <= endKey; key = addDays(key, 1)) {
+    keys.push(key);
+  }
+  return keys;
+}
+
+// The Sprint's start and end as 'YYYY-MM-DD' keys (see the contract above).
+// Either may be null: a Sprint still in planning has no start, and a Sprint
+// whose items have no planned end dates has no end.
+export function getSprintWindow(sprint, pbis) {
+  const startDate = toDateKey(sprint.started_at);
+  const endDates = pbis
+    .map((pbi) => toDateKey(pbi.planned_end_date))
+    .filter(Boolean)
+    .sort();
+  const endDate = endDates.length > 0 ? endDates[endDates.length - 1] : null;
+
+  return { startDate, endDate };
+}
+
+// Rounds to 2 decimal places, the precision estimated_hours is stored at, so
+// sums like 0.1 + 0.2 do not show as 0.30000000000000004.
+function round(value) {
+  return Math.round(value * 100) / 100;
+}
+
+// One PBI's Story Points. pg returns numeric columns as strings, and an item
+// with no estimate counts as 0 rather than breaking the totals.
+export function storyPoints(pbi) {
+  const points = Number(pbi.estimated_hours);
+  return Number.isFinite(points) && points > 0 ? points : 0;
+}
+
+// Total Story Points across a list of PBIs.
+export function sumStoryPoints(pbis) {
+  return round(pbis.reduce((total, pbi) => total + storyPoints(pbi), 0));
+}
+
+// The ideal line: a straight line from the committed total on the first day
+// of the Sprint down to 0 on the last day. A one-day Sprint is already at its
+// end, so its only point is 0.
+export function idealSeries(totalPoints, dateKeys) {
+  const steps = dateKeys.length - 1;
+  return dateKeys.map((date, index) => ({
+    date,
+    ideal: steps === 0 ? 0 : round(totalPoints * (1 - index / steps))
+  }));
+}
+
+// The day a PBI became Done, or null while it is not Done. completed_at is
+// set by completePbi (US-11); updated_at is only a fallback for items
+// completed before that column existed.
+export function completionDateKey(pbi) {
+  if (pbi.stage !== 'completed') {
+    return null;
+  }
+  return toDateKey(pbi.completed_at ?? pbi.updated_at);
+}
+
+// The actual line: for each Sprint day, the committed total minus the Story
+// Points of every item completed on or before that day. A Story's points are
+// removed from the day it was completed onward. An item completed before the
+// Sprint started is already removed on day one. Days after today have not
+// happened yet, so their value is null and the line stops at today.
+export function actualSeries(pbis, dateKeys, todayKey) {
+  const totalPoints = sumStoryPoints(pbis);
+  const completed = pbis
+    .map((pbi) => ({ date: completionDateKey(pbi), points: storyPoints(pbi) }))
+    .filter((item) => item.date !== null);
+
+  return dateKeys.map((date) => {
+    if (date > todayKey) {
+      return { date, actual: null };
+    }
+    const donePoints = completed
+      .filter((item) => item.date <= date)
+      .reduce((total, item) => total + item.points, 0);
+    return { date, actual: round(totalPoints - donePoints) };
+  });
+}
+
+// A Sprint longer than this is treated as unusable dates rather than drawing
+// a chart with thousands of points from a mistyped planned end date.
+export const MAX_SPRINT_DAYS = 366;
+
+// Whole days from one 'YYYY-MM-DD' key to another.
+function daysBetween(startKey, endKey) {
+  const toUtc = (key) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((toUtc(endKey) - toUtc(startKey)) / DAY_MS);
+}
+
+// Why there is nothing to chart for this Sprint, or null when there is.
+function getEmptyReason(sprint, startDate, endDate, totalPoints) {
+  if (sprint.status === 'planning' || !startDate) {
+    return EMPTY_REASONS.NOT_STARTED;
+  }
+  if (totalPoints === 0) {
+    return EMPTY_REASONS.NO_ESTIMATES;
+  }
+  if (!endDate) {
+    return EMPTY_REASONS.NO_END_DATE;
+  }
+  if (endDate < startDate || daysBetween(startDate, endDate) + 1 > MAX_SPRINT_DAYS) {
+    return EMPTY_REASONS.INVALID_DATES;
+  }
+  return null;
+}
+
+// Builds the full burndown response (see the data contract at the top of this
+// file) from a Sprint row and its PBIs. `today` is a parameter so tests can
+// fix the date; the endpoint passes the real current date.
+export function buildBurndown(sprint, pbis, today = new Date()) {
+  const { startDate, endDate } = getSprintWindow(sprint, pbis);
+  const totalPoints = sumStoryPoints(pbis);
+  const remainingPoints = sumStoryPoints(
+    pbis.filter((pbi) => pbi.stage !== 'completed')
+  );
+
+  const result = {
+    sprint: {
+      id: sprint.id,
+      name: sprint.name,
+      status: sprint.status,
+      startDate,
+      endDate
+    },
+    totalPoints,
+    remainingPoints,
+    series: [],
+    emptyReason: getEmptyReason(sprint, startDate, endDate, totalPoints)
+  };
+
+  if (result.emptyReason) {
+    return result;
+  }
+
+  const dateKeys = listDateKeys(startDate, endDate);
+  const ideal = idealSeries(totalPoints, dateKeys);
+  const actual = actualSeries(pbis, dateKeys, toDateKey(today));
+
+  result.series = dateKeys.map((date, index) => ({
+    date,
+    ideal: ideal[index].ideal,
+    actual: actual[index].actual
+  }));
+  return result;
+}

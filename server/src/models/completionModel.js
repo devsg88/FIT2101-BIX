@@ -18,7 +18,8 @@ export async function completePbi(projectId, pbiId, actualHours, collaboratorIds
     const pbiResult = await client.query(
       `UPDATE product_backlog_items
           SET stage = 'completed',
-              actual_hours = $1
+              actual_hours = $1,
+              completed_at = NOW()
         WHERE id = $2 AND project_id = $3 AND stage = 'active_sprint'
         RETURNING ${PBI_COLUMNS}`,
       [actualHours, pbiId, projectId]

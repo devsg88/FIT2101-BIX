@@ -10,6 +10,7 @@ import taskRoutes from './routes/taskRoutes.js';
 import completedWorkRoutes from './routes/completedWorkRoutes.js';
 import subTaskRoutes from './routes/subTaskRoutes.js';
 import projectMembershipRoutes from './routes/projectMembershipRoutes.js';
+import burndownRoutes from './routes/burndownRoutes.js';
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.use('/api/projects', taskRoutes);
 app.use('/api/projects', completedWorkRoutes);
 app.use('/api/projects', subTaskRoutes);
 app.use('/api/projects', projectMembershipRoutes);
+app.use('/api/projects', burndownRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
