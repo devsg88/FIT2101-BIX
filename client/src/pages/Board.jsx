@@ -706,11 +706,56 @@ function StartSprintButton() {
   );
 }
 
-// One PBI card shown inside a column. canManage (true for an admin) gates
-// the task/sub-task Edit/Delete controls - see ChecklistRow.
-function PbiCard({ pbi, canManage }) {
+// US-07 / SCRUM-199. Makes this PBI the project's Current Focus. Open to
+// everyone who can see the board - the backend allows the responsible Admin
+// and Developer members, the same people the board route lets in.
+function SetFocusButton({ pbiId }) {
+  const { setProjectFocus } = useBoard();
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClick = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      // Resolves once the board has been re-fetched, so the banner and this
+      // card's highlight already show the new focus.
+      await setProjectFocus(pbiId);
+    } catch (err) {
+      setError(err?.message || 'Something went wrong setting the focus. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
-    <article className="project-board__card">
+    <div className="project-board__card-action">
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={isSaving}
+        aria-busy={isSaving}
+        title="Show this item as the project's Current Focus at the top of the board"
+      >
+        {isSaving ? 'Setting...' : 'Set as Focus'}
+      </button>
+      {error && (
+        <p className="project-board__card-error" role="alert">{error}</p>
+      )}
+    </div>
+  );
+}
+
+// One PBI card shown inside a column. canManage (true for an admin) gates
+// the task/sub-task Edit/Delete controls - see ChecklistRow. isFocused marks
+// the project's Current Focus (US-07): highlighted, with no Set as Focus
+// button since it already is the focus.
+function PbiCard({ pbi, canManage, isFocused }) {
+  return (
+    <article
+      className={`project-board__card${isFocused ? ' project-board__card--focused' : ''}`}
+    >
+      {isFocused && <span className="project-board__focus-badge">Current Focus</span>}
       <h3 className="project-board__card-title">{pbi.title}</h3>
       {pbi.description && (
         <p className="project-board__card-description">{pbi.description}</p>
@@ -730,13 +775,15 @@ function PbiCard({ pbi, canManage }) {
       )}
       {pbi.stage === 'sprint_planning' && <PlanningForm pbi={pbi} />}
       {pbi.stage === 'active_sprint' && <CompletePbiButton pbi={pbi} />}
+      {!isFocused && <SetFocusButton pbiId={pbi.id} />}
     </article>
   );
 }
 
 // The four columns, one per stage, each showing its own PBIs (or an empty message).
 function BoardColumns() {
-  const { stages, pbisByStage } = useBoard();
+  const { stages, pbisByStage, project } = useBoard();
+  const focusId = project?.current_focus_pbi_id;
   // US-04a: only an admin can edit/delete Tasks/Sub-tasks (matches the
   // backend's requireRole('admin') on every one of those endpoints).
   const { user } = useAuth();
@@ -754,7 +801,12 @@ function BoardColumns() {
               <p className="project-board__empty">No items</p>
             ) : (
               pbisByStage[stage].map((pbi) => (
-                <PbiCard key={pbi.id} pbi={pbi} canManage={canManage} />
+                <PbiCard
+                  key={pbi.id}
+                  pbi={pbi}
+                  canManage={canManage}
+                  isFocused={focusId != null && String(pbi.id) === String(focusId)}
+                />
               ))
             )}
             {stage === 'sprint_planning' && <StartSprintButton />}
