@@ -18,3 +18,13 @@ export async function listDevelopers() {
   );
   return rows;
 }
+
+// One user by id, without the password hash, or null if no such user exists.
+// Used to refuse a tag that points at a user who does not exist (US-09).
+export async function findUserById(id) {
+  const { rows } = await pool.query(
+    'SELECT id, name, email, role FROM users WHERE id = $1',
+    [id]
+  );
+  return rows[0] ?? null;
+}
