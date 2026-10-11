@@ -24,4 +24,10 @@ describe('sprintRoutes', () => {
 
     expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'startSprintController']);
   });
+
+  it('guards PATCH .../sprints/:sprintId/roles with requireAuth then requireProjectAccess (US-09)', () => {
+    const names = middlewareNamesFor('patch', '/:projectId/sprints/:sprintId/roles');
+
+    expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'updateSprintRolesController']);
+  });
 });
