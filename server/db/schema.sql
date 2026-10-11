@@ -311,6 +311,21 @@ ALTER TABLE projects
 CREATE INDEX IF NOT EXISTS idx_projects_current_focus_pbi_id
     ON projects (current_focus_pbi_id);
 
+-- US-09 (SCRUM-176): sprints Scrum roles. The Scrum Master is a real user
+-- (cleared if that user is deleted). The Product Owner is free text (email
+-- or name) until the client confirms how it is identified. Added here
+-- because `sprints` is created before `users` in this file. Existing
+-- databases get them from server/db/migrations/007_us09_scrum_roles.sql.
+ALTER TABLE sprints
+    ADD COLUMN IF NOT EXISTS scrum_master_id bigint
+        REFERENCES users (id) ON DELETE SET NULL;
+
+ALTER TABLE sprints
+    ADD COLUMN IF NOT EXISTS product_owner_identifier varchar(255);
+
+CREATE INDEX IF NOT EXISTS idx_sprints_scrum_master_id
+    ON sprints (scrum_master_id);
+
 COMMIT;
 
 -- =========================================================================
