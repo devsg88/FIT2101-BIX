@@ -13,6 +13,7 @@ plain `pg` pool against `DATABASE_URL`).
 | `seed.sql`   | Inserts a small, consistent set of sample rows for local development. |
 | `migrations/001_task_subtask_assignee_and_status.sql` | US-04a (SCRUM-121). Adds `assignee_id` to `tasks`/`sub_tasks` and a `CHECK` on their `status` column. See [Migrations](#migrations) below. |
 | `migrations/005_us15_pbi_completed_at.sql` | US-15 (SCRUM-153). Adds `completed_at` to `product_backlog_items` for the Sprint burndown and backfills completed rows from `updated_at`. |
+| `migrations/007_us09_scrum_roles.sql` | US-09 (SCRUM-176). Adds `scrum_master_id` (FK to `users`, `ON DELETE SET NULL`) and `product_owner_identifier` to `sprints`. |
 | `migrations/006_us07_current_focus.sql` | US-07 (SCRUM-198). Adds `current_focus_pbi_id` to `projects` (FK to `product_backlog_items`, `ON DELETE SET NULL`). |
 | `README.md`  | This document. |
 
@@ -66,6 +67,8 @@ is refused for every Admin.
 | `status`     | `text` | `NOT NULL`, default `'planning'`. `CHECK` in (`planning`, `active`, `completed`). |
 | `started_at` | `timestamptz` | Nullable. Left `NULL` until the sprint is started (US-10); set by the application at that point. |
 | `created_at` | `timestamptz` | `NOT NULL`, default `now()`. |
+| `scrum_master_id` | `bigint` | **Nullable.** FK → `users(id)`, `ON DELETE SET NULL`. Indexed. The sprint's Scrum Master (US-09). |
+| `product_owner_identifier` | `varchar(255)` | **Nullable.** The sprint's Product Owner as free text (email or name) until the client confirms how it is identified (US-09). |
 
 Also carries `UNIQUE (id, project_id)` — this exists only so a PBI can point a
 foreign key at `(sprint_id, project_id)`; see the same-project rule below.
