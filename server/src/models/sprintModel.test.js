@@ -133,12 +133,34 @@ describe('updateSprintRoles', () => {
 });
 
 describe('getSprintsByProject', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   it('returns the Scrum roles with each sprint (US-09)', async () => {
     pool.query.mockResolvedValue({ rows: [] });
 
     await getSprintsByProject(1);
 
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/s\.scrum_master_id, s\.product_owner_identifier/);
+    expect(params).toEqual([1]);
+  });
+
+  it('includes the Scrum Master name, keeping sprints with no Scrum Master (US-09)', async () => {
+    const rows = [
+      { id: '3', scrum_master_id: '1', scrum_master_name: 'Pang' },
+      { id: '4', scrum_master_id: null, scrum_master_name: null }
+    ];
+    pool.query.mockResolvedValue({ rows });
+
+    const result = await getSprintsByProject(1);
+
     const [sql] = pool.query.mock.calls[0];
-    expect(sql).toMatch(/scrum_master_id, product_owner_identifier/);
+    expect(sql).toMatch(/u\.name AS scrum_master_name/);
+    // LEFT JOIN, so an untagged sprint is still listed.
+    expect(sql).toMatch(/LEFT JOIN users u ON u\.id = s\.scrum_master_id/);
+    expect(sql).toMatch(/WHERE s\.project_id = \$1/);
+    expect(result).toEqual(rows);
   });
 });
