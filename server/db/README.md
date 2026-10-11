@@ -13,6 +13,7 @@ plain `pg` pool against `DATABASE_URL`).
 | `seed.sql`   | Inserts a small, consistent set of sample rows for local development. |
 | `migrations/001_task_subtask_assignee_and_status.sql` | US-04a (SCRUM-121). Adds `assignee_id` to `tasks`/`sub_tasks` and a `CHECK` on their `status` column. See [Migrations](#migrations) below. |
 | `migrations/005_us15_pbi_completed_at.sql` | US-15 (SCRUM-153). Adds `completed_at` to `product_backlog_items` for the Sprint burndown and backfills completed rows from `updated_at`. |
+| `migrations/006_us07_current_focus.sql` | US-07 (SCRUM-198). Adds `current_focus_pbi_id` to `projects` (FK to `product_backlog_items`, `ON DELETE SET NULL`). |
 | `README.md`  | This document. |
 
 > **Status:** these scripts have been successfully executed against a fresh
@@ -29,6 +30,7 @@ plain `pg` pool against `DATABASE_URL`).
 | `id`   | `bigint` identity | Primary key. |
 | `name` | `text` | `NOT NULL`. |
 | `responsible_admin_id` | `bigint` | **Nullable.** FK → `users(id)`, `ON DELETE RESTRICT`. Indexed. The Admin responsible for the project (US-04d). |
+| `current_focus_pbi_id` | `bigint` | **Nullable.** FK → `product_backlog_items(id)`, `ON DELETE SET NULL`. Indexed. The PBI shown as the project's Current Focus (US-07); `NULL` means no focus. |
 
 Top of the hierarchy. A project may have no sprints and no PBIs.
 
