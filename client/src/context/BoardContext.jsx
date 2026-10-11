@@ -28,7 +28,8 @@ import {
   completePbi,
   updateProject,
   deleteProject as apiDeleteProject,
-  updateProjectFocus
+  updateProjectFocus,
+  updateWorkItemRoles
 } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
@@ -335,6 +336,19 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-09 / SCRUM-178. Saves a sprint's Scrum Master and Product Owner, then
+  // refreshes so every card shows what was saved. Rejects with the server's
+  // message (e.g. the 400 for a Scrum Master who is not a real user).
+  const saveSprintRoles = useCallback(
+    async (sprintId, scrumMasterId, productOwner) => {
+      await updateWorkItemRoles(projectId, sprintId, scrumMasterId, productOwner, token);
+      await refreshBoardAfterSave(
+        'The sprint roles were saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-04c. Deletes the project (its board) - the backend only allows it while
   // the board has no PBIs or sprints. No refresh afterwards: on success the
   // page navigates away, and on failure the board is unchanged.
@@ -384,7 +398,8 @@ export function BoardProvider({ projectId, children }) {
       saveSubTask,
       renameProject,
       deleteCurrentProject,
-      setProjectFocus
+      setProjectFocus,
+      saveSprintRoles
     }),
     [
       projectId,
@@ -412,7 +427,8 @@ export function BoardProvider({ projectId, children }) {
       saveSubTask,
       renameProject,
       deleteCurrentProject,
-      setProjectFocus
+      setProjectFocus,
+      saveSprintRoles
     ]
   );
 
