@@ -149,6 +149,23 @@ input {
   line-height: 1.5;
 }
 
+.login-session-banner {
+  width: 100%;
+  max-width: 470px;
+  margin: 0 0 16px;
+  padding: 13px 16px;
+  border: 1.5px solid #e3a008;
+  border-radius: 10px;
+  background: #fff6de;
+  color: #6b4e00;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.login-session-banner strong {
+  font-weight: 600;
+}
+
 .login-form {
   width: 100%;
 }
