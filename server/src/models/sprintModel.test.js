@@ -40,6 +40,33 @@ describe('startSprint', () => {
     expect(result).toEqual({ sprint: startedSprint, pbis: movedPbis });
   });
 
+  // US-09 (SCRUM-179), AC5: starting a sprint keeps its Scrum Master and
+  // Product Owner - the start never writes those columns, and returns them.
+  it('keeps the sprint Scrum Master and Product Owner when the sprint starts', async () => {
+    const client = { query: vi.fn(), release: vi.fn() };
+    pool.connect.mockResolvedValue(client);
+    const startedSprint = {
+      id: '3', status: 'active', scrum_master_id: '1', product_owner_identifier: 'client@example.com'
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [] }) // PBIs
+      .mockResolvedValueOnce({ rows: [startedSprint] })
+      .mockResolvedValueOnce({ rows: [] }); // COMMIT
+
+    const result = await startSprint(1, 3);
+
+    const [sprintSql] = client.query.mock.calls[2];
+    const setClause = sprintSql.slice(sprintSql.indexOf('SET'), sprintSql.indexOf('WHERE'));
+    expect(setClause).toMatch(/status = 'active'/);
+    expect(setClause).not.toMatch(/scrum_master_id|product_owner_identifier/);
+    expect(sprintSql).toMatch(/RETURNING .*scrum_master_id, product_owner_identifier/s);
+    expect(result.sprint).toMatchObject({
+      scrum_master_id: '1',
+      product_owner_identifier: 'client@example.com'
+    });
+  });
+
   it('rolls back when the sprint is no longer in planning', async () => {
     const client = {
       query: vi.fn(),
