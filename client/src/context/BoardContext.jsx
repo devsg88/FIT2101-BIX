@@ -27,7 +27,8 @@ import {
   completeSubTask,
   completePbi,
   updateProject,
-  deleteProject as apiDeleteProject
+  deleteProject as apiDeleteProject,
+  updateProjectFocus
 } from '../services/api.js';
 
 // The four workflow stages from US-06, always in this order. This should
@@ -322,6 +323,18 @@ export function BoardProvider({ projectId, children }) {
     },
     [projectId, token, refreshBoardAfterSave]
   );
+  // US-07 / SCRUM-199. Sets the project's Current Focus PBI, or clears it
+  // when pbiId is null, then refreshes so the banner shows what was saved.
+  const setProjectFocus = useCallback(
+    async (pbiId) => {
+      await updateProjectFocus(projectId, pbiId, token);
+      await refreshBoardAfterSave(
+        'The current focus was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-04c. Deletes the project (its board) - the backend only allows it while
   // the board has no PBIs or sprints. No refresh afterwards: on success the
   // page navigates away, and on failure the board is unchanged.
@@ -370,7 +383,8 @@ export function BoardProvider({ projectId, children }) {
       saveTask,
       saveSubTask,
       renameProject,
-      deleteCurrentProject
+      deleteCurrentProject,
+      setProjectFocus
     }),
     [
       projectId,
@@ -397,7 +411,8 @@ export function BoardProvider({ projectId, children }) {
       saveTask,
       saveSubTask,
       renameProject,
-      deleteCurrentProject
+      deleteCurrentProject,
+      setProjectFocus
     ]
   );
 
