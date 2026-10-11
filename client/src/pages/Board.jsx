@@ -8,6 +8,7 @@ import {
   STAGE_LABELS
 } from '../context/BoardContext.jsx';
 import { getCompletedWork } from '../services/api.js';
+import AccessDenied from '../components/common/AccessDenied.jsx';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -1116,6 +1117,8 @@ function BoardView() {
         {status === 'loading' && (
           <p className="project-board__status">Loading board...</p>
         )}
+
+        {status === 'forbidden' && <AccessDenied />}
 
         {status === 'error' && (
           <div className="project-board__status" role="alert">
