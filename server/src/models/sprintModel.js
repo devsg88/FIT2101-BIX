@@ -7,12 +7,17 @@ import { pool } from '../config/db.js';
 const SPRINT_COLUMNS = `id, project_id, name, status, started_at, created_at,
   scrum_master_id, product_owner_identifier`;
 
+// Also returns scrum_master_name (US-09), so the board can show who the Scrum
+// Master is without a second request. NULL when no Scrum Master is tagged.
 export async function getSprintsByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT ${SPRINT_COLUMNS}
-       FROM sprints
-      WHERE project_id = $1
-      ORDER BY id`,
+    `SELECT s.id, s.project_id, s.name, s.status, s.started_at, s.created_at,
+            s.scrum_master_id, s.product_owner_identifier,
+            u.name AS scrum_master_name
+       FROM sprints s
+       LEFT JOIN users u ON u.id = s.scrum_master_id
+      WHERE s.project_id = $1
+      ORDER BY s.id`,
     [projectId]
   );
   return rows;
