@@ -1,18 +1,35 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
+// NFR-01: a 401 on an already-authenticated call means the token expired or
+// was invalidated server-side (e.g. role/membership changed), not "wrong
+// password" - that case only ever happens on /auth/login, which never sends
+// an Authorization header and is handled locally by the login form instead.
+// AuthContext registers the real handler (clear the session, redirect to
+// /login) once, here, rather than every page that calls `request` having to
+// check err.status === 401 for itself.
+let sessionExpiredHandler = null;
+
+export function setSessionExpiredHandler(handler) {
+  sessionExpiredHandler = handler;
+}
+
 async function request(path, options = {}) {
   const { headers, ...rest } = options;
+  // Merge caller headers on top of the default Content-Type. Pulling `headers`
+  // out of `options` first means the spread below cannot clobber this merged
+  // object, so both Content-Type and Authorization survive on requests that
+  // send a JSON body.
+  const mergedHeaders = { 'Content-Type': 'application/json', ...headers };
 
   const res = await fetch(`${BASE_URL}${path}`, {
-    // Merge caller headers on top of the default Content-Type. Pulling `headers`
-    // out of `options` first means the spread below cannot clobber this merged
-    // object, so both Content-Type and Authorization survive on requests that
-    // send a JSON body.
-    headers: { 'Content-Type': 'application/json', ...headers },
+    headers: mergedHeaders,
     ...rest
   });
 
   if (!res.ok) {
+    if (res.status === 401 && mergedHeaders.Authorization) {
+      sessionExpiredHandler?.();
+    }
     const body = await res.json().catch(() => ({}));
     const err = new Error(body.message || `Request failed with status ${res.status}`);
     // Callers that need to tell "not permitted" apart from any other failure
