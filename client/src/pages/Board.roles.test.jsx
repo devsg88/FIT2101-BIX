@@ -3,7 +3,7 @@ import { render, screen, waitFor, fireEvent, within } from '@testing-library/rea
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Board from './Board.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { getBoard, getProjectMembers, updateWorkItemRoles } from '../services/api.js';
+import { getBoard, getProjectMembers, startSprint, updateWorkItemRoles } from '../services/api.js';
 
 // US-09 (SCRUM-178): tagging the sprint's Scrum Master and Product Owner on
 // the real Board page and BoardContext. Only the API and login are faked.
@@ -158,5 +158,62 @@ describe('Board page - sprint roles (US-09)', () => {
     await waitFor(() =>
       expect(updateWorkItemRoles).toHaveBeenCalledWith('7', '3', null, null, 'tok')
     );
+  });
+});
+
+// US-09 (SCRUM-179), AC5: the roles stay with the work when the sprint starts.
+describe('Board page - sprint roles after Start Sprint (US-09)', () => {
+  const roles = {
+    scrum_master_id: '1',
+    scrum_master_name: 'Pang',
+    product_owner_identifier: 'client@example.com'
+  };
+  const plannedPbi = {
+    id: 2,
+    title: 'Upload photo',
+    stage: 'sprint_planning',
+    sprint_id: null,
+    planned_start_date: '2026-09-15',
+    planned_end_date: '2026-09-22',
+    estimated_hours: '16.00',
+    tasks: []
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useAuth.mockReturnValue({ user: { id: 1, role: 'developer', token: 'tok' } });
+    getProjectMembers.mockResolvedValue({ members });
+    startSprint.mockResolvedValue({});
+  });
+
+  it('shows the same Scrum Master and Product Owner on the work once it is in the Active Sprint', async () => {
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: '7', name: 'BIX Platform', current_focus_pbi_id: null },
+        sprints: [{ id: '3', name: 'Sprint 3', status: 'planning', ...roles }],
+        pbis: [plannedPbi]
+      })
+      .mockResolvedValueOnce({
+        project: { id: '7', name: 'BIX Platform', current_focus_pbi_id: null },
+        sprints: [{ id: '3', name: 'Sprint 3', status: 'active', ...roles }],
+        pbis: [{ ...plannedPbi, stage: 'active_sprint', sprint_id: '3' }]
+      });
+
+    renderBoard();
+
+    const card = await screen.findByRole('heading', { name: 'Upload photo' });
+    expect(within(card.closest('article')).getByText('SM: @Pang')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Sprint' }));
+
+    await waitFor(() => expect(startSprint).toHaveBeenCalledWith('7', '3', 'tok'));
+    await waitFor(() => {
+      const activeColumn = screen.getByRole('heading', { name: 'Active Sprint' }).closest('section');
+      expect(within(activeColumn).getByText('Upload photo')).toBeInTheDocument();
+    });
+    const activeColumn = screen.getByRole('heading', { name: 'Active Sprint' }).closest('section');
+    expect(within(activeColumn).getByText('SM: @Pang')).toBeInTheDocument();
+    expect(within(activeColumn).getByText('PO: client@example.com')).toBeInTheDocument();
+    expect(within(panelFor('Sprint 3')).getByText('@Pang')).toBeInTheDocument();
   });
 });
