@@ -75,10 +75,13 @@ describe('Product Backlog route (US-04b)', () => {
     expect(screen.getByText('Product Backlog Page')).toBeInTheDocument();
   });
 
-  it('sends a Developer to the dashboard instead', () => {
+  // NFR-01: a wrong-role user now sees Access Denied on this same URL,
+  // not a silent bounce to the dashboard (see ProtectedRoute.jsx/.test.jsx).
+  it('shows Access Denied to a Developer instead of the backlog or the dashboard', () => {
     renderApp('/projects/1/backlog', { id: 2, role: 'developer', token: 'abc' });
     expect(screen.queryByText('Product Backlog Page')).not.toBeInTheDocument();
-    expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
+    expect(screen.queryByText('Dashboard Page')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
   });
 
   it('sends a logged-out visitor to the login page', () => {
