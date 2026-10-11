@@ -14,7 +14,17 @@ import burndownRoutes from './routes/burndownRoutes.js';
 
 const app = express();
 
-app.use(cors());
+// Restricts which frontend origins may call this API. The client's own dev
+// server (client/vite.config.js) runs on 5173 and proxies /api requests
+// server-side, so the browser never actually crosses origins in dev - this
+// default only covers opening the API directly (e.g. Postman-less manual
+// testing against port 5173). CORS_ORIGIN overrides it with a comma-
+// separated list of allowed origins once a production frontend URL exists.
+const allowedOrigins = (process.env.CORS_ORIGIN?.split(',').map((origin) => origin.trim())) ?? [
+  'http://localhost:5173'
+];
+
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
