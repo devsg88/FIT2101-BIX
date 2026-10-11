@@ -58,7 +58,7 @@ export function BoardProvider({ projectId, children }) {
   const [project, setProject] = useState(null);
   const [pbis, setPbis] = useState([]); // the one and only list of PBIs
   const [sprints, setSprints] = useState([]);
-  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error' | 'forbidden'
   const [error, setError] = useState(null);
   // US-04a / SCRUM-124. This project's members, for the assignee dropdown.
   // Loaded alongside the board (see loadBoard below) rather than lazily on
@@ -94,8 +94,18 @@ export function BoardProvider({ projectId, children }) {
       applyBoardData(data);
       setStatus('ready');
     } catch (err) {
-      setError(err.message);
-      setStatus('error');
+      // NFR-01: a 403 here (not a member, or an Admin not responsible for
+      // this project - e.g. a Developer who typed/bookmarked another
+      // project's board URL) is a permission decision the backend already
+      // made, not a transient failure - same 'forbidden' vs 'error' split
+      // CompletedWorkSidebar below already uses, so Board.jsx can show
+      // AccessDenied instead of a "Retry" that could never succeed.
+      if (err?.status === 403) {
+        setStatus('forbidden');
+      } else {
+        setError(err.message);
+        setStatus('error');
+      }
       return;
     }
 
