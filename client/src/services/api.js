@@ -91,6 +91,20 @@ export function deleteProject(projectId, token) {
   });
 }
 
+// PATCH /api/projects/:projectId/focus  (US-07, responsible Admin or member)
+// Sets the project's Current Focus PBI, or clears it when pbiId is null.
+// null is sent as an explicit JSON null - the server treats a missing
+// pbi_id as a mistake (400), not as "clear". Resolves with
+// { project: { id, current_focus_pbi_id } }, or throws with the backend's
+// message (PBI not in this project, no access, ...).
+export function updateProjectFocus(projectId, pbiId, token) {
+  return request(`/projects/${projectId}/focus`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ pbi_id: pbiId ?? null })
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
