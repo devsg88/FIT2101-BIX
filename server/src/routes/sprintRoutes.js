@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { requireAuth, requireProjectAccess } from '../middleware/authMiddleware.js';
-import { startSprintController } from '../controllers/sprintController.js';
+import {
+  startSprintController,
+  updateSprintRolesController
+} from '../controllers/sprintController.js';
 
 // Mounted at /api/projects (see app.js).
 const router = Router();
@@ -14,6 +17,19 @@ router.post(
   requireAuth,
   requireProjectAccess,
   startSprintController
+);
+
+// PATCH /api/projects/:projectId/sprints/:sprintId/roles
+//   body: { scrum_master_id?, product_owner_identifier? }
+// US-09 / SCRUM-177. Sets or clears the sprint's Scrum Master and Product
+// Owner. Same access as starting a sprint: Developer = project member, Admin
+// = responsible Admin. The controller refuses a Scrum Master who is not a
+// real user on this project.
+router.patch(
+  '/:projectId/sprints/:sprintId/roles',
+  requireAuth,
+  requireProjectAccess,
+  updateSprintRolesController
 );
 
 export default router;
