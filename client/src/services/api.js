@@ -232,6 +232,23 @@ export function startSprint(projectId, sprintId, token) {
   });
 }
 
+// PATCH /api/projects/:projectId/sprints/:sprintId/roles  (US-09)
+// Saves the Scrum Master and Product Owner of a sprint - the work item the
+// roles are attached to, so workItemId is the sprint id. null clears a role.
+// Resolves with { sprint }. On failure it throws an Error carrying the
+// server's message and err.status, so a caller can show the 400 for a
+// Scrum Master who is not a real user on this project (AC4) as-is.
+export function updateWorkItemRoles(projectId, workItemId, scrumMasterId, poIdentifier, token) {
+  return request(`/projects/${projectId}/sprints/${workItemId}/roles`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({
+      scrum_master_id: scrumMasterId ?? null,
+      product_owner_identifier: poIdentifier ?? null
+    })
+  });
+}
+
 // --- Sprint burndown (US-15, SCRUM-153) -------------------------------------
 
 // GET /api/projects/:projectId/sprints
