@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
+import CurrentFocusBanner from '../components/board/CurrentFocusBanner.jsx';
 import {
   BoardProvider,
   useBoard,
@@ -1093,9 +1094,20 @@ function CompletedWorkSidebar({ projectId, token, isOpen, onClose }) {
   );
 }
 
+// US-07 / SCRUM-199. The PBI the project's current_focus_pbi_id points at, or
+// null when there is no focus. Compared as strings because pg returns bigint
+// ids as strings while other ids may be numbers.
+function findFocusedPbi(project, pbis) {
+  const focusId = project?.current_focus_pbi_id;
+  if (focusId === undefined || focusId === null) {
+    return null;
+  }
+  return pbis.find((pbi) => String(pbi.id) === String(focusId)) ?? null;
+}
+
 // Picks what to show based on the board's current status: loading, error, or ready.
 function BoardView() {
-  const { status, error, project, projectId, reloadBoard } = useBoard();
+  const { status, error, project, pbis, projectId, reloadBoard } = useBoard();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1126,6 +1138,11 @@ function BoardView() {
           </div>
         )}
 
+        {/* US-07: Current Focus sits directly above the columns. It renders
+            nothing when the project has no focus. */}
+        {status === 'ready' && (
+          <CurrentFocusBanner focusedPbi={findFocusedPbi(project, pbis)} />
+        )}
         {status === 'ready' && <BoardColumns />}
       </main>
 
