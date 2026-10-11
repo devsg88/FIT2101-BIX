@@ -5,7 +5,7 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { startSprint } from './sprintModel.js';
+import { startSprint, updateSprintRoles, getSprintsByProject } from './sprintModel.js';
 
 describe('startSprint', () => {
   beforeEach(() => {
@@ -57,5 +57,88 @@ describe('startSprint', () => {
     expect(result).toBeNull();
     expect(client.query.mock.calls.some(([sql]) => /ROLLBACK/i.test(sql))).toBe(true);
     expect(client.release).toHaveBeenCalledTimes(1);
+  });
+});
+
+// US-09 / SCRUM-176
+describe('updateSprintRoles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const updated = {
+    id: '3', project_id: '1', name: 'Sprint 3', status: 'planning',
+    scrum_master_id: '2', product_owner_identifier: 'po@bix.app'
+  };
+
+  it('updates both roles in one statement scoped to the project, and returns the sprint', async () => {
+    pool.query.mockResolvedValue({ rows: [updated] });
+
+    const result = await updateSprintRoles(1, 3, {
+      scrumMasterId: 2,
+      productOwnerIdentifier: 'po@bix.app'
+    });
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/UPDATE sprints/);
+    expect(sql).toMatch(/WHERE project_id = \$1 AND id = \$2/);
+    expect(sql).toMatch(/RETURNING .*scrum_master_id, product_owner_identifier/s);
+    expect(params).toEqual([1, 3, true, 2, true, 'po@bix.app']);
+    expect(result).toEqual(updated);
+  });
+
+  it('leaves the Product Owner unchanged when only the Scrum Master is sent', async () => {
+    pool.query.mockResolvedValue({ rows: [updated] });
+
+    await updateSprintRoles(1, 3, { scrumMasterId: 2 });
+
+    const [, params] = pool.query.mock.calls[0];
+    expect(params).toEqual([1, 3, true, 2, false, null]);
+  });
+
+  it('leaves the Scrum Master unchanged when only the Product Owner is sent', async () => {
+    pool.query.mockResolvedValue({ rows: [updated] });
+
+    await updateSprintRoles(1, 3, { productOwnerIdentifier: 'Jane' });
+
+    const [, params] = pool.query.mock.calls[0];
+    expect(params).toEqual([1, 3, false, null, true, 'Jane']);
+  });
+
+  it('clears a role when it is sent as null', async () => {
+    pool.query.mockResolvedValue({ rows: [{ ...updated, scrum_master_id: null }] });
+
+    await updateSprintRoles(1, 3, { scrumMasterId: null });
+
+    const [, params] = pool.query.mock.calls[0];
+    expect(params).toEqual([1, 3, true, null, false, null]);
+  });
+
+  it('passes text as a bound parameter, never interpolated into the SQL', async () => {
+    pool.query.mockResolvedValue({ rows: [updated] });
+
+    await updateSprintRoles(1, 3, { productOwnerIdentifier: "x'); DROP TABLE sprints;--" });
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).not.toMatch(/DROP TABLE/);
+    expect(params[5]).toBe("x'); DROP TABLE sprints;--");
+  });
+
+  it('returns null when no sprint matched (missing, or in another project)', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    expect(await updateSprintRoles(1, 999, { scrumMasterId: 2 })).toBeNull();
+  });
+});
+
+describe('getSprintsByProject', () => {
+  it('returns the Scrum roles with each sprint (US-09)', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await getSprintsByProject(1);
+
+    const [sql] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/scrum_master_id, product_owner_identifier/);
   });
 });
