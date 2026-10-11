@@ -54,10 +54,9 @@ export default function SprintRolesPanel({ sprint }) {
       )}
       {isEditing && (
         <form className="sprint-roles__form" onSubmit={handleSubmit}>
-          <label className="sprint-roles__label" htmlFor={`sprint-${sprint.id}-sm`}>
-            Scrum Master
-          </label>
-          <div id={`sprint-${sprint.id}-sm`}>
+          {/* The combobox inside carries aria-label="Scrum Master". */}
+          <span className="sprint-roles__label" aria-hidden="true">Scrum Master</span>
+          <div>
             <ScrumMasterSelect
               members={members}
               value={scrumMasterId}
