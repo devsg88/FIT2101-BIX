@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { getProjectSprints, getSprintBurndown } from '../services/api.js';
 import BurndownChart, { formatDayLabel } from '../components/burndown/BurndownChart.jsx';
+import AccessDenied from '../components/common/AccessDenied.jsx';
 
 // US-15 Sprint Burndown Chart (SCRUM-158, SCRUM-159).
 //
@@ -70,7 +71,7 @@ export default function Burndown() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [sprints, setSprints] = useState([]);
-  const [sprintsStatus, setSprintsStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  const [sprintsStatus, setSprintsStatus] = useState('loading'); // 'loading' | 'ready' | 'error' | 'forbidden'
   const [sprintsError, setSprintsError] = useState(null);
   const [burndown, setBurndown] = useState(null);
   const [burndownStatus, setBurndownStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error'
@@ -98,8 +99,16 @@ export default function Burndown() {
         setSprintsStatus('ready');
       } catch (err) {
         if (!isCurrent()) return;
-        setSprintsError(err?.message || 'Something went wrong loading the Sprints.');
-        setSprintsStatus('error');
+        // NFR-01: this is the project-level access gate for the whole page
+        // (same project member / responsible Admin check as the board) - a
+        // 403 here means access was denied, not that loading failed, so it
+        // shows AccessDenied instead of a Retry that could never succeed.
+        if (err?.status === 403) {
+          setSprintsStatus('forbidden');
+        } else {
+          setSprintsError(err?.message || 'Something went wrong loading the Sprints.');
+          setSprintsStatus('error');
+        }
       }
     },
     [projectId, token]
@@ -158,6 +167,8 @@ export default function Burndown() {
         {sprintsStatus === 'loading' && (
           <p className="burndown-page__status">Loading Sprints...</p>
         )}
+
+        {sprintsStatus === 'forbidden' && <AccessDenied />}
 
         {sprintsStatus === 'error' && (
           <div className="burndown-page__status" role="alert">
