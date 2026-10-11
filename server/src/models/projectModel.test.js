@@ -10,7 +10,8 @@ import {
   getProjectResponsibility,
   listProjectsForResponsibleAdmin,
   updateProjectName,
-  deleteEmptyProject
+  deleteEmptyProject,
+  setCurrentFocus
 } from './projectModel.js';
 
 describe('projectModel', () => {
@@ -300,6 +301,60 @@ describe('projectModel', () => {
       const allSql = client.query.mock.calls.map(([sql]) => sql).join('\n');
       expect(allSql).not.toMatch(/project_members/);
       expect(allSql).not.toMatch(/DELETE FROM (product_backlog_items|sprints|tasks|sub_tasks|pbi_collaborators)/);
+    });
+  });
+
+  // US-07 / SCRUM-198
+  describe('setCurrentFocus', () => {
+    it('sets the focus PBI and returns the updated project', async () => {
+      pool.query.mockResolvedValue({ rows: [{ id: '1', current_focus_pbi_id: '7' }] });
+
+      const result = await setCurrentFocus(1, 7);
+
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toMatch(/UPDATE projects/);
+      expect(sql).toMatch(/SET current_focus_pbi_id = \$2/);
+      expect(sql).toMatch(/RETURNING id, current_focus_pbi_id/);
+      expect(params).toEqual([1, 7]);
+      expect(result).toEqual({ id: '1', current_focus_pbi_id: '7' });
+    });
+
+    it('only accepts a PBI from the same project', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+
+      await setCurrentFocus(1, 7);
+
+      const [sql] = pool.query.mock.calls[0];
+      expect(sql).toMatch(/FROM product_backlog_items\s+WHERE id = \$2 AND project_id = \$1/);
+    });
+
+    it('clears the focus when given null', async () => {
+      pool.query.mockResolvedValue({ rows: [{ id: '1', current_focus_pbi_id: null }] });
+
+      const result = await setCurrentFocus(1, null);
+
+      const [sql, params] = pool.query.mock.calls[0];
+      expect(sql).toMatch(/\$2::bigint IS NULL/);
+      expect(params).toEqual([1, null]);
+      expect(result).toEqual({ id: '1', current_focus_pbi_id: null });
+    });
+
+    it('returns null when no row was updated (missing project or PBI from another project)', async () => {
+      pool.query.mockResolvedValue({ rows: [] });
+
+      expect(await setCurrentFocus(1, 99)).toBeNull();
+    });
+
+    it('returns null when the PBI is deleted at the same moment (foreign key violation)', async () => {
+      pool.query.mockRejectedValue(Object.assign(new Error('fk'), { code: '23503' }));
+
+      expect(await setCurrentFocus(1, 7)).toBeNull();
+    });
+
+    it('propagates any other database failure', async () => {
+      pool.query.mockRejectedValue(new Error('connection refused'));
+
+      await expect(setCurrentFocus(1, 7)).rejects.toThrow('connection refused');
     });
   });
 });
