@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
 import CurrentFocusBanner from '../components/board/CurrentFocusBanner.jsx';
+import SprintRolesPanel from '../components/board/SprintRolesPanel.jsx';
+import WorkItemRoles from '../components/board/WorkItemRoles.jsx';
 import {
   BoardProvider,
   useBoard,
@@ -746,11 +748,38 @@ function SetFocusButton({ pbiId }) {
   );
 }
 
+// US-09 / SCRUM-178. The sprint a column's work belongs to: the planning
+// sprint for Sprint Planning, the active sprint for Active Sprint, and none
+// for the other two columns. Matches how StartSprintButton finds the sprint.
+const SPRINT_STATUS_FOR_STAGE = {
+  sprint_planning: 'planning',
+  active_sprint: 'active'
+};
+
+function sprintForStage(sprints, stage) {
+  const status = SPRINT_STATUS_FOR_STAGE[stage];
+  return status ? sprints.find((sprint) => sprint.status === status) ?? null : null;
+}
+
+// The sprint a card's roles come from. An Active Sprint card records its own
+// sprint_id; a Sprint Planning card has none until the sprint starts, so it
+// uses the planning sprint.
+function sprintForPbi(sprints, pbi) {
+  if (pbi.sprint_id != null) {
+    const own = sprints.find((sprint) => String(sprint.id) === String(pbi.sprint_id));
+    if (own && pbi.stage === 'active_sprint') {
+      return own;
+    }
+  }
+  return sprintForStage(sprints, pbi.stage);
+}
+
 // One PBI card shown inside a column. canManage (true for an admin) gates
 // the task/sub-task Edit/Delete controls - see ChecklistRow. isFocused marks
 // the project's Current Focus (US-07): highlighted, with no Set as Focus
-// button since it already is the focus.
-function PbiCard({ pbi, canManage, isFocused }) {
+// button since it already is the focus. sprint is the sprint this card's
+// work belongs to (US-09), whose Scrum Master and Product Owner are shown.
+function PbiCard({ pbi, canManage, isFocused, sprint }) {
   return (
     <article
       className={`project-board__card${isFocused ? ' project-board__card--focused' : ''}`}
@@ -761,6 +790,7 @@ function PbiCard({ pbi, canManage, isFocused }) {
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
+      <WorkItemRoles sprint={sprint} compact />
       <TaskChecklist
         tasks={pbi.tasks}
         pbiStage={pbi.stage}
@@ -782,7 +812,7 @@ function PbiCard({ pbi, canManage, isFocused }) {
 
 // The four columns, one per stage, each showing its own PBIs (or an empty message).
 function BoardColumns() {
-  const { stages, pbisByStage, project } = useBoard();
+  const { stages, pbisByStage, project, sprints } = useBoard();
   const focusId = project?.current_focus_pbi_id;
   // US-04a: only an admin can edit/delete Tasks/Sub-tasks (matches the
   // backend's requireRole('admin') on every one of those endpoints).
@@ -797,6 +827,11 @@ function BoardColumns() {
             <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
           </div>
           <div className="project-board__column-body">
+            {/* US-09: the column's sprint, with its Scrum Master and Product
+                Owner, above that sprint's work. */}
+            {sprintForStage(sprints, stage) && (
+              <SprintRolesPanel sprint={sprintForStage(sprints, stage)} />
+            )}
             {pbisByStage[stage].length === 0 ? (
               <p className="project-board__empty">No items</p>
             ) : (
@@ -806,6 +841,7 @@ function BoardColumns() {
                   pbi={pbi}
                   canManage={canManage}
                   isFocused={focusId != null && String(pbi.id) === String(focusId)}
+                  sprint={sprintForPbi(sprints, pbi)}
                 />
               ))
             )}
