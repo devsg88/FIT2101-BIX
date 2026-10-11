@@ -300,6 +300,17 @@ CREATE INDEX IF NOT EXISTS idx_pbi_collaborators_user_id ON pbi_collaborators (u
 ALTER TABLE product_backlog_items
     ADD COLUMN IF NOT EXISTS completed_at timestamptz;
 
+-- US-07 (SCRUM-198): the PBI shown as the project's Current Focus. NULL means
+-- no focus. Added here because `projects` is created before
+-- `product_backlog_items` in this file. Existing databases get it from
+-- server/db/migrations/006_us07_current_focus.sql.
+ALTER TABLE projects
+    ADD COLUMN IF NOT EXISTS current_focus_pbi_id bigint
+        REFERENCES product_backlog_items (id) ON DELETE SET NULL;
+
+CREATE INDEX IF NOT EXISTS idx_projects_current_focus_pbi_id
+    ON projects (current_focus_pbi_id);
+
 COMMIT;
 
 -- =========================================================================
