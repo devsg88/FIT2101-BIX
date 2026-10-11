@@ -65,6 +65,23 @@ describe('requireAuth', () => {
     expect(req.user).toEqual({ id: 1, role: 'developer' });
     expect(next).toHaveBeenCalledOnce();
   });
+
+  // Pins verification to the algorithm the server actually signs with
+  // (authController.js uses HS256), so a token forged with a different
+  // alg header - e.g. an algorithm-confusion attack - is rejected outright
+  // rather than left to the token's own header to decide.
+  it('verifies against HS256 only, not whatever alg the token claims', () => {
+    jwt.verify.mockReturnValue({ id: 1, role: 'developer' });
+    const req = { headers: { authorization: 'Bearer good' } };
+    const res = mockRes();
+    const next = vi.fn();
+
+    requireAuth(req, res, next);
+
+    expect(jwt.verify).toHaveBeenCalledWith('good', process.env.JWT_SECRET, {
+      algorithms: ['HS256']
+    });
+  });
 });
 
 describe('requireRole', () => {
