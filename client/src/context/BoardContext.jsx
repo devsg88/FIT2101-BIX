@@ -156,9 +156,14 @@ export function BoardProvider({ projectId, children }) {
       } catch (err) {
         // The move itself succeeded, only the refresh afterward failed, say
         // so rather than letting this read as "the move failed".
-        throw new Error(
+        const refreshError = new Error(
           `The move was saved, but the board could not be refreshed: ${err.message}`
         );
+        // NFR-01: carry the original status (e.g. 403) across, so a caller
+        // checking err.status for "not permitted" styling still sees it on
+        // this wrapped error, the same as on the unwrapped one.
+        refreshError.status = err.status;
+        throw refreshError;
       }
     },
     [projectId, token, applyBoardData]
@@ -172,6 +177,9 @@ export function BoardProvider({ projectId, children }) {
       } catch (err) {
         const refreshError = new Error(`${savedMessage}: ${err.message}`);
         refreshError.saved = true;
+        // NFR-01: see movePbiStage's identical note above - keep the
+        // original status (e.g. 403) on the wrapped error.
+        refreshError.status = err.status;
         throw refreshError;
       }
     },
