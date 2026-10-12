@@ -232,6 +232,16 @@ input {
   margin-bottom: 16px;
 }
 
+.login-error--forbidden {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.login-error__icon {
+  flex: none;
+}
+
 .login-options {
   display: flex;
   align-items: center;
@@ -1851,6 +1861,16 @@ input {
   margin: 0.375rem 0 0;
   color: #a3341c;
   font-size: 0.75rem;
+}
+
+.project-board__card-error--forbidden {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.project-board__card-error__icon {
+  flex: none;
 }
 
 /* US-08b / US-10 - Yichi Zhang: planning form under the card, Start Sprint
