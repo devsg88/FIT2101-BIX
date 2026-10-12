@@ -310,6 +310,36 @@ describe('Board page', () => {
     );
   });
 
+  // NFR-01 / BoardContext.jsx: movePbiStage wraps a failed post-move refresh
+  // in a brand-new Error - this proves that wrapping still carries the
+  // original err.status (e.g. 403) across, so this rare case (access was
+  // revoked between the move succeeding and the refresh running) still
+  // renders with the forbidden styling instead of silently losing it.
+  it('keeps the forbidden styling even when a 403 hits the post-move refresh, not the move itself', async () => {
+    const forbiddenRefresh = new Error('You are not a member of this project');
+    forbiddenRefresh.status = 403;
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+      })
+      .mockRejectedValueOnce(forbiddenRefresh);
+    movePbi.mockResolvedValue({ pbi: { id: 1, stage: 'sprint_planning' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'The move was saved, but the board could not be refreshed: You are not a member of this project'
+    );
+    expect(alert.className).toContain('--forbidden');
+  });
+
   it('shows an error and leaves the card in place when the move is rejected', async () => {
     getBoard.mockResolvedValue({
       project: { id: 7, name: 'BIX Platform' },
@@ -330,6 +360,38 @@ describe('Board page', () => {
       )
     );
 
+    const backlogColumn = screen
+      .getByRole('heading', { name: 'Product Backlog' })
+      .closest('section');
+    expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  // NFR-01: an action-level 403 (e.g. a Developer's stale UI still showing
+  // a move/delete/edit control the backend will now refuse) stays right on
+  // the card as an inline error - never a full-page redirect, unlike a
+  // page-level 403 (see the earlier "forbidden" board-load test above).
+  it('shows a distinct permission-denied style for a 403 on an action, not the plain error style', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+    });
+    const forbidden = new Error('You do not have permission to perform this action');
+    forbidden.status = 403;
+    movePbi.mockRejectedValue(forbidden);
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('You do not have permission to perform this action');
+    expect(alert.className).toContain('--forbidden');
+
+    // Still stays on the board - no navigation away, same as any other
+    // action-level error.
     const backlogColumn = screen
       .getByRole('heading', { name: 'Product Backlog' })
       .closest('section');
