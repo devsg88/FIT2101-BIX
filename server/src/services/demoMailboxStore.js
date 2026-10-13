@@ -6,16 +6,20 @@ let messages = [];
 let nextId = 1;
 
 export function addDemoMailboxMessage({ to, subject, body, resetUrl }) {
+  const recipient = String(to || '').trim().toLowerCase();
   const message = {
     id: nextId,
-    to,
+    to: recipient,
     subject,
     body,
     resetUrl,
     receivedAt: new Date().toISOString()
   };
   nextId += 1;
-  messages = [message, ...messages].slice(0, MAX_MESSAGES);
+  messages = [message, ...messages.filter((item) => item.to !== recipient)].slice(
+    0,
+    MAX_MESSAGES
+  );
   return message;
 }
 

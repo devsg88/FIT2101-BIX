@@ -19,4 +19,12 @@ describe('resetTokenDelivery', () => {
     expect(message.subject).toMatch(/reset/i);
     expect(message.resetUrl).toContain('/reset-password?token=abc');
   });
+
+  it('keeps only the latest reset message for the same address', () => {
+    deliverPasswordResetToken({ email: 'developer@bix.app', rawToken: 'first' });
+    deliverPasswordResetToken({ email: 'developer@bix.app', rawToken: 'second' });
+    const listed = listDemoMailboxMessages().filter((item) => item.to === 'developer@bix.app');
+    expect(listed).toHaveLength(1);
+    expect(listed[0].resetUrl).toContain('token=second');
+  });
 });
