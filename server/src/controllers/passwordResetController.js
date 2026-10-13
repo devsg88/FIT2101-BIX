@@ -1,5 +1,6 @@
 import { findUserByEmail } from '../models/userModel.js';
 import { createPasswordResetToken } from '../models/passwordResetModel.js';
+import { deliverPasswordResetToken } from '../services/resetTokenDelivery.js';
 
 // US-14 — Yichi Zhang (SCRUM-170)
 // Always the same confirmation, whether or not the email is registered.
@@ -24,7 +25,8 @@ export async function forgotPasswordController(req, res) {
   try {
     const user = await findUserByEmail(email);
     if (user) {
-      await createPasswordResetToken(user.id);
+      const { rawToken } = await createPasswordResetToken(user.id);
+      deliverPasswordResetToken({ email, rawToken });
     }
     return res.json({ message: FORGOT_PASSWORD_CONFIRMATION });
   } catch (err) {
