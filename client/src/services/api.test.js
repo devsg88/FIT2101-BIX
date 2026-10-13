@@ -7,6 +7,8 @@ import {
   getCompletedWork,
   getProjectPbis,
   movePbi,
+  requestPasswordReset,
+  resetPassword,
   startSprint,
   updatePbi,
   updatePbiPlanning
@@ -229,5 +231,40 @@ describe('deletePbi (US-04b, SCRUM-102)', () => {
     await expect(deletePbi(7, 3, 'tok')).rejects.toThrow(
       'Cannot delete a PBI that is in the Active Sprint'
     );
+  });
+});
+
+describe('password reset api helpers (US-14)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({}));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('requestPasswordReset posts the email without an auth header', async () => {
+    await requestPasswordReset('developer@bix.app');
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/auth/forgot-password');
+    expect(options.method).toBe('POST');
+    expect(options.body).toBe(JSON.stringify({ email: 'developer@bix.app' }));
+    expect(options.headers.Authorization).toBeUndefined();
+  });
+
+  it('resetPassword posts token and password without an auth header', async () => {
+    await resetPassword({
+      token: 'abc',
+      password: 'newpass12',
+      confirm_password: 'newpass12'
+    });
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/auth/reset-password');
+    expect(options.headers.Authorization).toBeUndefined();
+    expect(JSON.parse(options.body)).toEqual({
+      token: 'abc',
+      password: 'newpass12',
+      confirm_password: 'newpass12'
+    });
   });
 });

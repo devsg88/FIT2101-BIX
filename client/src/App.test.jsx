@@ -87,3 +87,15 @@ describe('Product Backlog route (US-04b)', () => {
     expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
   });
 });
+
+describe('Password reset routes (US-14)', () => {
+  it('renders forgot-password without requiring a session', () => {
+    renderApp('/forgot-password', null);
+    expect(screen.getByRole('heading', { name: 'Forgot password' })).toBeInTheDocument();
+  });
+
+  it('renders reset-password without requiring a session', () => {
+    renderApp('/reset-password', null);
+    expect(screen.getByRole('heading', { name: 'Reset password' })).toBeInTheDocument();
+  });
+});
