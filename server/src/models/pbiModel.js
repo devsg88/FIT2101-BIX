@@ -20,6 +20,16 @@ export async function getPbisByProject(projectId) {
   return rows;
 }
 
+// US-07. The project's Current Focus PBI id, or null when there is no focus
+// (or no such project). Lets the backlog page mark the focused row.
+export async function getCurrentFocusPbiId(projectId) {
+  const { rows } = await pool.query(
+    'SELECT current_focus_pbi_id FROM projects WHERE id = $1',
+    [projectId]
+  );
+  return rows[0]?.current_focus_pbi_id ?? null;
+}
+
 export async function getPbiById(projectId, pbiId) {
   const { rows } = await pool.query(
     `SELECT ${PBI_COLUMNS}
