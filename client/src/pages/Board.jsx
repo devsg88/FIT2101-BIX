@@ -721,8 +721,9 @@ function SetFocusButton({ pbiId }) {
     setError(null);
     try {
       // Resolves once the board has been re-fetched, so the banner and this
-      // card's highlight already show the new focus.
-      await setProjectFocus(pbiId);
+      // card's highlight already show the new focus. pg sends bigint ids as
+      // strings, but the focus route only accepts a JSON number.
+      await setProjectFocus(Number(pbiId));
     } catch (err) {
       setError(err?.message || 'Something went wrong setting the focus. Please try again.');
     } finally {
