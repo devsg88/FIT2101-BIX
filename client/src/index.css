@@ -3117,6 +3117,29 @@ input {
   color: #fff;
 }
 
+/* US-07: the Current Focus row - same orange as the board banner and card. */
+.pbi-backlog__row--focused {
+  background: #fff4d6;
+  box-shadow: inset 6px 0 0 #f0a860;
+}
+
+.pbi-backlog__title .project-board__focus-badge {
+  margin: 0 0.5rem 0 0;
+  vertical-align: middle;
+}
+
+.pbi-backlog__actions {
+  flex-wrap: wrap;
+}
+
+.pbi-backlog__row-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: #a3341c;
+  font-size: 0.75rem;
+  text-align: right;
+}
+
 @media (max-width: 600px) {
   .pbi-backlog__columns {
     display: none;
