@@ -1,5 +1,13 @@
-import { findUserByEmail } from '../models/userModel.js';
-import { createPasswordResetToken } from '../models/passwordResetModel.js';
+import bcrypt from 'bcrypt';
+import { validateNewPassword } from '../constants/passwordRules.js';
+import { findUserByEmail, updateUserPasswordHash } from '../models/userModel.js';
+import {
+  createPasswordResetToken,
+  describeResetTokenState,
+  findResetTokenByRawToken,
+  invalidateUnusedTokensForUser,
+  markResetTokenUsed
+} from '../models/passwordResetModel.js';
 import { deliverPasswordResetToken } from '../services/resetTokenDelivery.js';
 
 // US-14 — Yichi Zhang (SCRUM-170)
@@ -31,5 +39,46 @@ export async function forgotPasswordController(req, res) {
     return res.json({ message: FORGOT_PASSWORD_CONFIRMATION });
   } catch (err) {
     return res.status(500).json({ message: 'Unable to process the password reset request' });
+  }
+}
+
+export const RESET_TOKEN_UNUSABLE_MESSAGE =
+  'This reset link is invalid or has expired. You can request another reset.';
+
+export async function resetPasswordController(req, res) {
+  const rawToken = String(req.body?.token ?? '').trim();
+  const password = req.body?.password;
+  const confirmPassword = req.body?.confirm_password ?? req.body?.confirmPassword;
+
+  if (!rawToken) {
+    return res.status(400).json({ message: RESET_TOKEN_UNUSABLE_MESSAGE });
+  }
+
+  const passwordError = validateNewPassword(password, confirmPassword);
+  if (passwordError) {
+    return res.status(400).json({ message: passwordError });
+  }
+
+  try {
+    const row = await findResetTokenByRawToken(rawToken);
+    const state = describeResetTokenState(row);
+    if (state !== 'valid') {
+      return res.status(400).json({ message: RESET_TOKEN_UNUSABLE_MESSAGE });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const updated = await updateUserPasswordHash(row.user_id, passwordHash);
+    if (!updated) {
+      return res.status(400).json({ message: RESET_TOKEN_UNUSABLE_MESSAGE });
+    }
+
+    await markResetTokenUsed(row.id);
+    await invalidateUnusedTokensForUser(row.user_id);
+
+    return res.json({
+      message: 'Your password has been reset. You can now sign in with the new password.'
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Unable to reset the password' });
   }
 }

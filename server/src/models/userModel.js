@@ -18,3 +18,11 @@ export async function listDevelopers() {
   );
   return rows;
 }
+
+export async function updateUserPasswordHash(userId, passwordHash) {
+  const { rows } = await pool.query(
+    `UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id`,
+    [passwordHash, userId]
+  );
+  return rows[0] ?? null;
+}
