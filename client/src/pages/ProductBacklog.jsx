@@ -2,13 +2,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import { STAGE_LABELS } from '../context/BoardContext.jsx';
-import { getProjectPbis } from '../services/api.js';
+import { getProjectPbis, updateProjectFocus } from '../services/api.js';
 import PbiFormModal from '../components/backlog/PbiFormModal.jsx';
 import DeletePbiDialog from '../components/backlog/DeletePbiDialog.jsx';
 
 // US-04b / SCRUM-151. The Admin's Product Backlog list for one project: every
 // PBI with its title, priority and status, plus create / edit (SCRUM-101) and
-// delete with confirmation (SCRUM-102). Admin-only at the route level (see
+// delete with confirmation (SCRUM-102), and Set as Focus / Clear Focus for the
+// board's Current Focus banner (US-07). Admin-only at the route level (see
 // App.jsx); the backend additionally refuses an Admin who is not responsible
 // for this project, and that refusal is shown as the error message below.
 //
@@ -24,19 +25,73 @@ function formatPriority(priority) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function PbiRow({ pbi, onEdit, onDelete }) {
+// US-07. Sets this PBI as the project's Current Focus, or clears the focus
+// when the row already is the focus. onSetFocus resolves once the list has
+// been re-fetched, so the badge has already moved when the button re-enables.
+function FocusButton({ pbi, isFocused, onSetFocus }) {
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleClick = async () => {
+    setIsSaving(true);
+    setError(null);
+    try {
+      // pg sends bigint ids as strings, but the focus route only accepts a
+      // JSON number.
+      await onSetFocus(isFocused ? null : Number(pbi.id));
+    } catch (err) {
+      setError(err?.message || 'Something went wrong updating the focus. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  let label = isFocused ? 'Clear Focus' : 'Set as Focus';
+  if (isSaving) {
+    label = isFocused ? 'Clearing...' : 'Setting...';
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        className="admin-btn admin-btn--filter"
+        onClick={handleClick}
+        disabled={isSaving}
+        aria-busy={isSaving}
+        aria-label={`${isFocused ? 'Clear Focus' : 'Set as Focus'}: ${pbi.title}`}
+        title={
+          isFocused
+            ? 'Stop showing this item as the Current Focus on the board'
+            : "Show this item as the project's Current Focus at the top of the board"
+        }
+      >
+        {label}
+      </button>
+      {error && (
+        <p className="pbi-backlog__row-error" role="alert">{error}</p>
+      )}
+    </>
+  );
+}
+
+function PbiRow({ pbi, isFocused, onEdit, onDelete, onSetFocus }) {
   // SCRUM-102: the backend refuses to delete a PBI in the Active Sprint, so
   // the button is disabled there rather than offering a doomed action.
   const inActiveSprint = pbi.stage === 'active_sprint';
 
   return (
-    <li className="pbi-backlog__row">
-      <span className="pbi-backlog__title">{pbi.title}</span>
+    <li className={`pbi-backlog__row${isFocused ? ' pbi-backlog__row--focused' : ''}`}>
+      <span className="pbi-backlog__title">
+        {isFocused && <span className="project-board__focus-badge">Current Focus</span>}
+        {pbi.title}
+      </span>
       <span className="pbi-backlog__priority">{formatPriority(pbi.priority)}</span>
       <span className={`pbi-backlog__status pbi-backlog__status--${pbi.stage}`}>
         {STAGE_LABELS[pbi.stage] ?? pbi.stage}
       </span>
       <span className="pbi-backlog__actions">
+        <FocusButton pbi={pbi} isFocused={isFocused} onSetFocus={onSetFocus} />
         <button
           type="button"
           className="admin-btn admin-btn--filter"
@@ -70,6 +125,9 @@ export default function ProductBacklog() {
   const token = user?.token;
 
   const [pbis, setPbis] = useState([]);
+  // US-07: the project's Current Focus PBI id (pg sends it as a string), or
+  // null when there is no focus.
+  const [focusId, setFocusId] = useState(null);
   const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
   const [error, setError] = useState(null);
   // SCRUM-101: which form is open - null (none), { mode: 'create' }, or
@@ -88,6 +146,7 @@ export default function ProductBacklog() {
         const data = await getProjectPbis(projectId, token);
         if (!isCurrent()) return;
         setPbis(Array.isArray(data.pbis) ? data.pbis : []);
+        setFocusId(data.current_focus_pbi_id ?? null);
         setStatus('ready');
       } catch (err) {
         if (!isCurrent()) return;
@@ -113,6 +172,7 @@ export default function ProductBacklog() {
     try {
       const data = await getProjectPbis(projectId, token);
       setPbis(Array.isArray(data.pbis) ? data.pbis : []);
+      setFocusId(data.current_focus_pbi_id ?? null);
     } catch (err) {
       setError(`${doneMessage}, but the list could not be refreshed: ${err.message}`);
       setStatus('error');
@@ -127,6 +187,13 @@ export default function ProductBacklog() {
   const handleDeleted = () => {
     setPendingDelete(null);
     return refreshAfterChange('The item was deleted');
+  };
+
+  // US-07: pbiId sets the Current Focus, null clears it. A failed save
+  // rejects, so the row's button can show the server's message.
+  const handleSetFocus = async (pbiId) => {
+    await updateProjectFocus(projectId, pbiId, token);
+    await refreshAfterChange('The current focus was saved');
   };
 
   return (
@@ -185,8 +252,10 @@ export default function ProductBacklog() {
                 <PbiRow
                   key={pbi.id}
                   pbi={pbi}
+                  isFocused={focusId != null && String(pbi.id) === String(focusId)}
                   onEdit={(item) => setForm({ mode: 'edit', pbi: item })}
                   onDelete={setPendingDelete}
+                  onSetFocus={handleSetFocus}
                 />
               ))}
             </ul>
