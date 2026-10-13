@@ -708,47 +708,6 @@ function StartSprintButton() {
   );
 }
 
-// US-07 / SCRUM-199. Makes this PBI the project's Current Focus. Open to
-// everyone who can see the board - the backend allows the responsible Admin
-// and Developer members, the same people the board route lets in.
-function SetFocusButton({ pbiId }) {
-  const { setProjectFocus } = useBoard();
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState(null);
-
-  const handleClick = async () => {
-    setIsSaving(true);
-    setError(null);
-    try {
-      // Resolves once the board has been re-fetched, so the banner and this
-      // card's highlight already show the new focus. pg sends bigint ids as
-      // strings, but the focus route only accepts a JSON number.
-      await setProjectFocus(Number(pbiId));
-    } catch (err) {
-      setError(err?.message || 'Something went wrong setting the focus. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div className="project-board__card-action">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isSaving}
-        aria-busy={isSaving}
-        title="Show this item as the project's Current Focus at the top of the board"
-      >
-        {isSaving ? 'Setting...' : 'Set as Focus'}
-      </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
-    </div>
-  );
-}
-
 // US-09 / SCRUM-178. The sprint a column's work belongs to: the planning
 // sprint for Sprint Planning, the active sprint for Active Sprint, and none
 // for the other two columns. Matches how StartSprintButton finds the sprint.
@@ -777,8 +736,8 @@ function sprintForPbi(sprints, pbi) {
 
 // One PBI card shown inside a column. canManage (true for an admin) gates
 // the task/sub-task Edit/Delete controls - see ChecklistRow. isFocused marks
-// the project's Current Focus (US-07): highlighted, with no Set as Focus
-// button since it already is the focus. sprint is the sprint this card's
+// the project's Current Focus (US-07): highlighted with a badge. The focus
+// itself is set and cleared by the Admin on Manage Backlog. sprint is the sprint this card's
 // work belongs to (US-09), whose Scrum Master and Product Owner are shown.
 function PbiCard({ pbi, canManage, isFocused, sprint }) {
   return (
@@ -806,7 +765,6 @@ function PbiCard({ pbi, canManage, isFocused, sprint }) {
       )}
       {pbi.stage === 'sprint_planning' && <PlanningForm pbi={pbi} />}
       {pbi.stage === 'active_sprint' && <CompletePbiButton pbi={pbi} />}
-      {!isFocused && <SetFocusButton pbiId={pbi.id} />}
     </article>
   );
 }
