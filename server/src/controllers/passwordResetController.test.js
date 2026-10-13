@@ -4,6 +4,7 @@ import {
   FORGOT_PASSWORD_CONFIRMATION,
   RESET_TOKEN_UNUSABLE_MESSAGE,
   forgotPasswordController,
+  getDemoMailboxController,
   resetPasswordController
 } from './passwordResetController.js';
 import { findUserByEmail, updateUserPasswordHash } from '../models/userModel.js';
@@ -15,11 +16,13 @@ import {
   markResetTokenUsed
 } from '../models/passwordResetModel.js';
 import { deliverPasswordResetToken } from '../services/resetTokenDelivery.js';
+import { listDemoMailboxMessages } from '../services/demoMailboxStore.js';
 
 vi.mock('bcrypt');
 vi.mock('../models/userModel.js');
 vi.mock('../models/passwordResetModel.js');
 vi.mock('../services/resetTokenDelivery.js');
+vi.mock('../services/demoMailboxStore.js');
 
 function mockRes() {
   const res = {};
@@ -62,6 +65,17 @@ describe('forgotPasswordController', () => {
     });
     expect(res.json).toHaveBeenCalledWith({ message: FORGOT_PASSWORD_CONFIRMATION });
     expect(JSON.stringify(res.json.mock.calls[0][0])).not.toContain('secret-token');
+  });
+});
+
+describe('getDemoMailboxController', () => {
+  it('returns demo mailbox messages', () => {
+    listDemoMailboxMessages.mockReturnValue([{ id: 1, to: 'developer@bix.app' }]);
+    const res = mockRes();
+    getDemoMailboxController({}, res);
+    expect(res.json).toHaveBeenCalledWith({
+      messages: [{ id: 1, to: 'developer@bix.app' }]
+    });
   });
 });
 

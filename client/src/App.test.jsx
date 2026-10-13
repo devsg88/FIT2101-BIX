@@ -20,6 +20,10 @@ vi.mock('./pages/ProductBacklog.jsx', () => ({
   default: () => <div>Product Backlog Page</div>
 }));
 
+vi.mock('./pages/DemoMailbox.jsx', () => ({
+  default: () => <h2>Demo inbox</h2>
+}));
+
 function renderApp(initialPath, user) {
   useAuth.mockReturnValue({ user });
   return render(
@@ -97,5 +101,10 @@ describe('Password reset routes (US-14)', () => {
   it('renders reset-password without requiring a session', () => {
     renderApp('/reset-password', null);
     expect(screen.getByRole('heading', { name: 'Reset password' })).toBeInTheDocument();
+  });
+
+  it('renders the demo inbox without requiring a session', () => {
+    renderApp('/demo-mailbox', null);
+    expect(screen.getByRole('heading', { name: 'Demo inbox' })).toBeInTheDocument();
   });
 });

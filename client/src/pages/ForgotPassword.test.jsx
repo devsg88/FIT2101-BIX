@@ -39,6 +39,10 @@ describe('ForgotPassword page', () => {
       expect(screen.getByRole('status')).toHaveTextContent('If an account exists');
     });
     expect(requestPasswordReset).toHaveBeenCalledWith('developer@bix.app');
+    expect(screen.getByRole('link', { name: 'Open demo inbox' })).toHaveAttribute(
+      'href',
+      '/demo-mailbox'
+    );
   });
 
   it('links back to sign in', () => {

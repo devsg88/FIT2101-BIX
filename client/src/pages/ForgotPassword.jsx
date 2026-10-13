@@ -69,9 +69,16 @@ export default function ForgotPassword() {
             )}
 
             {confirmation && (
-              <p className="login-notice" role="status">
-                {confirmation}
-              </p>
+              <>
+                <p className="login-notice" role="status">
+                  {confirmation}
+                </p>
+                <p className="login-card__footer">
+                  This demo does not send real email.
+                  {' '}
+                  <Link to="/demo-mailbox">Open demo inbox</Link>
+                </p>
+              </>
             )}
 
             <button className="login-submit" type="submit" disabled={isSubmitting}>

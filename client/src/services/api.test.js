@@ -5,6 +5,7 @@ import {
   deletePbi,
   getBoard,
   getCompletedWork,
+  getDemoMailbox,
   getProjectPbis,
   movePbi,
   requestPasswordReset,
@@ -266,5 +267,12 @@ describe('password reset api helpers (US-14)', () => {
       password: 'newpass12',
       confirm_password: 'newpass12'
     });
+  });
+
+  it('getDemoMailbox GETs the demo inbox without auth', async () => {
+    await getDemoMailbox();
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/auth/demo-mailbox');
+    expect(options.headers.Authorization).toBeUndefined();
   });
 });

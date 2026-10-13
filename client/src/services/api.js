@@ -52,6 +52,10 @@ export function resetPassword({ token, password, confirm_password }) {
   });
 }
 
+export function getDemoMailbox() {
+  return request('/auth/demo-mailbox');
+}
+
 export function getDashboard(token) {
   return request('/dashboard', {
     headers: authHeader(token)

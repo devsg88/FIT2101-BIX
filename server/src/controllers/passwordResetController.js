@@ -9,6 +9,7 @@ import {
   markResetTokenUsed
 } from '../models/passwordResetModel.js';
 import { deliverPasswordResetToken } from '../services/resetTokenDelivery.js';
+import { listDemoMailboxMessages } from '../services/demoMailboxStore.js';
 
 // US-14 — Yichi Zhang (SCRUM-170)
 // Always the same confirmation, whether or not the email is registered.
@@ -40,6 +41,10 @@ export async function forgotPasswordController(req, res) {
   } catch (err) {
     return res.status(500).json({ message: 'Unable to process the password reset request' });
   }
+}
+
+export function getDemoMailboxController(req, res) {
+  return res.json({ messages: listDemoMailboxMessages() });
 }
 
 export const RESET_TOKEN_UNUSABLE_MESSAGE =
