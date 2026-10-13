@@ -28,7 +28,6 @@ import {
   completePbi,
   updateProject,
   deleteProject as apiDeleteProject,
-  updateProjectFocus,
   updateWorkItemRoles
 } from '../services/api.js';
 
@@ -324,18 +323,6 @@ export function BoardProvider({ projectId, children }) {
     },
     [projectId, token, refreshBoardAfterSave]
   );
-  // US-07 / SCRUM-199. Sets the project's Current Focus PBI, or clears it
-  // when pbiId is null, then refreshes so the banner shows what was saved.
-  const setProjectFocus = useCallback(
-    async (pbiId) => {
-      await updateProjectFocus(projectId, pbiId, token);
-      await refreshBoardAfterSave(
-        'The current focus was saved, but the board could not be refreshed'
-      );
-    },
-    [projectId, token, refreshBoardAfterSave]
-  );
-
   // US-09 / SCRUM-178. Saves a sprint's Scrum Master and Product Owner, then
   // refreshes so every card shows what was saved. Rejects with the server's
   // message (e.g. the 400 for a Scrum Master who is not a real user).
@@ -398,7 +385,6 @@ export function BoardProvider({ projectId, children }) {
       saveSubTask,
       renameProject,
       deleteCurrentProject,
-      setProjectFocus,
       saveSprintRoles
     }),
     [
@@ -427,7 +413,6 @@ export function BoardProvider({ projectId, children }) {
       saveSubTask,
       renameProject,
       deleteCurrentProject,
-      setProjectFocus,
       saveSprintRoles
     ]
   );
