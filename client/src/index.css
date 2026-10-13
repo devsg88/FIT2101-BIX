@@ -250,6 +250,65 @@ input {
   cursor: pointer;
 }
 
+.login-panel--solo {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-notice {
+  margin: -8px 0 16px;
+  color: #2c5a2c;
+  font-size: 13px;
+}
+
+.mailbox-card {
+  max-width: 36rem;
+}
+
+.mailbox-empty {
+  margin: 0 0 1rem;
+  color: #46453f;
+  font-size: 14px;
+}
+
+.mailbox-list {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mailbox-item {
+  padding: 0.9rem 1rem;
+  border: 1px solid #d8d6cc;
+  border-radius: 7px;
+  background: #faf9f4;
+}
+
+.mailbox-item__meta,
+.mailbox-item__subject {
+  margin: 0 0 0.4rem;
+  font-size: 14px;
+}
+
+.mailbox-item__body {
+  margin: 0 0 0.75rem;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  color: #46453f;
+}
+
+.mailbox-item__link {
+  display: inline-flex;
+  min-height: 42px;
+  text-decoration: none;
+}
+
 .login-submit {
   width: 100%;
   min-height: 55px;
