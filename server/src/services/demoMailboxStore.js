@@ -24,7 +24,14 @@ export function addDemoMailboxMessage({ to, subject, body, resetUrl }) {
 }
 
 export function listDemoMailboxMessages() {
-  return messages;
+  const seen = new Set();
+  return messages.filter((item) => {
+    if (seen.has(item.to)) {
+      return false;
+    }
+    seen.add(item.to);
+    return true;
+  });
 }
 
 export function clearDemoMailbox() {
