@@ -10,6 +10,7 @@ import {
 import {
   createPbi,
   deletePbi,
+  getCurrentFocusPbiId,
   getPbiById,
   getPbisByProject,
   updatePbiDetails,
@@ -287,7 +288,18 @@ describe('listPbisController (US-04b)', () => {
 
     expect(getPbisByProject).toHaveBeenCalledWith(1);
     expect(res.status).not.toHaveBeenCalled();
-    expect(res.json).toHaveBeenCalledWith({ pbis });
+    expect(res.json).toHaveBeenCalledWith({ pbis, current_focus_pbi_id: null });
+  });
+
+  it("includes the project's Current Focus PBI id (US-07)", async () => {
+    getPbisByProject.mockResolvedValue([]);
+    getCurrentFocusPbiId.mockResolvedValueOnce('2');
+    const res = mockRes();
+
+    await listPbisController({ params: { projectId: '1' } }, res);
+
+    expect(getCurrentFocusPbiId).toHaveBeenCalledWith(1);
+    expect(res.json).toHaveBeenCalledWith({ pbis: [], current_focus_pbi_id: '2' });
   });
 
   it('returns an empty list for a project with no PBIs', async () => {
@@ -296,7 +308,7 @@ describe('listPbisController (US-04b)', () => {
 
     await listPbisController({ params: { projectId: '7' } }, res);
 
-    expect(res.json).toHaveBeenCalledWith({ pbis: [] });
+    expect(res.json).toHaveBeenCalledWith({ pbis: [], current_focus_pbi_id: null });
   });
 
   it('returns 500 without leaking details when the database throws', async () => {
