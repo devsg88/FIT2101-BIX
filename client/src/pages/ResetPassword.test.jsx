@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import ResetPassword from './ResetPassword.jsx';
 import { resetPassword } from '../services/api.js';
 
@@ -11,7 +11,10 @@ vi.mock('../services/api.js', () => ({
 function renderPage(search = '?token=valid-token') {
   return render(
     <MemoryRouter initialEntries={[`/reset-password${search}`]}>
-      <ResetPassword />
+      <Routes>
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/login" element={<h2>Sign in</h2>} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -61,6 +64,8 @@ describe('ResetPassword page', () => {
         confirm_password: 'newpass12'
       });
     });
-    expect(screen.getByRole('status')).toHaveTextContent('sign in');
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument();
+    });
   });
 });

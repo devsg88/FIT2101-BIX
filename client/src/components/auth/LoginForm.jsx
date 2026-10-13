@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { login } from '../../services/api.js';
 
@@ -27,6 +27,8 @@ export default function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { login: setSession } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const resetNotice = location.state?.resetNotice;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -60,6 +62,12 @@ export default function LoginForm() {
         board.
       </p>
     </div>
+
+    {resetNotice && (
+      <p className="login-notice" role="status">
+        {resetNotice}
+      </p>
+    )}
 
     <form className="login-form" onSubmit={handleSubmit} noValidate>
       <div className="login-field">

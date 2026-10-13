@@ -1,22 +1,21 @@
 import { useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { resetPassword } from '../services/api.js';
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export default function ResetPassword() {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = useMemo(() => searchParams.get('token') || '', [searchParams]);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
-  const [confirmation, setConfirmation] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
     setError('');
-    setConfirmation('');
 
     if (!token) {
       setError('This reset link is invalid or has expired. You can request another reset.');
@@ -42,7 +41,10 @@ export default function ResetPassword() {
         password,
         confirm_password: confirmPassword
       });
-      setConfirmation(data.message);
+      navigate('/login', {
+        replace: true,
+        state: { resetNotice: data.message }
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -94,13 +96,7 @@ export default function ResetPassword() {
               </p>
             )}
 
-            {confirmation && (
-              <p className="login-notice" role="status">
-                {confirmation}
-              </p>
-            )}
-
-            <button className="login-submit" type="submit" disabled={isSubmitting || Boolean(confirmation)}>
+            <button className="login-submit" type="submit" disabled={isSubmitting}>
               <span>{isSubmitting ? 'Saving...' : 'Update password'}</span>
             </button>
 
