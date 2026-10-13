@@ -250,6 +250,19 @@ input {
   cursor: pointer;
 }
 
+.login-panel--solo {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-notice {
+  margin: -8px 0 16px;
+  color: #2c5a2c;
+  font-size: 13px;
+}
+
 .login-submit {
   width: 100%;
   min-height: 55px;

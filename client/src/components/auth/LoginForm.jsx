@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { login } from '../../services/api.js';
 
@@ -116,13 +116,9 @@ export default function LoginForm() {
           <span>Keep me signed in</span>
         </label>
 
-        <button
-          type="button"
-          className="login-forgot"
-          onClick={() => {}}
-        >
+        <Link className="login-forgot" to="/forgot-password">
           Forgot password?
-        </button>
+        </Link>
       </div>
 
       <button
