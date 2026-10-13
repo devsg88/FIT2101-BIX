@@ -94,6 +94,19 @@ describe('Board page - Current Focus (US-07)', () => {
     expect(getBoard).toHaveBeenCalledTimes(2);
   });
 
+  it('sends the PBI id as a number when pg returns it as a string', async () => {
+    const board = boardWithFocus(null);
+    board.pbis = board.pbis.map((pbi) => ({ ...pbi, id: String(pbi.id) }));
+    getBoard.mockResolvedValue(board);
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+    fireEvent.click(focusButtonOn('Upload photo'));
+
+    await waitFor(() => expect(updateProjectFocus).toHaveBeenCalledWith('7', 2, 'tok'));
+  });
+
   it('clears the focus from the banner, then hides it after the refresh', async () => {
     getBoard
       .mockResolvedValueOnce(boardWithFocus('1'))
