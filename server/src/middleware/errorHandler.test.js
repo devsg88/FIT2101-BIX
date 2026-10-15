@@ -148,6 +148,57 @@ describe('unknown routes on the real app', () => {
   });
 });
 
+// Markers of a leaked implementation detail: an HTML error page, a stack
+// frame, a server or node_modules path, or the parser's own error names.
+const LEAK_MARKERS = [/<html/i, /<!DOCTYPE/i, /\bat \S+ \(/, /node_modules/, /[A-Za-z]:\\/, /\/src\//, /SyntaxError/, /PayloadTooLargeError/, /stack/i];
+
+describe('request-body failures on the real app (express.json)', () => {
+  let server;
+  let baseUrl;
+
+  beforeAll(async () => {
+    await new Promise((resolve) => {
+      server = app.listen(0, resolve);
+    });
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  async function post(body, contentType = 'application/json') {
+    const res = await fetch(`${baseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': contentType },
+      body
+    });
+    return { status: res.status, type: res.headers.get('content-type'), text: await res.text() };
+  }
+
+  it.each([
+    ['malformed JSON', () => post('{"email": bad'), 400, 'The request body is not valid JSON'],
+    ['an oversized body', () => post(JSON.stringify({ x: 'a'.repeat(200000) })), 413, 'The request body is too large'],
+    ['an unsupported character set', () => post('{}', 'application/json; charset=latin1'), 415, 'The request body character set is not supported']
+  ])('answers %s with safe JSON and no implementation detail', async (label, send, status, message) => {
+    const res = await send();
+
+    expect(res.status).toBe(status);
+    expect(res.type).toMatch(/application\/json/);
+    expect(JSON.parse(res.text)).toEqual({ message });
+    for (const marker of LEAK_MARKERS) {
+      expect(res.text).not.toMatch(marker);
+    }
+  });
+
+  it('does not echo any part of the malformed body back', async () => {
+    const res = await post('{"email": "someone@example.com", "password": oops');
+
+    expect(res.text).not.toContain('someone@example.com');
+    expect(res.text).not.toContain('oops');
+  });
+});
+
 describe('app.js wiring', () => {
   it('registers notFoundHandler then errorHandler as the last two middleware, after every route', () => {
     const stack = app._router.stack;

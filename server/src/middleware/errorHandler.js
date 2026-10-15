@@ -27,6 +27,18 @@ const CLIENT_ERROR_MESSAGES = Object.freeze({
 
 const DEFAULT_CLIENT_ERROR_MESSAGE = 'The request could not be processed';
 
+// SCRUM-190. express.json() (body-parser) labels each request-body failure
+// with a `type`. Its own messages are not safe to send - a JSON parse error
+// quotes the body and its stack shows server paths - so each known type gets
+// a clear message of its own here instead.
+const REQUEST_BODY_MESSAGES = Object.freeze({
+  'entity.parse.failed': 'The request body is not valid JSON',
+  'entity.too.large': 'The request body is too large',
+  'encoding.unsupported': 'The request body encoding is not supported',
+  'charset.unsupported': 'The request body character set is not supported',
+  'request.aborted': 'The request was interrupted before it was complete'
+});
+
 export const SERVER_ERROR_MESSAGE = 'Something went wrong on our side. Please try again.';
 
 // The HTTP status an error asks for (Express and body-parser errors carry
@@ -54,7 +66,7 @@ export function errorHandler(err, req, res, next) {
   const status = statusOf(err);
   const message =
     status < 500
-      ? CLIENT_ERROR_MESSAGES[status] ?? DEFAULT_CLIENT_ERROR_MESSAGE
+      ? REQUEST_BODY_MESSAGES[err?.type] ?? CLIENT_ERROR_MESSAGES[status] ?? DEFAULT_CLIENT_ERROR_MESSAGE
       : SERVER_ERROR_MESSAGE;
 
   return res.status(status).json({ message });
