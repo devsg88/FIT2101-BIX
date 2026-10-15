@@ -11,7 +11,7 @@ import completedWorkRoutes from './routes/completedWorkRoutes.js';
 import subTaskRoutes from './routes/subTaskRoutes.js';
 import projectMembershipRoutes from './routes/projectMembershipRoutes.js';
 import burndownRoutes from './routes/burndownRoutes.js';
-import { errorHandler } from './middleware/errorHandler.js';
+import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
 
@@ -35,7 +35,9 @@ app.use('/api/projects', burndownRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
-// NFR-03: must stay last - it only sees errors no route answered itself.
+// NFR-03: these two must stay last. notFoundHandler answers any request no
+// route matched; errorHandler only sees errors no route answered itself.
+app.use(notFoundHandler);
 app.use(errorHandler);
 
 export default app;

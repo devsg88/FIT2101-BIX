@@ -36,6 +36,13 @@ export function statusOf(err) {
   return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500;
 }
 
+// SCRUM-188. Any request no route matched: a JSON 404 in the same shape,
+// instead of Express's HTML "Cannot GET ..." page. The requested path is not
+// echoed back. Registered after every route and before errorHandler.
+export function notFoundHandler(req, res) {
+  return res.status(404).json({ message: CLIENT_ERROR_MESSAGES[404] });
+}
+
 // Express recognises error middleware by its four parameters.
 export function errorHandler(err, req, res, next) {
   // A response that has already started cannot be replaced; Express's own

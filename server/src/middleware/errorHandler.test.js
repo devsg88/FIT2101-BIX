@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import express from 'express';
 import app from '../app.js';
-import { errorHandler, statusOf, SERVER_ERROR_MESSAGE } from './errorHandler.js';
+import { errorHandler, notFoundHandler, statusOf, SERVER_ERROR_MESSAGE } from './errorHandler.js';
 
 const INTERNAL_DETAIL = 'relation "users" violates SELECT password_hash FROM users';
 
@@ -110,9 +110,48 @@ describe('statusOf', () => {
   });
 });
 
+describe('unknown routes on the real app', () => {
+  let server;
+  let baseUrl;
+
+  beforeAll(async () => {
+    await new Promise((resolve) => {
+      server = app.listen(0, resolve);
+    });
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  it.each([
+    ['GET', '/api/does-not-exist'],
+    ['POST', '/api/projects/1/not-a-real-action'],
+    ['PUT', '/api/projects'],
+    ['GET', '/not-an-api-path']
+  ])('%s %s answers JSON 404 without echoing the path', async (method, path) => {
+    const res = await fetch(`${baseUrl}${path}`, { method });
+    const text = await res.text();
+
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).toMatch(/application\/json/);
+    expect(JSON.parse(text)).toEqual({ message: 'Not found' });
+    expect(text).not.toContain(path);
+  });
+
+  it('leaves existing routes alone', async () => {
+    const res = await fetch(`${baseUrl}/api/health`);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ status: 'ok' });
+  });
+});
+
 describe('app.js wiring', () => {
-  it('registers errorHandler as the last middleware, after every route', () => {
+  it('registers notFoundHandler then errorHandler as the last two middleware, after every route', () => {
     const stack = app._router.stack;
+    expect(stack[stack.length - 2].handle).toBe(notFoundHandler);
     expect(stack[stack.length - 1].handle).toBe(errorHandler);
   });
 });
