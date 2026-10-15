@@ -1,7 +1,14 @@
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import app from '../app.js';
-import { errorHandler, notFoundHandler, statusOf, SERVER_ERROR_MESSAGE } from './errorHandler.js';
+import {
+  errorHandler,
+  formatErrorLog,
+  notFoundHandler,
+  redact,
+  statusOf,
+  SERVER_ERROR_MESSAGE
+} from './errorHandler.js';
 
 const INTERNAL_DETAIL = 'relation "users" violates SELECT password_hash FROM users';
 
@@ -42,8 +49,16 @@ describe('errorHandler over HTTP', () => {
     await new Promise((resolve) => server.close(resolve));
   });
 
-  async function get(path) {
-    const res = await fetch(`${baseUrl}${path}`);
+  let logSpy;
+  beforeEach(() => {
+    logSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  async function get(path, headers) {
+    const res = await fetch(`${baseUrl}${path}`, { headers });
     return { status: res.status, type: res.headers.get('content-type'), text: await res.text() };
   }
 
@@ -57,11 +72,37 @@ describe('errorHandler over HTTP', () => {
     expect(res.text).not.toContain('stack');
   });
 
+  it('logs the unexpected failure on the server with the detail the client did not get', async () => {
+    await get('/throws');
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const logged = logSpy.mock.calls[0][0];
+    expect(logged).toMatch(/^\[api-error\] \S+ GET \/throws -> 500/);
+    expect(logged).toContain(INTERNAL_DETAIL);
+    expect(logged).toMatch(/\n\s+at /);
+  });
+
+  it('never logs the query string or request headers', async () => {
+    await get('/throws?resetToken=abc123secret', { Authorization: 'Bearer header.token.value' });
+
+    const logged = logSpy.mock.calls[0][0];
+    expect(logged).toContain('GET /throws -> 500');
+    expect(logged).not.toContain('abc123secret');
+    expect(logged).not.toContain('header.token.value');
+  });
+
   it('keeps a 4xx status carried by the error, with a fixed message rather than the error text', async () => {
     const res = await get('/forbidden');
 
     expect(res.status).toBe(403);
     expect(JSON.parse(res.text)).toEqual({ message: 'You do not have permission to perform this action' });
+  });
+
+  it('does not log expected client errors', async () => {
+    await get('/forbidden');
+    await get('/teapot');
+
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it('uses a general message for a 4xx status it has no specific wording for', async () => {
@@ -96,6 +137,44 @@ describe('errorHandler', () => {
 
     expect(next).toHaveBeenCalledWith(err);
     expect(res.status).not.toHaveBeenCalled();
+  });
+});
+
+describe('redact', () => {
+  const env = {
+    DATABASE_URL: 'postgresql://app:pw@localhost:5432/app_db',
+    JWT_SECRET: 'not-a-real-test-secret'
+  };
+
+  it('removes configured secrets, connection strings, Bearer tokens and JWTs', () => {
+    const text = [
+      `connect ${env.DATABASE_URL} failed`,
+      `signed with ${env.JWT_SECRET}`,
+      'other postgres://u:p@db.example:5432/x',
+      'Authorization: Bearer abc.def-ghi',
+      'token eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MX0.c2lnbmF0dXJl'
+    ].join('\n');
+
+    const safe = redact(text, env);
+
+    expect(safe).not.toContain('pw@localhost');
+    expect(safe).not.toContain(env.JWT_SECRET);
+    expect(safe).not.toContain('u:p@db.example');
+    expect(safe).not.toContain('abc.def-ghi');
+    expect(safe).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+    expect(safe.match(/\[redacted\]/g).length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('leaves ordinary diagnostic text alone', () => {
+    expect(redact('column "x" does not exist', env)).toBe('column "x" does not exist');
+  });
+});
+
+describe('formatErrorLog', () => {
+  it('describes a thrown non-Error value without dumping it', () => {
+    const logged = formatErrorLog({ password: 'hunter2' }, { method: 'POST', originalUrl: '/api/x?y=1' }, 500, new Date(0));
+
+    expect(logged).toBe('[api-error] 1970-01-01T00:00:00.000Z POST /api/x -> 500\nNon-Error value thrown: object');
   });
 });
 

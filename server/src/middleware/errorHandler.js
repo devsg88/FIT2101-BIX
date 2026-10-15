@@ -41,6 +41,37 @@ const REQUEST_BODY_MESSAGES = Object.freeze({
 
 export const SERVER_ERROR_MESSAGE = 'Something went wrong on our side. Please try again.';
 
+// SCRUM-190. Unexpected failures (5xx) are logged on the server, where the
+// detail the client never sees is still needed to diagnose them.
+//
+// Logged: time, method, path (query string removed), status, and the error's
+// name, message and stack. Never logged: the request body, headers (so no
+// Authorization header or token), or query string. As a second line of
+// defence, anything in the text that looks like a database connection
+// string, a Bearer token or a JWT - or that equals a secret from the
+// environment - is replaced with [redacted] before it is written.
+const SECRET_ENV_KEYS = ['DATABASE_URL', 'PERF_DATABASE_URL', 'JWT_SECRET'];
+
+export function redact(text, env = process.env) {
+  let safe = String(text);
+  for (const key of SECRET_ENV_KEYS) {
+    const value = env[key];
+    if (value && value.length >= 4) {
+      safe = safe.split(value).join('[redacted]');
+    }
+  }
+  return safe
+    .replace(/postgres(ql)?:\/\/[^\s'"]+/gi, '[redacted]')
+    .replace(/Bearer\s+[\w.~+/=-]+/gi, 'Bearer [redacted]')
+    .replace(/eyJ[\w-]+\.[\w-]+\.[\w-]+/g, '[redacted]');
+}
+
+export function formatErrorLog(err, req, status, now = new Date()) {
+  const path = String(req?.originalUrl ?? req?.url ?? '').split('?')[0];
+  const detail = err instanceof Error ? err.stack || `${err.name}: ${err.message}` : `Non-Error value thrown: ${typeof err}`;
+  return redact(`[api-error] ${now.toISOString()} ${req?.method ?? '-'} ${path} -> ${status}\n${detail}`);
+}
+
 // The HTTP status an error asks for (Express and body-parser errors carry
 // one), or 500 when it carries none or an invalid one.
 export function statusOf(err) {
@@ -64,6 +95,10 @@ export function errorHandler(err, req, res, next) {
   }
 
   const status = statusOf(err);
+  if (status >= 500) {
+    console.error(formatErrorLog(err, req, status));
+  }
+
   const message =
     status < 500
       ? REQUEST_BODY_MESSAGES[err?.type] ?? CLIENT_ERROR_MESSAGES[status] ?? DEFAULT_CLIENT_ERROR_MESSAGE
