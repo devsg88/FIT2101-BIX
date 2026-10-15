@@ -62,3 +62,29 @@ deterministic dataset from `perfDataset.js`:
 Rerunning rebuilds the same rows (the printed fingerprint is identical), so
 results stay comparable across runs. Seeded accounts cannot log in: the
 benchmark signs its own tokens for them.
+
+## Run the benchmark
+
+```bash
+cd server
+npm run perf:bench                                   # 30 measured runs per journey
+npm run perf:bench -- --runs 50 --explain --json out.json
+```
+
+Each journey is a real HTTP request to the real app (`src/app.js` on an
+ephemeral localhost port, connected to the perf database), timed from request
+to complete response body. Per journey: 5 warm-up requests, then N measured
+runs reported as median, p95 (nearest rank), min and max.
+
+- **Queries per request** are counted by wrapping `pg.Client.prototype.query`
+  inside the benchmark process only; no application code is changed.
+- **Query count vs data size** compares the board and completed-work
+  endpoints on a seeded project and on a temporary empty project.
+- **Mutations** restore what they change (create then delete, rename to the
+  same name, reset the one completed task), and the dataset fingerprint is
+  compared before and after the run - the benchmark fails if it changed.
+- `--explain` runs `EXPLAIN (ANALYZE, BUFFERS)` on the exact read statements
+  the read journeys executed (plain `SELECT`/`WITH` only).
+- `--json <file>` writes all results, SQL texts and plans to a file.
+
+Analytics (US-13a/13b) is reported as N/A until those pages exist.
