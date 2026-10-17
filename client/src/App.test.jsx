@@ -24,6 +24,10 @@ vi.mock('./pages/DemoMailbox.jsx', () => ({
   default: () => <h2>Demo inbox</h2>
 }));
 
+vi.mock('./pages/Settings.jsx', () => ({
+  default: () => <div>Settings Page</div>
+}));
+
 function renderApp(initialPath, user) {
   useAuth.mockReturnValue({ user });
   return render(
@@ -91,6 +95,25 @@ describe('Product Backlog route (US-04b)', () => {
   it('sends a logged-out visitor to the login page', () => {
     renderApp('/projects/1/backlog', null);
     expect(screen.queryByText('Product Backlog Page')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+  });
+});
+
+describe('Settings route', () => {
+  it('shows the Settings page to an Admin', () => {
+    renderApp('/settings', { id: 3, role: 'admin', token: 'abc' });
+    expect(screen.getByText('Settings Page')).toBeInTheDocument();
+  });
+
+  it('shows Access Denied to a Developer, not the Settings page', () => {
+    renderApp('/settings', { id: 2, role: 'developer', token: 'abc' });
+    expect(screen.queryByText('Settings Page')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+  });
+
+  it('sends a logged-out visitor to the login page', () => {
+    renderApp('/settings', null);
+    expect(screen.queryByText('Settings Page')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
   });
 });

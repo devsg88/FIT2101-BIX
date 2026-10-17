@@ -10,6 +10,7 @@ import Board from './pages/Board.jsx';
 import TeamDetail from './pages/TeamDetail.jsx';
 import ProductBacklog from './pages/ProductBacklog.jsx';
 import Burndown from './pages/Burndown.jsx';
+import Settings from './pages/Settings.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
 
 export default function App() {
@@ -100,6 +101,16 @@ export default function App() {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <TeamDetail />
+          </ProtectedRoute>
+        }
+      />
+      {/* Admin: System Settings, reached from AdminSidebar's bottom link.
+          Admin-only, same as the other AdminSidebar-only pages above. */}
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <Settings />
           </ProtectedRoute>
         }
       />
