@@ -89,4 +89,15 @@ describe('Settings page - Developer view (US-16)', () => {
 
     expect(logout).toHaveBeenCalled();
   });
+
+  // US-16 (T16.4): same user-menu entry point as the rest of the Developer
+  // pages, present here too (matching AdminSidebar's own Settings link,
+  // which likewise still appears on the Admin's System Settings page).
+  it('also links Settings to /settings in its own user menu', () => {
+    renderSettings({ id: 7, name: 'Sam Rivers', role: 'developer', token: 'tok' });
+
+    fireEvent.click(screen.getByRole('button', { name: /Sam Rivers/ }));
+
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+  });
 });

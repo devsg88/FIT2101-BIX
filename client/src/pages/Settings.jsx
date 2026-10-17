@@ -140,7 +140,14 @@ function DeveloperAccountView({ user, onSignOut }) {
 
             {showUserMenu && (
               <div className="dev-user-dropdown">
-                <button type="button" onClick={onSignOut} className="dev-user-dropdown__item">
+                <Link to="/settings" className="dev-user-dropdown__item dev-user-dropdown__item--settings">
+                  Settings
+                </Link>
+                <button
+                  type="button"
+                  onClick={onSignOut}
+                  className="dev-user-dropdown__item dev-user-dropdown__item--signout"
+                >
                   Sign out
                 </button>
               </div>
