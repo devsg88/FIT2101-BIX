@@ -104,12 +104,14 @@ export default function App() {
           </ProtectedRoute>
         }
       />
-      {/* Admin: System Settings, reached from AdminSidebar's bottom link.
-          Admin-only, same as the other AdminSidebar-only pages above. */}
+      {/* Settings (US-16): any authenticated user, not admin-only - Settings.jsx
+          itself picks the Admin (System Settings + AdminSidebar) or Developer
+          (Account Settings + dev topbar) view from the logged-in user's role,
+          so the route only needs to require a session, same as /dashboard. */}
       <Route
         path="/settings"
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute>
             <Settings />
           </ProtectedRoute>
         }
