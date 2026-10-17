@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { createPbi, updatePbi } from '../../services/api.js';
+import ActionError from '../common/ActionError.jsx';
 
 // US-04b / SCRUM-101. One modal for both creating a PBI (no `pbi` prop) and
 // editing an existing one (`pbi` given). Reuses the admin modal styling from
@@ -33,7 +34,7 @@ export default function PbiFormModal({ projectId, pbi = null, onSaved, onClose }
     const trimmedDescription = description.trim();
 
     if (!trimmedTitle) {
-      setError('A title is required');
+      setError(new Error('A title is required'));
       return;
     }
 
@@ -69,7 +70,7 @@ export default function PbiFormModal({ projectId, pbi = null, onSaved, onClose }
       onSaved(result.pbi);
     } catch (err) {
       // Keep what was typed so the Admin can correct it and try again.
-      setError(err?.message || 'The item could not be saved. Please try again.');
+      setError(err);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -138,11 +139,12 @@ export default function PbiFormModal({ projectId, pbi = null, onSaved, onClose }
             disabled={isSubmitting}
           />
 
-          {error && (
-            <p id="pbi-form-error" className="login-error" role="alert">
-              {error}
-            </p>
-          )}
+          <ActionError
+            id="pbi-form-error"
+            error={error}
+            fallback="The item could not be saved. Please try again."
+            className="login-error"
+          />
 
           <div className="admin-modal__actions">
             <button

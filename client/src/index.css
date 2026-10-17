@@ -149,6 +149,23 @@ input {
   line-height: 1.5;
 }
 
+.login-session-banner {
+  width: 100%;
+  max-width: 470px;
+  margin: 0 0 16px;
+  padding: 13px 16px;
+  border: 1.5px solid #e3a008;
+  border-radius: 10px;
+  background: #fff6de;
+  color: #6b4e00;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.login-session-banner strong {
+  font-weight: 600;
+}
+
 .login-form {
   width: 100%;
 }
@@ -213,6 +230,16 @@ input {
 .login-error--server {
   margin-top: -8px;
   margin-bottom: 16px;
+}
+
+.login-error--forbidden {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.login-error__icon {
+  flex: none;
 }
 
 .login-options {
@@ -1895,6 +1922,16 @@ input {
   font-size: 0.75rem;
 }
 
+.project-board__card-error--forbidden {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.project-board__card-error__icon {
+  flex: none;
+}
+
 /* US-08b / US-10 - Yichi Zhang: planning form under the card, Start Sprint
    in the Sprint Planning column (not an overlay). */
 
@@ -3018,4 +3055,60 @@ input {
   border-radius: 8px;
   max-width: 48rem;
   text-align: center;
+}
+
+/* --- Access Denied (NFR-01) ------------------------------------------- */
+
+.access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 28rem;
+  margin: 3.5rem auto;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  background: #fffdf2;
+  border: 2px solid #242420;
+  border-radius: 18px;
+}
+
+.access-denied__icon {
+  color: #a62c2c;
+  margin-bottom: 0.5rem;
+}
+
+.access-denied__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.access-denied__message {
+  margin: 0;
+  color: #46453f;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.access-denied__back {
+  margin-top: 0.75rem;
+  padding: 10px 22px;
+  border: 1.5px solid #242420;
+  border-radius: 7px;
+  background: #f7a839;
+  color: #242420;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.access-denied__back:hover {
+  background: #f0981a;
+}
+
+.access-denied__contact {
+  margin: 0.75rem 0 0;
+  color: #737168;
+  font-size: 13px;
 }

@@ -8,6 +8,8 @@ import {
   STAGE_LABELS
 } from '../context/BoardContext.jsx';
 import { getCompletedWork } from '../services/api.js';
+import AccessDenied from '../components/common/AccessDenied.jsx';
+import ActionError from '../components/common/ActionError.jsx';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -94,7 +96,7 @@ function ChecklistEditForm({ item, onSave, onCancel }) {
       // No local reset of isEditing here - the parent (ChecklistRow) owns
       // that state and closes the form on a successful save.
     } catch (err) {
-      setError(err?.message || 'Something went wrong saving this item. Please try again.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -133,9 +135,10 @@ function ChecklistEditForm({ item, onSave, onCancel }) {
           Cancel
         </button>
       </div>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong saving this item. Please try again."
+      />
     </form>
   );
 }
@@ -165,7 +168,7 @@ function AssigneeSelect({ item, kind, pbiId, taskId }) {
         await assignSubTask(pbiId, taskId, item.id, assigneeId);
       }
     } catch (err) {
-      setError(err?.message || 'Something went wrong saving the assignment. Please try again.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -192,9 +195,10 @@ function AssigneeSelect({ item, kind, pbiId, taskId }) {
           </option>
         ))}
       </select>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong saving the assignment. Please try again."
+      />
     </span>
   );
 }
@@ -239,7 +243,7 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
       // No local "removed" state to reset on success: the item is gone from
       // the refreshed board and this component unmounts along with it.
     } catch (err) {
-      setError(err?.message || 'Something went wrong deleting this item. Please try again.');
+      setError(err);
       setIsDeleting(false);
     }
   };
@@ -273,9 +277,10 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
           </button>
         </span>
       )}
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong deleting this item. Please try again."
+      />
     </div>
   );
 }
@@ -299,7 +304,7 @@ function SubTaskCompleteButton({ subTask }) {
     try {
       await completeAssignedSubTask(subTask.id);
     } catch (err) {
-      setError(err?.message || 'Could not complete this sub-task.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -310,7 +315,7 @@ function SubTaskCompleteButton({ subTask }) {
       <button type="button" onClick={handleClick} disabled={isSaving}>
         {isSaving ? 'Saving...' : 'Mark complete'}
       </button>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback="Could not complete this sub-task." />
     </div>
   );
 }
@@ -330,7 +335,7 @@ function TaskCompleteForm({ task }) {
     event.preventDefault();
     const actualHours = Number(hours);
     if (!Number.isFinite(actualHours) || actualHours <= 0) {
-      setError('Actual hours must be greater than 0');
+      setError(new Error('Actual hours must be greater than 0'));
       return;
     }
     setIsSaving(true);
@@ -338,7 +343,7 @@ function TaskCompleteForm({ task }) {
     try {
       await completeAssignedTask(task.id, actualHours);
     } catch (err) {
-      setError(err?.message || 'Could not complete this task.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -370,7 +375,7 @@ function TaskCompleteForm({ task }) {
       <button type="submit" disabled={isSaving}>
         {isSaving ? 'Saving...' : 'Complete task'}
       </button>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback="Could not complete this task." />
     </form>
   );
 }
@@ -463,7 +468,7 @@ function CompletePbiButton({ pbi }) {
       if (!hasTasks) {
         const actualHours = Number(hours);
         if (!Number.isFinite(actualHours) || actualHours <= 0) {
-          setError('Actual hours must be greater than 0');
+          setError(new Error('Actual hours must be greater than 0'));
           setIsSaving(false);
           return;
         }
@@ -471,7 +476,7 @@ function CompletePbiButton({ pbi }) {
       }
       await completeActivePbi(pbi.id, payload);
     } catch (err) {
-      setError(err?.message || 'Could not complete this item.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -505,7 +510,7 @@ function CompletePbiButton({ pbi }) {
       >
         {isSaving ? 'Saving...' : 'Complete PBI'}
       </button>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback="Could not complete this item." />
     </form>
   );
 }
@@ -540,11 +545,12 @@ function MoveToSprintPlanningButton({ pbiId }) {
       // Every rejection (an invalid move, an expired/missing login, a 403,
       // a 404, a 500, or the network failing outright) reaches here as a
       // thrown Error with a message - see the `request` helper in
-      // services/api.js, it never resolves on a failed request. The
-      // fallback below only matters if something ever threw a value that
-      // was not a proper Error, so this can never end up silently showing
-      // nothing while leaving the user unsure what happened.
-      setError(err?.message || 'Something went wrong moving this item. Please try again.');
+      // services/api.js, it never resolves on a failed request. ActionError
+      // reads err.status itself (NFR-01) to show a 403 distinctly from any
+      // other failure; its fallback only matters if something ever threw a
+      // value that was not a proper Error, so this can never end up
+      // silently showing nothing while leaving the user unsure what happened.
+      setError(err);
       // Deliberately not touching any board/PBI state here: the PBI is still
       // showing whatever the last successful board load said, i.e. its
       // stage before this attempt, so a failed move never moves the card.
@@ -564,9 +570,10 @@ function MoveToSprintPlanningButton({ pbiId }) {
       >
         {isMoving ? 'Moving...' : 'Move to Sprint Planning ->'}
       </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong moving this item. Please try again."
+      />
     </div>
   );
 }
@@ -596,7 +603,7 @@ function PlanningForm({ pbi }) {
         estimated_hours: Number(estimatedHours)
       });
     } catch (err) {
-      setError(err?.message || 'Something went wrong saving planning details. Please try again.');
+      setError(err);
       // Leave the form values as the user typed them so they can fix and retry.
     } finally {
       setIsSaving(false);
@@ -641,9 +648,10 @@ function PlanningForm({ pbi }) {
       <button type="submit" disabled={isSaving} aria-busy={isSaving}>
         {isSaving ? 'Saving...' : 'Save estimate'}
       </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong saving planning details. Please try again."
+      />
     </form>
   );
 }
@@ -673,7 +681,7 @@ function StartSprintButton() {
     try {
       await startPlannedSprint(planningSprint.id);
     } catch (err) {
-      setError(err?.message || 'Something went wrong starting the sprint. Please try again.');
+      setError(err);
     } finally {
       setIsStarting(false);
     }
@@ -698,9 +706,10 @@ function StartSprintButton() {
       >
         {isStarting ? 'Starting...' : 'Start Sprint'}
       </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong starting the sprint. Please try again."
+      />
     </div>
   );
 }
@@ -800,7 +809,7 @@ function ProjectTitle({ project }) {
       await deleteCurrentProject();
       navigate('/dashboard');
     } catch (err) {
-      setDeleteError(err?.message || 'Something went wrong deleting this board. Please try again.');
+      setDeleteError(err);
       setIsDeleting(false);
     }
   };
@@ -809,7 +818,7 @@ function ProjectTitle({ project }) {
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('A project name is required');
+      setError(new Error('A project name is required'));
       return;
     }
     setIsSaving(true);
@@ -819,7 +828,7 @@ function ProjectTitle({ project }) {
       setIsEditing(false);
     } catch (err) {
       // Stay in the form so the name can be corrected and saved again.
-      setError(err?.message || 'Something went wrong renaming this board. Please try again.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -843,9 +852,7 @@ function ProjectTitle({ project }) {
             Cancel
           </button>
         </div>
-        {error && (
-          <p className="project-board__card-error" role="alert">{error}</p>
-        )}
+        <ActionError error={error} fallback="Something went wrong renaming this board. Please try again." />
       </form>
     );
   }
@@ -867,9 +874,10 @@ function ProjectTitle({ project }) {
           </button>
         </span>
       )}
-      {deleteError && (
-        <p className="project-board__card-error" role="alert">{deleteError}</p>
-      )}
+      <ActionError
+        error={deleteError}
+        fallback="Something went wrong deleting this board. Please try again."
+      />
     </>
   );
 }
@@ -1116,6 +1124,8 @@ function BoardView() {
         {status === 'loading' && (
           <p className="project-board__status">Loading board...</p>
         )}
+
+        {status === 'forbidden' && <AccessDenied />}
 
         {status === 'error' && (
           <div className="project-board__status" role="alert">

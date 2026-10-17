@@ -79,4 +79,29 @@ describe('loginController', () => {
       user: { id: 1, name: 'Jane', role: 'developer', token: 'signed.jwt.token' }
     });
   });
+
+  // Security baseline (NFR-01): a token must not outlive 8h by default, and
+  // the expiry must come from JWT_EXPIRES_IN rather than a value hardcoded
+  // in this file - so if JWT_EXPIRES_IN is ever read with the wrong name or
+  // dropped from the jwt.sign() call, this fails.
+  it('signs the token with the 8h default expiry when JWT_EXPIRES_IN is unset', async () => {
+    findUserByEmail.mockResolvedValue({
+      id: 1,
+      name: 'Jane',
+      role: 'developer',
+      password_hash: 'hashed'
+    });
+    bcrypt.compare.mockResolvedValue(true);
+    jwt.sign.mockReturnValue('signed.jwt.token');
+    const req = { body: { email: 'jane@bix.com', password: 'correct' } };
+    const res = mockRes();
+
+    await loginController(req, res);
+
+    expect(jwt.sign).toHaveBeenCalledWith(
+      { id: 1, role: 'developer' },
+      process.env.JWT_SECRET,
+      { expiresIn: '8h' }
+    );
+  });
 });

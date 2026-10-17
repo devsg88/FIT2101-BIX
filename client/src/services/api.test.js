@@ -7,9 +7,11 @@ import {
   getCompletedWork,
   getDemoMailbox,
   getProjectPbis,
+  login,
   movePbi,
   requestPasswordReset,
   resetPassword,
+  setSessionExpiredHandler,
   startSprint,
   updatePbi,
   updatePbiPlanning
@@ -232,6 +234,68 @@ describe('deletePbi (US-04b, SCRUM-102)', () => {
     await expect(deletePbi(7, 3, 'tok')).rejects.toThrow(
       'Cannot delete a PBI that is in the Active Sprint'
     );
+  });
+});
+
+describe('session-expiry hook (NFR-01)', () => {
+  afterEach(() => {
+    setSessionExpiredHandler(null);
+    vi.restoreAllMocks();
+  });
+
+  it('calls the registered handler when an authenticated call comes back 401', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ message: 'Invalid or expired token' })
+    });
+    const handler = vi.fn();
+    setSessionExpiredHandler(handler);
+
+    await expect(getBoard(7, 'stale-token')).rejects.toThrow('Invalid or expired token');
+
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call the handler for a 401 from login - that call carries no Authorization header, it is "wrong password", not an expired session', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ message: 'Invalid credentials' })
+    });
+    const handler = vi.fn();
+    setSessionExpiredHandler(handler);
+
+    await expect(login({ email: 'a@b.com', password: 'wrong' })).rejects.toThrow(
+      'Invalid credentials'
+    );
+
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('does not throw when a 401 arrives with no handler registered yet', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: () => Promise.resolve({ message: 'Invalid or expired token' })
+    });
+    setSessionExpiredHandler(null);
+
+    await expect(getBoard(7, 'stale-token')).rejects.toThrow('Invalid or expired token');
+  });
+
+  it('leaves a 403 (wrong role/not a member) alone - only 401 triggers the handler', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      json: () => Promise.resolve({ message: 'Not permitted' })
+    });
+    const handler = vi.fn();
+    setSessionExpiredHandler(handler);
+
+    await expect(getBoard(7, 'tok')).rejects.toThrow('Not permitted');
+
+    expect(handler).not.toHaveBeenCalled();
   });
 });
 

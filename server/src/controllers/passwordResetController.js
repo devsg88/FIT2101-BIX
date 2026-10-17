@@ -1,5 +1,5 @@
 import bcrypt from 'bcrypt';
-import { validateNewPassword } from '../constants/passwordRules.js';
+import { BCRYPT_COST_FACTOR, validateNewPassword } from '../constants/passwordRules.js';
 import { findUserByEmail, updateUserPasswordHash } from '../models/userModel.js';
 import {
   createPasswordResetToken,
@@ -71,7 +71,7 @@ export async function resetPasswordController(req, res) {
       return res.status(400).json({ message: RESET_TOKEN_UNUSABLE_MESSAGE });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COST_FACTOR);
     const updated = await updateUserPasswordHash(row.user_id, passwordHash);
     if (!updated) {
       return res.status(400).json({ message: RESET_TOKEN_UNUSABLE_MESSAGE });

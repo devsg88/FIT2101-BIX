@@ -146,6 +146,21 @@ describe('Burndown page', () => {
     expect(getProjectSprints).toHaveBeenCalledTimes(2);
   });
 
+  // NFR-01: this is the project-level access gate for the whole page (same
+  // member/responsible-Admin rule as the board) - a real 403 here shows
+  // Access Denied, not the generic error/Retry treatment above.
+  it('shows Access Denied, not the generic error/Retry, when Sprints are forbidden', async () => {
+    const forbidden = new Error('You are not a member of this project');
+    forbidden.status = 403;
+    getProjectSprints.mockRejectedValueOnce(forbidden);
+
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(getSprintBurndown).not.toHaveBeenCalled();
+  });
+
   it('shows an error with Retry when the burndown fails to load, and recovers', async () => {
     getSprintBurndown.mockRejectedValueOnce(new Error('Failed to load the burndown chart'));
 

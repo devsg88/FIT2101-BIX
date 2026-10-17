@@ -4,6 +4,11 @@
 
 export const MIN_PASSWORD_LENGTH = 8;
 
+// NFR-01 security baseline. Every place that hashes a new password (reset
+// today, any future "create account"/"admin sets password" flow) should
+// import this rather than writing its own literal 10.
+export const BCRYPT_COST_FACTOR = 10;
+
 export function validateNewPassword(password, confirmPassword) {
   if (!password) {
     return 'A new password is required';
