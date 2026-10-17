@@ -6,6 +6,13 @@ import { allTeams, orgStats, productOwnerHandle } from '../../data/orgMockData.j
 
 export default function AdminDashboard({ data }) {
   const [showCreateProject, setShowCreateProject] = useState(false);
+  // Real, from the backend (dashboardController.js). Everything else on this
+  // page (tasksInProgress, teamsAtRisk, the Team Health table rows) has no
+  // backend source yet - see server/db/README.md "Open questions and flags"
+  // #8, the team<->project link this would need does not exist in the
+  // schema - so those stay on orgMockData.js and are labelled as demo data
+  // below rather than silently shown as if they were live.
+  const teamCount = data?.data?.teamCount ?? null;
 
   return (
     <div className="admin-dashboard">
@@ -34,15 +41,14 @@ export default function AdminDashboard({ data }) {
 
         <div className="admin-dashboard__stats">
           <div className="stat-card">
-            <p className="stat-card__label">Active sprint teams</p>
+            <p className="stat-card__label">Total teams</p>
             <p className="stat-card__value stat-card__value--teal">
-              {orgStats.activeSprintTeams}
-              <span className="stat-card__value-suffix">/ {orgStats.totalTeams} total teams</span>
+              {teamCount ?? 'N/A'}
             </p>
           </div>
 
           <div className="stat-card">
-            <p className="stat-card__label">Tasks in progress</p>
+            <p className="stat-card__label">Tasks in progress (demo data)</p>
             <p className="stat-card__value stat-card__value--orange">
               {orgStats.tasksInProgress}
               <span className="stat-card__value-suffix">across all boards</span>
@@ -50,7 +56,7 @@ export default function AdminDashboard({ data }) {
           </div>
 
           <div className="stat-card">
-            <p className="stat-card__label">Teams blocked / at risk</p>
+            <p className="stat-card__label">Teams blocked / at risk (demo data)</p>
             <p className="stat-card__value stat-card__value--red">
               {orgStats.teamsAtRisk}
               <span className="stat-card__value-suffix">require admin attention</span>
@@ -60,7 +66,7 @@ export default function AdminDashboard({ data }) {
 
         <section className="team-health-table">
           <div className="team-health-table__header">
-            <h2>Team Health &amp; Active Sprints</h2>
+            <h2>Team Health &amp; Active Sprints (demo data)</h2>
             <button type="button" className="admin-btn admin-btn--filter">
               Filter ▾
             </button>
