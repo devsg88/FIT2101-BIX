@@ -216,6 +216,14 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState(null);
 
+  // A leftover delete-failure message must not resurface once the user has
+  // moved on to editing instead - same pattern ProjectTitle's startEditing
+  // already uses for its own error state.
+  const startEditing = () => {
+    setError(null);
+    setIsEditing(true);
+  };
+
   const handleSave = async (payload) => {
     if (kind === 'task') {
       await editTask(pbiId, item.id, payload);
@@ -269,7 +277,7 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
       )}
       {canManage && (
         <span className="project-board__checklist-actions">
-          <button type="button" onClick={() => setIsEditing(true)}>
+          <button type="button" onClick={startEditing} disabled={isDeleting}>
             Edit
           </button>
           <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
