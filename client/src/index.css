@@ -527,6 +527,7 @@ input {
 
 .admin-sidebar__settings {
   color: #4a4941;
+  text-decoration: none;
 }
 
 .admin-sidebar__signout {
@@ -3109,6 +3110,53 @@ input {
 
 .access-denied__contact {
   margin: 0.75rem 0 0;
+  color: #737168;
+  font-size: 13px;
+}
+
+/* --- System Settings (minimal placeholder page) ------------------------ */
+
+.settings-page__account {
+  max-width: 28rem;
+  margin-top: 1.5rem;
+  padding: 18px 22px;
+  border: 1.5px solid #20201d;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.settings-page__account h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.settings-page__details {
+  margin: 0;
+}
+
+.settings-page__detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid #ece9df;
+  font-size: 14px;
+}
+
+.settings-page__detail-row:first-child {
+  border-top: none;
+}
+
+.settings-page__detail-row dt {
+  color: #737168;
+}
+
+.settings-page__detail-row dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.settings-page__note {
+  margin-top: 1.25rem;
   color: #737168;
   font-size: 13px;
 }

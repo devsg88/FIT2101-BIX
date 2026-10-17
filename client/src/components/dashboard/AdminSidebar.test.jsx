@@ -139,4 +139,17 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
     expect(screen.getByLabelText('Search teams')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sign out/ })).toBeInTheDocument();
   });
+
+  // Regression: "System Settings" used to be a <button> with no onClick -
+  // clicking it did nothing. Now a real link to the Settings page.
+  it('links "System Settings" to /settings', async () => {
+    getResponsibleProjects.mockResolvedValue({ projects: [] });
+
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: /System Settings/ })).toHaveAttribute(
+      'href',
+      '/settings'
+    );
+  });
 });
