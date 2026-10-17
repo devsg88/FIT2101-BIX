@@ -44,6 +44,30 @@ function hasPlanningDetails(pbi) {
   );
 }
 
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// A real, derivable urgency signal - not a fabricated priority field (there
+// is no actual priority data anywhere in this app yet, see the "Priority"
+// note in ProductBacklog.jsx). Only meaningful once a PBI is committed to
+// the current sprint and has a real deadline: a Product Backlog or Sprint
+// Planning item is never "overdue", it hasn't started yet. Reads the date
+// the same way formatShortDate does (digits straight from the string, local
+// end-of-day), so this agrees with whatever date the card itself displays.
+function getPbiUrgency(pbi) {
+  if (pbi.stage !== 'active_sprint' || !pbi.planned_end_date) {
+    return null;
+  }
+  const end = new Date(`${String(pbi.planned_end_date).slice(0, 10)}T23:59:59`);
+  const diffMs = end.getTime() - Date.now();
+  if (diffMs < 0) {
+    return 'overdue';
+  }
+  if (diffMs <= 2 * ONE_DAY_MS) {
+    return 'due-soon';
+  }
+  return null;
+}
+
 // The "Est: 16h | Sep 15 - Sep 22" line, or "Status: Unestimated" when
 // Sprint Planning (US-08b) has not stored hours/dates for this PBI yet.
 function PbiMeta({ pbi }) {
@@ -724,20 +748,61 @@ function StartSprintButton() {
 
 // One PBI card shown inside a column. canManage (true for an admin) gates
 // the task/sub-task Edit/Delete controls - see ChecklistRow.
+//
+// The task checklist defaults to expanded (unchanged from before) rather
+// than collapsed, so every existing test and workflow that expects a task's
+// title to be visible immediately keeps working - this only adds a toggle
+// and a "N/M done" summary on top of that, it does not change what's shown
+// by default. Only top-level tasks are counted, not nested sub-tasks, to
+// keep the summary a single, unambiguous number.
 function PbiCard({ pbi, canManage }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const tasks = pbi.tasks || [];
+  const totalCount = tasks.length;
+  const doneCount = tasks.filter((task) => isDone(task.status)).length;
+  const urgency = getPbiUrgency(pbi);
+
   return (
-    <article className="project-board__card">
-      <h3 className="project-board__card-title">{pbi.title}</h3>
+    <article
+      className={
+        urgency
+          ? `project-board__card project-board__card--${urgency}`
+          : 'project-board__card'
+      }
+    >
+      <div className="project-board__card-title-row">
+        <h3 className="project-board__card-title">{pbi.title}</h3>
+        {urgency && (
+          <span
+            className={`project-board__urgency-badge project-board__urgency-badge--${urgency}`}
+          >
+            {urgency === 'overdue' ? 'Overdue' : 'Due soon'}
+          </span>
+        )}
+      </div>
       {pbi.description && (
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
-      <TaskChecklist
-        tasks={pbi.tasks}
-        pbiStage={pbi.stage}
-        pbiId={pbi.id}
-        canManage={canManage}
-      />
+      {totalCount > 0 && (
+        <button
+          type="button"
+          className="project-board__tasks-toggle"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          aria-expanded={isExpanded}
+        >
+          <span>{doneCount}/{totalCount} tasks done</span>
+          <span aria-hidden="true">{isExpanded ? '-' : '+'}</span>
+        </button>
+      )}
+      {isExpanded && (
+        <TaskChecklist
+          tasks={pbi.tasks}
+          pbiStage={pbi.stage}
+          pbiId={pbi.id}
+          canManage={canManage}
+        />
+      )}
       {pbi.stage === 'sprint_planning' && (
         <WorkItemEditor kind="task" parentId={pbi.id} parentTitle={pbi.title} />
       )}
@@ -750,33 +815,71 @@ function PbiCard({ pbi, canManage }) {
   );
 }
 
-// The four columns, one per stage, each showing its own PBIs (or an empty message).
+// True if the given user is assigned to any task or sub-task on this PBI -
+// what "my cards" means below. Checks sub-tasks too, since a developer can
+// be assigned at either level (US-04a/SCRUM-122).
+function isAssignedToPbi(pbi, userId) {
+  const tasks = pbi.tasks || [];
+  return tasks.some((task) => {
+    if (sameUserId(task.assignee_id, userId)) {
+      return true;
+    }
+    const subTasks = task.subTasks || [];
+    return subTasks.some((subTask) => sameUserId(subTask.assignee_id, userId));
+  });
+}
+
+// The four columns, one per stage, each showing its own PBIs (or an empty
+// message). "Show only my cards" filters every column to PBIs the logged-in
+// user has a task/sub-task on - a client-side view filter only, nothing is
+// fetched differently and no access rule changes; it defaults off so the
+// board shows everything, same as before this existed.
 function BoardColumns() {
   const { stages, pbisByStage } = useBoard();
   // US-04a: only an admin can edit/delete Tasks/Sub-tasks (matches the
   // backend's requireRole('admin') on every one of those endpoints).
   const { user } = useAuth();
   const canManage = user?.role === 'admin';
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
 
   return (
-    <div className="project-board__columns">
-      {stages.map((stage) => (
-        <section className="project-board__column" key={stage}>
-          <div className="project-board__column-header">
-            <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
-          </div>
-          <div className="project-board__column-body">
-            {pbisByStage[stage].length === 0 ? (
-              <p className="project-board__empty">No items</p>
-            ) : (
-              pbisByStage[stage].map((pbi) => (
-                <PbiCard key={pbi.id} pbi={pbi} canManage={canManage} />
-              ))
-            )}
-            {stage === 'sprint_planning' && <StartSprintButton />}
-          </div>
-        </section>
-      ))}
+    <div className="project-board__columns-wrapper">
+      <label className="project-board__my-cards-toggle">
+        <input
+          type="checkbox"
+          checked={showOnlyMine}
+          onChange={(event) => setShowOnlyMine(event.target.checked)}
+        />
+        Show only my cards
+      </label>
+
+      <div className="project-board__columns">
+        {stages.map((stage) => {
+          const stagePbis = showOnlyMine
+            ? pbisByStage[stage].filter((pbi) => isAssignedToPbi(pbi, user?.id))
+            : pbisByStage[stage];
+
+          return (
+            <section className="project-board__column" key={stage}>
+              <div className="project-board__column-header">
+                <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
+              </div>
+              <div className="project-board__column-body">
+                {stagePbis.length === 0 ? (
+                  <p className="project-board__empty">
+                    {showOnlyMine ? 'No cards assigned to you here' : 'No items'}
+                  </p>
+                ) : (
+                  stagePbis.map((pbi) => (
+                    <PbiCard key={pbi.id} pbi={pbi} canManage={canManage} />
+                  ))
+                )}
+                {stage === 'sprint_planning' && <StartSprintButton />}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }

@@ -132,7 +132,10 @@ describe('Board page', () => {
 
     // The sub-task is marked done, the task is not, the checkboxes should
     // reflect that (and never be interactive, there is no toggle feature yet).
-    const [taskCheckbox, subTaskCheckbox] = screen.getAllByRole('checkbox');
+    // Queried by name, not position, since "Show only my cards" (Board.jsx)
+    // is also a checkbox on the page now.
+    const taskCheckbox = screen.getByRole('checkbox', { name: 'Build the upload API endpoint' });
+    const subTaskCheckbox = screen.getByRole('checkbox', { name: 'Validate file size and type' });
     expect(taskCheckbox).not.toBeChecked();
     expect(taskCheckbox).toBeDisabled();
     expect(subTaskCheckbox).toBeChecked();
