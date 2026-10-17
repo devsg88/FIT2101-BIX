@@ -179,10 +179,13 @@ export default function MyProjects() {
 
             {showUserMenu && (
               <div className="dev-user-dropdown">
+                <Link to="/settings" className="dev-user-dropdown__item dev-user-dropdown__item--settings">
+                  Settings
+                </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
-                  className="dev-user-dropdown__item"
+                  className="dev-user-dropdown__item dev-user-dropdown__item--signout"
                 >
                   Sign out
                 </button>
