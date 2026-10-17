@@ -1,67 +1,18 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { getDashboard } from '../services/api.js';
 
-const allProjects = [
-  {
-    id: 1,
-    name: 'Project Alpha',
-    description: 'Internal task management platform for dev teams.',
-    status: 'Active',
-    statusType: 'active',
-    assigned: true,
-    currentSprint: 'Sprint 4',
-    sprintEnds: 'Fri, Sep 19',
-    scrumMaster: '@abc.tan',
-    progress: 60,
-    devCount: 3,
-    avatars: [
-      { text: 'A', bg: '#40c4ff' },
-      { text: 'N', bg: '#4ade80' },
-      { text: 'L', bg: '#f87171' }
-    ]
-  },
-  {
-    id: 2,
-    name: 'Project Beta',
-    description: 'Internal task management platform for dev teams.',
-    status: 'Planning',
-    statusType: 'planning',
-    assigned: true,
-    currentSprint: 'Sprint 1',
-    sprintEnds: 'Mon, Sep 13',
-    scrumMaster: '@abc.pang',
-    progress: 20,
-    devCount: 3,
-    avatars: [
-      { text: 'T', bg: '#40c4ff' },
-      { text: 'N', bg: '#4ade80' },
-      { text: 'P', bg: '#f87171' }
-    ]
-  },
-  {
-    id: 3,
-    name: 'Project Gamma',
-    description: 'Internal task management platform for dev teams.',
-    status: 'Not started',
-    statusType: 'not-started',
-    // Not assigned to the current developer (US-05). Still shown on page 1,
-    // but locked: no project detail, no board access - just enough to
-    // illustrate the access rule. A real API response might instead omit it
-    // entirely; kept visible here since that's what was asked for.
-    assigned: false,
-    currentSprint: '-',
-    sprintEnds: '-',
-    scrumMaster: '@abc.eng',
-    progress: 0,
-    devCount: 3,
-    avatars: [
-      { text: 'T', bg: '#40c4ff' },
-      { text: 'N', bg: '#4ade80' },
-      { text: 'P', bg: '#f87171' }
-    ]
-  }
-];
+// Matches DeveloperDashboard.jsx's own mapping - the backend's raw status
+// values ('active' | 'planning' | 'not-started', see
+// getProjectSummariesForUser in projectMembershipModel.js) doubling as both
+// the CSS modifier and the lookup key here, so the two pages can never
+// disagree on what a given status looks like.
+const STATUS_LABELS = {
+  active: 'Active',
+  planning: 'Planning',
+  'not-started': 'Not started'
+};
 
 const filterTabs = ['All', 'Active', 'Planning', 'Not started'];
 
@@ -71,10 +22,27 @@ export default function MyProjects() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
-  const [currentPage, setCurrentPage] = useState(1);
-  // The locked project the "No access" modal is currently explaining, or
-  // null when the modal is closed.
-  const [accessDeniedProject, setAccessDeniedProject] = useState(null);
+
+  const [projects, setProjects] = useState([]);
+  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+
+  // Same endpoint DeveloperDashboard.jsx already uses - this page only
+  // reads data.data.projects out of it. Also used as the Retry action.
+  const loadProjects = useCallback(() => {
+    setStatus('loading');
+    getDashboard(user.token)
+      .then((data) => {
+        setProjects(Array.isArray(data?.data?.projects) ? data.data.projects : []);
+        setStatus('ready');
+      })
+      .catch(() => {
+        setStatus('error');
+      });
+  }, [user.token]);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
 
   const userName = user?.name || 'Pang';
   const userRole = user?.role
@@ -87,28 +55,13 @@ export default function MyProjects() {
   };
 
   const filteredProjects = useMemo(() => {
-    return allProjects.filter((project) => {
-      const matchesFilter =
-        selectedFilter === 'All' || project.status === selectedFilter;
-      const matchesSearch =
-        project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        project.scrumMaster.toLowerCase().includes(searchQuery.toLowerCase());
+    return projects.filter((project) => {
+      const label = STATUS_LABELS[project.status] ?? project.status;
+      const matchesFilter = selectedFilter === 'All' || label === selectedFilter;
+      const matchesSearch = project.name.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesFilter && matchesSearch;
     });
-  }, [selectedFilter, searchQuery]);
-
-  // Changing the filter or search should always land back on page 1.
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedFilter, searchQuery]);
-
-  // The full assigned-project list fits on one page; page 2 is a fixed,
-  // empty placeholder until this page is backed by real, paged data.
-  const totalPages = 2;
-
-  const goToNextPage = () => setCurrentPage((page) => Math.min(totalPages, page + 1));
-  const goToPreviousPage = () => setCurrentPage((page) => Math.max(1, page - 1));
+  }, [projects, selectedFilter, searchQuery]);
 
   return (
     <div className="my-projects-page dev-dashboard">
@@ -312,207 +265,116 @@ export default function MyProjects() {
 
         {/* Project Cards List */}
         <section className="my-projects-list">
-          {currentPage === 1 ? (
-            filteredProjects.map((project) =>
-              project.assigned === false ? (
-                // US-05: a project the current developer isn't assigned to.
-                // Shown locked, with no project detail or board access.
-                <article
-                  className="project-card-row project-card-row--locked"
-                  key={project.id}
-                >
+          {status === 'loading' && (
+            <p className="dashboard-status">Loading your projects...</p>
+          )}
+
+          {status === 'error' && (
+            <div className="dashboard-status" role="alert">
+              <p>Couldn&apos;t load your projects.</p>
+              <button type="button" onClick={loadProjects}>
+                Retry
+              </button>
+            </div>
+          )}
+
+          {status === 'ready' && filteredProjects.length === 0 && (
+            <p className="my-projects-empty">No projects to show.</p>
+          )}
+
+          {status === 'ready' &&
+            filteredProjects.map((project) => {
+              const statusLabel = STATUS_LABELS[project.status] ?? project.status;
+
+              return (
+                <article className="project-card-row" key={project.id}>
+                  {/* Left Details */}
                   <div className="project-card-left">
                     <div className="project-card-name-row">
                       <h2 className="project-card-name">{project.name}</h2>
-                      <span className="dev-status-pill dev-status-pill--locked">
+                      <span
+                        className={`dev-status-pill dev-status-pill--${project.status}`}
+                      >
                         <span className="dev-status-dot" />
-                        Not assigned
+                        {statusLabel}
                       </span>
                     </div>
 
-                    <p className="project-card-desc project-card-desc--locked">
-                      You&apos;re not assigned to this project, so it won&apos;t
-                      appear on your dashboard. Shown here only to illustrate
-                      the access rule.
-                    </p>
+                    <p className="project-card-desc">No description available yet.</p>
+
+                    {/* Sprint/Scrum Master/team details are not provided by
+                        the backend yet (see US-09, Tag Scrum Master &
+                        Product Owner, still in progress) - shown as
+                        honestly unavailable rather than invented, same
+                        layout kept for when that data exists. */}
+                    <div className="project-card-meta">
+                      <div className="project-meta-col">
+                        <span className="project-meta-label">Current sprint</span>
+                        <span className="project-meta-val">Not available yet</span>
+                      </div>
+
+                      <div className="project-meta-col">
+                        <span className="project-meta-label">Sprint ends</span>
+                        <span className="project-meta-val">Not available yet</span>
+                      </div>
+
+                      <div className="project-meta-col">
+                        <span className="project-meta-label">Scrum master</span>
+                        <span className="project-meta-val">Not available yet</span>
+                      </div>
+                    </div>
+
+                    <div className="project-card-team">
+                      <span className="project-team-count">
+                        Team info not available yet
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="project-card-right project-card-right--locked">
-                    <button
-                      type="button"
-                      className="project-no-access-btn"
-                      onClick={() => setAccessDeniedProject(project)}
+                  {/* Right Details */}
+                  <div className="project-card-right">
+                    <div className="project-card-progress">
+                      {project.progress === null ? (
+                        <span className="project-progress-label">No tasks yet</span>
+                      ) : (
+                        <>
+                          <div className="project-progress-track">
+                            <div
+                              className="project-progress-fill"
+                              style={{ width: `${project.progress}%` }}
+                            />
+                          </div>
+                          <span className="project-progress-label">{project.progress}%</span>
+                        </>
+                      )}
+                    </div>
+
+                    <Link
+                      to={`/projects/${project.id}/board`}
+                      className="project-open-board-btn"
                     >
-                      No access
-                    </button>
+                      <span>Open Board</span>
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <line x1="7" y1="17" x2="17" y2="7" />
+                        <polyline points="7 7 17 7 17 17" />
+                      </svg>
+                    </Link>
                   </div>
                 </article>
-              ) : (
-              <article className="project-card-row" key={project.id}>
-                {/* Left Details */}
-                <div className="project-card-left">
-                  <div className="project-card-name-row">
-                    <h2 className="project-card-name">{project.name}</h2>
-                    <span
-                      className={`dev-status-pill dev-status-pill--${project.statusType}`}
-                    >
-                      <span className="dev-status-dot" />
-                      {project.status}
-                    </span>
-                  </div>
-
-                  <p className="project-card-desc">{project.description}</p>
-
-                  <div className="project-card-meta">
-                    <div className="project-meta-col">
-                      <span className="project-meta-label">Current sprint</span>
-                      <span className="project-meta-val">{project.currentSprint}</span>
-                    </div>
-
-                    <div className="project-meta-col">
-                      <span className="project-meta-label">Sprint ends</span>
-                      <span className="project-meta-val">{project.sprintEnds}</span>
-                    </div>
-
-                    <div className="project-meta-col">
-                      <span className="project-meta-label">Scrum master</span>
-                      <span className="project-meta-val">{project.scrumMaster}</span>
-                    </div>
-                  </div>
-
-                  <div className="project-card-team">
-                    <div className="project-team-avatars">
-                      {project.avatars.map((av, idx) => (
-                        <span
-                          key={idx}
-                          className="project-team-avatar"
-                          style={{ backgroundColor: av.bg }}
-                        >
-                          {av.text}
-                        </span>
-                      ))}
-                    </div>
-                    <span className="project-team-count">
-                      {project.devCount} developers working on this project
-                    </span>
-                  </div>
-                </div>
-
-                {/* Right Details */}
-                <div className="project-card-right">
-                  <div className="project-card-progress">
-                    <div className="project-progress-track">
-                      <div
-                        className="project-progress-fill"
-                        style={{ width: `${project.progress}%` }}
-                      />
-                    </div>
-                    <span className="project-progress-label">{project.progress}%</span>
-                  </div>
-
-                  <Link
-                    to={`/projects/${project.id}/board`}
-                    className="project-open-board-btn"
-                  >
-                    <span>Open Board</span>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <line x1="7" y1="17" x2="17" y2="7" />
-                      <polyline points="7 7 17 7 17 17" />
-                    </svg>
-                  </Link>
-                </div>
-              </article>
-              )
-            )
-          ) : (
-            <p className="my-projects-empty">No projects to show on this page.</p>
-          )}
+              );
+            })}
         </section>
-
-        {/* Pagination Footer */}
-        <footer className="my-projects-pagination">
-          <span className="pagination-count">
-            {currentPage}/{totalPages} pages
-          </span>
-
-          {totalPages > 1 &&
-            (currentPage < totalPages ? (
-              <button
-                type="button"
-                className="pagination-nav-btn"
-                onClick={goToNextPage}
-              >
-                <span>Next page</span>
-                <span aria-hidden="true">⇨</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="pagination-nav-btn"
-                onClick={goToPreviousPage}
-              >
-                <span aria-hidden="true">⇦</span>
-                <span>Previous page</span>
-              </button>
-            ))}
-        </footer>
       </main>
-
-      {accessDeniedProject && (
-        <div
-          className="access-denied-overlay"
-          onClick={() => setAccessDeniedProject(null)}
-        >
-          <div
-            className="access-denied-modal"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="access-denied-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="access-denied-close"
-              aria-label="Close"
-              onClick={() => setAccessDeniedProject(null)}
-            >
-              ×
-            </button>
-
-            <div className="access-denied-icon" aria-hidden="true">
-              ⊘
-            </div>
-
-            <h2 id="access-denied-title" className="access-denied-title">
-              You don&apos;t have access to this project
-            </h2>
-
-            <p className="access-denied-desc">
-              You&apos;re not currently assigned to {accessDeniedProject.name}
-              . If you think this is a mistake, ask your project admin to add
-              you to the team.
-            </p>
-
-            <button
-              type="button"
-              className="access-denied-back"
-              onClick={() => setAccessDeniedProject(null)}
-            >
-              Back to my projects
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
