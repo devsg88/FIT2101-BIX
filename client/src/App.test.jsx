@@ -105,10 +105,13 @@ describe('Settings route', () => {
     expect(screen.getByText('Settings Page')).toBeInTheDocument();
   });
 
-  it('shows Access Denied to a Developer, not the Settings page', () => {
+  // US-16 (T16.3): previously admin-only (Access Denied for a Developer);
+  // now any authenticated user reaches the route - Settings.jsx itself
+  // picks the right view per role (see Settings.test.jsx for that).
+  it('shows the Settings page to a Developer too, not Access Denied', () => {
     renderApp('/settings', { id: 2, role: 'developer', token: 'abc' });
-    expect(screen.queryByText('Settings Page')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.getByText('Settings Page')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Access Denied' })).not.toBeInTheDocument();
   });
 
   it('sends a logged-out visitor to the login page', () => {

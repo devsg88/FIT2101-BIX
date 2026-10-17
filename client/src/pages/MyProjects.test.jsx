@@ -158,4 +158,13 @@ describe('MyProjects page', () => {
     expect(screen.queryByText(/pages/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /next page/i })).not.toBeInTheDocument();
   });
+
+  // US-16 (T16.4): the Developer's entry point into Settings.
+  it('links Settings to /settings in the user menu', () => {
+    renderMyProjects();
+
+    fireEvent.click(screen.getByRole('button', { name: /Pang/ }));
+
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+  });
 });

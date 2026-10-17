@@ -1252,19 +1252,35 @@ input {
 }
 
 .dev-user-dropdown__item {
+  display: block;
   width: 100%;
   padding: 8px 12px;
   background: none;
   border: none;
   text-align: left;
+  text-decoration: none;
   font-size: 13px;
   font-weight: 600;
-  color: #c53030;
   cursor: pointer;
   border-radius: 4px;
 }
 
-.dev-user-dropdown__item:hover {
+/* Settings (US-16, T16.4) is a plain navigation link, same neutral color
+   AdminSidebar already uses for its own Settings entry - Sign out is the
+   only destructive/red item in this menu. */
+.dev-user-dropdown__item--settings {
+  color: #4a4941;
+}
+
+.dev-user-dropdown__item--settings:hover {
+  background: #f1efe6;
+}
+
+.dev-user-dropdown__item--signout {
+  color: #c53030;
+}
+
+.dev-user-dropdown__item--signout:hover {
   background: #fee2e2;
 }
 
