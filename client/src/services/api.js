@@ -55,6 +55,24 @@ export function login(credentials) {
   });
 }
 
+export function requestPasswordReset(email) {
+  return request('/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email })
+  });
+}
+
+export function resetPassword({ token, password, confirm_password }) {
+  return request('/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, password, confirm_password })
+  });
+}
+
+export function getDemoMailbox() {
+  return request('/auth/demo-mailbox');
+}
+
 export function getDashboard(token) {
   return request('/dashboard', {
     headers: authHeader(token)

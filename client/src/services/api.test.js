@@ -5,9 +5,12 @@ import {
   deletePbi,
   getBoard,
   getCompletedWork,
+  getDemoMailbox,
   getProjectPbis,
   login,
   movePbi,
+  requestPasswordReset,
+  resetPassword,
   setSessionExpiredHandler,
   startSprint,
   updatePbi,
@@ -293,5 +296,47 @@ describe('session-expiry hook (NFR-01)', () => {
     await expect(getBoard(7, 'tok')).rejects.toThrow('Not permitted');
 
     expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe('password reset api helpers (US-14)', () => {
+  beforeEach(() => {
+    global.fetch = vi.fn().mockImplementation(() => okJson({}));
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('requestPasswordReset posts the email without an auth header', async () => {
+    await requestPasswordReset('developer@bix.app');
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/auth/forgot-password');
+    expect(options.method).toBe('POST');
+    expect(options.body).toBe(JSON.stringify({ email: 'developer@bix.app' }));
+    expect(options.headers.Authorization).toBeUndefined();
+  });
+
+  it('resetPassword posts token and password without an auth header', async () => {
+    await resetPassword({
+      token: 'abc',
+      password: 'newpass12',
+      confirm_password: 'newpass12'
+    });
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/auth/reset-password');
+    expect(options.headers.Authorization).toBeUndefined();
+    expect(JSON.parse(options.body)).toEqual({
+      token: 'abc',
+      password: 'newpass12',
+      confirm_password: 'newpass12'
+    });
+  });
+
+  it('getDemoMailbox GETs the demo inbox without auth', async () => {
+    await getDemoMailbox();
+    const [url, options] = global.fetch.mock.calls[0];
+    expect(url).toBe('http://localhost:4000/api/auth/demo-mailbox');
+    expect(options.headers.Authorization).toBeUndefined();
   });
 });
