@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import { getProjectResponsibility } from '../models/projectModel.js';
-import { getSprintAnalytics } from '../models/analyticsModel.js';
+import { getSprintAnalytics, getProjectAnalytics } from '../models/analyticsModel.js';
 
 vi.mock('../models/projectModel.js');
 vi.mock('../models/analyticsModel.js');
@@ -20,6 +20,12 @@ describe('Sprint analytics HTTP access', () => {
     return fetch(`${baseUrl}/api/projects/${projectId}/analytics/sprints`, { headers });
   }
 
+  function sendProjects(user, query = '', token) {
+    const headers = {};
+    if (user || token) headers.Authorization = `Bearer ${token ?? jwt.sign(user, secret)}`;
+    return fetch(`${baseUrl}/api/projects/analytics${query}`, { headers });
+  }
+
   beforeAll(async () => {
     previousSecret = process.env.JWT_SECRET;
     process.env.JWT_SECRET = secret;
@@ -35,6 +41,7 @@ describe('Sprint analytics HTTP access', () => {
     vi.clearAllMocks();
     getProjectResponsibility.mockResolvedValue({ isResponsible: true });
     getSprintAnalytics.mockResolvedValue(data);
+    getProjectAnalytics.mockResolvedValue({ projects: [], developers: [], effort: [], unattributed: [] });
   });
 
   it.each([undefined, 'invalid'])('rejects missing or invalid token %s', async (token) => {
@@ -84,5 +91,37 @@ describe('Sprint analytics HTTP access', () => {
     const res = await send({ id: '3', role: 'admin' });
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ message: 'Failed to load Sprint analytics' });
+  });
+
+  describe('Project analytics collection', () => {
+    it.each([undefined, 'invalid'])('rejects missing or invalid authentication %s', async (token) => {
+      expect((await sendProjects(null, '', token)).status).toBe(401);
+      expect(getProjectAnalytics).not.toHaveBeenCalled();
+    });
+
+    it.each(['developer', 'guest'])('rejects role %s', async (role) => {
+      expect((await sendProjects({ id: '7', role })).status).toBe(403);
+      expect(getProjectAnalytics).not.toHaveBeenCalled();
+    });
+
+    it('uses the authenticated admin, not forged admin/project query parameters', async () => {
+      const res = await sendProjects({ id: '3', role: 'admin' }, '?adminId=99&projectId=100');
+      expect(res.status).toBe(200);
+      expect(getProjectAnalytics).toHaveBeenCalledWith(3);
+      expect(getProjectResponsibility).not.toHaveBeenCalled();
+      expect(await res.json()).toEqual({ projects: [], developers: [], effort: [], unattributed: [] });
+    });
+
+    it('supports another admin without expanding their scope', async () => {
+      expect((await sendProjects({ id: '9', role: 'admin' })).status).toBe(200);
+      expect(getProjectAnalytics).toHaveBeenCalledWith(9);
+    });
+
+    it('returns safe database failure responses', async () => {
+      getProjectAnalytics.mockRejectedValue(new Error('private database details'));
+      const res = await sendProjects({ id: '3', role: 'admin' });
+      expect(res.status).toBe(500);
+      expect(await res.json()).toEqual({ message: 'Failed to load Project analytics' });
+    });
   });
 });

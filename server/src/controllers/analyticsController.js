@@ -1,4 +1,16 @@
-import { getSprintAnalytics } from '../models/analyticsModel.js';
+import { getSprintAnalytics, getProjectAnalytics } from '../models/analyticsModel.js';
+
+export async function getProjectAnalyticsController(req, res) {
+  const adminId = Number(req.user?.id);
+  if (!Number.isSafeInteger(adminId) || adminId <= 0) {
+    return res.status(401).json({ message: 'Authentication required' });
+  }
+  try {
+    return res.json(await getProjectAnalytics(adminId));
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to load Project analytics' });
+  }
+}
 
 export async function getSprintAnalyticsController(req, res) {
   const projectId = Number(req.params.projectId);
