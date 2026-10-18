@@ -5,6 +5,7 @@ import { STAGE_LABELS } from '../context/BoardContext.jsx';
 import { getProjectPbis } from '../services/api.js';
 import PbiFormModal from '../components/backlog/PbiFormModal.jsx';
 import DeletePbiDialog from '../components/backlog/DeletePbiDialog.jsx';
+import AccessDenied from '../components/common/AccessDenied.jsx';
 
 // US-04b / SCRUM-151. The Admin's Product Backlog list for one project: every
 // PBI with its title, priority and status, plus create / edit (SCRUM-101) and
@@ -70,7 +71,7 @@ export default function ProductBacklog() {
   const token = user?.token;
 
   const [pbis, setPbis] = useState([]);
-  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error' | 'forbidden'
   const [error, setError] = useState(null);
   // SCRUM-101: which form is open - null (none), { mode: 'create' }, or
   // { mode: 'edit', pbi }.
@@ -91,8 +92,15 @@ export default function ProductBacklog() {
         setStatus('ready');
       } catch (err) {
         if (!isCurrent()) return;
-        setError(err?.message || 'Something went wrong loading the backlog.');
-        setStatus('error');
+        // NFR-01: an Admin who is not responsible for this project gets a
+        // 403 here - that's a permission decision, not a load failure, so
+        // it shows AccessDenied rather than the generic Retry treatment.
+        if (err?.status === 403) {
+          setStatus('forbidden');
+        } else {
+          setError(err?.message || 'Something went wrong loading the backlog.');
+          setStatus('error');
+        }
       }
     },
     [projectId, token]
@@ -156,6 +164,8 @@ export default function ProductBacklog() {
         {status === 'loading' && (
           <p className="project-board__status">Loading backlog...</p>
         )}
+
+        {status === 'forbidden' && <AccessDenied />}
 
         {status === 'error' && (
           <div className="project-board__status" role="alert">

@@ -12,14 +12,18 @@ vi.mock('../../services/api.js', () => ({
   getResponsibleProjects: vi.fn(() => Promise.resolve({ projects: [] }))
 }));
 
-function renderDashboard() {
+// Matches the real shape Dashboard.jsx passes down - the full response from
+// getDashboard() ({ role, data: { teamCount } }, see dashboardController.js),
+// not just the inner object. Same convention DeveloperDashboard.jsx reads
+// (data?.data?....).
+function renderDashboard(teamCount = 1) {
   useAuth.mockReturnValue({
     user: { id: 3, name: 'Admin', role: 'admin', token: 'tok-admin' },
     logout: vi.fn()
   });
   return render(
     <MemoryRouter>
-      <AdminDashboard data={{ teamCount: 1 }} />
+      <AdminDashboard data={{ role: 'admin', data: { teamCount } }} />
     </MemoryRouter>
   );
 }
@@ -58,5 +62,34 @@ describe('AdminDashboard - Create Project (US-04d)', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(createProject).not.toHaveBeenCalled();
+  });
+});
+
+// Regression test: AdminDashboard used to receive this real backend value
+// and never read it, rendering a hardcoded mock number instead.
+describe('AdminDashboard - real team count (NFR-01 frontend audit finding)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the real teamCount from the backend, not a hardcoded mock number', () => {
+    renderDashboard(7);
+
+    expect(screen.getByText('Total teams')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  it('shows a safe fallback instead of blowing up when teamCount is missing', () => {
+    useAuth.mockReturnValue({
+      user: { id: 3, name: 'Admin', role: 'admin', token: 'tok-admin' },
+      logout: vi.fn()
+    });
+    render(
+      <MemoryRouter>
+        <AdminDashboard data={null} />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('N/A')).toBeInTheDocument();
   });
 });

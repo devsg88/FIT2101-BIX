@@ -4,6 +4,7 @@ import {
   getBurndownController,
   getProjectSprintsController
 } from '../controllers/burndownController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js).
 const router = Router();
@@ -15,7 +16,7 @@ router.get(
   '/:projectId/sprints',
   requireAuth,
   requireProjectAccess,
-  getProjectSprintsController
+  asyncHandler(getProjectSprintsController)
 );
 
 // GET /api/projects/:projectId/sprints/:sprintId/burndown
@@ -27,7 +28,7 @@ router.get(
   '/:projectId/sprints/:sprintId/burndown',
   requireAuth,
   requireProjectAccess,
-  getBurndownController
+  asyncHandler(getBurndownController)
 );
 
 export default router;

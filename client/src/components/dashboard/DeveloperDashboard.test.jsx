@@ -168,4 +168,13 @@ describe('DeveloperDashboard component', () => {
     fireEvent.click(signOutBtn);
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
+
+  // US-16 (T16.4): the Developer's entry point into Settings.
+  it('links Settings to /settings in the user menu', () => {
+    renderDashboard();
+
+    fireEvent.click(screen.getByRole('button', { name: /Pang/ }));
+
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
+  });
 });

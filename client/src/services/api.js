@@ -1,20 +1,62 @@
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
 
+// NFR-01: a 401 on an already-authenticated call means the token expired or
+// was invalidated server-side (e.g. role/membership changed), not "wrong
+// password" - that case only ever happens on /auth/login, which never sends
+// an Authorization header and is handled locally by the login form instead.
+// AuthContext registers the real handler (clear the session, redirect to
+// /login) once, here, rather than every page that calls `request` having to
+// check err.status === 401 for itself.
+let sessionExpiredHandler = null;
+
+export function setSessionExpiredHandler(handler) {
+  sessionExpiredHandler = handler;
+}
+
+// NFR-03 / SCRUM-191. Shown when the request never got a response at all
+// (server down, connection lost, blocked request) instead of the browser's
+// own wording such as "Failed to fetch". status 0 marks it as a network
+// failure for callers that need to tell it apart from an HTTP error.
+export const NETWORK_ERROR_MESSAGE =
+  'Could not reach the server. Check your connection and try again.';
+
+// Used when an error response carries no message of its own (e.g. a proxy's
+// HTML error page), instead of "Request failed with status 502".
+export const SERVER_ERROR_FALLBACK_MESSAGE = 'Something went wrong on our side. Please try again.';
+export const REQUEST_ERROR_FALLBACK_MESSAGE = 'The request could not be completed. Please try again.';
+
 async function request(path, options = {}) {
   const { headers, ...rest } = options;
+  // Merge caller headers on top of the default Content-Type. Pulling `headers`
+  // out of `options` first means the spread below cannot clobber this merged
+  // object, so both Content-Type and Authorization survive on requests that
+  // send a JSON body.
+  const mergedHeaders = { 'Content-Type': 'application/json', ...headers };
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    // Merge caller headers on top of the default Content-Type. Pulling `headers`
-    // out of `options` first means the spread below cannot clobber this merged
-    // object, so both Content-Type and Authorization survive on requests that
-    // send a JSON body.
-    headers: { 'Content-Type': 'application/json', ...headers },
-    ...rest
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      headers: mergedHeaders,
+      ...rest
+    });
+  } catch (cause) {
+    // A deliberate cancellation is not a failure to report.
+    if (cause?.name === 'AbortError') {
+      throw cause;
+    }
+    const err = new Error(NETWORK_ERROR_MESSAGE);
+    err.status = 0;
+    err.cause = cause;
+    throw err;
+  }
 
   if (!res.ok) {
+    if (res.status === 401 && mergedHeaders.Authorization) {
+      sessionExpiredHandler?.();
+    }
     const body = await res.json().catch(() => ({}));
-    const err = new Error(body.message || `Request failed with status ${res.status}`);
+    const fallback = res.status >= 500 ? SERVER_ERROR_FALLBACK_MESSAGE : REQUEST_ERROR_FALLBACK_MESSAGE;
+    const err = new Error(typeof body.message === 'string' && body.message ? body.message : fallback);
     // Callers that need to tell "not permitted" apart from any other failure
     // (e.g. the Completed Work History sidebar showing a dedicated
     // access-denied message instead of a generic retry) can check this
@@ -226,6 +268,17 @@ export function updatePbiPlanning(projectId, pbiId, planning, token) {
   });
 }
 
+// POST /api/projects/:projectId/sprints   body: { name }  (US-10)
+// The real way a sprint row comes to exist - previously only db/seed.sql
+// did this. Admin-only on the backend. Resolves with { sprint }.
+export function createSprint(projectId, name, token) {
+  return request(`/projects/${projectId}/sprints`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
 // POST /api/projects/:projectId/sprints/:sprintId/start  (US-10  Yichi Zhang)
 // Moves every Sprint Planning PBI into Active Sprint together. Resolves with
 // { sprint, pbis } on success, or throws (empty sprint, missing estimates, ...).
@@ -329,6 +382,36 @@ export function assignSubTask(projectId, pbiId, taskId, subTaskId, assigneeId, t
 // this dropdown has something to source from). Resolves with { members }.
 export function getProjectMembers(projectId, token) {
   return request(`/projects/${projectId}/members`, {
+    headers: authHeader(token)
+  });
+}
+
+// GET /api/projects/:projectId/available-developers  (US-03/US-05)
+// Developers not already on this project - the candidate list for Add
+// Member. Admin-only (and only the responsible Admin) on the backend.
+// Resolves with { developers }.
+export function getAvailableDevelopers(projectId, token) {
+  return request(`/projects/${projectId}/available-developers`, {
+    headers: authHeader(token)
+  });
+}
+
+// POST /api/projects/:projectId/members   body: { user_id }  (US-03/US-05)
+// Adds a developer to the project - the thing US-05's access check actually
+// reads. Resolves with { members: <refreshed list> }.
+export function addProjectMember(projectId, userId, token) {
+  return request(`/projects/${projectId}/members`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ user_id: userId })
+  });
+}
+
+// DELETE /api/projects/:projectId/members/:userId  (US-03/US-05)
+// Resolves with { members: <refreshed list> }.
+export function removeProjectMember(projectId, userId, token) {
+  return request(`/projects/${projectId}/members/${userId}`, {
+    method: 'DELETE',
     headers: authHeader(token)
   });
 }

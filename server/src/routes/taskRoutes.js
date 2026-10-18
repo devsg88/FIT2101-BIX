@@ -18,15 +18,16 @@ import {
   createSubTaskController, updateSubTaskController,
   getPbiBreakdownController
 } from '../controllers/breakdownController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js), same base as pbiRoutes.js/boardRoutes.js.
 const router = Router();
 
-router.get('/:projectId/pbis/:pbiId', requireAuth, requireProjectAccess, getPbiBreakdownController);
-router.post('/:projectId/pbis/:pbiId/tasks', requireAuth, requireProjectAccess, createTaskController);
-router.patch('/:projectId/tasks/:taskId', requireAuth, requireProjectAccess, updateTaskController);
-router.post('/:projectId/tasks/:taskId/sub-tasks', requireAuth, requireProjectAccess, createSubTaskController);
-router.patch('/:projectId/sub-tasks/:subTaskId', requireAuth, requireProjectAccess, updateSubTaskController);
+router.get('/:projectId/pbis/:pbiId', requireAuth, requireProjectAccess, asyncHandler(getPbiBreakdownController));
+router.post('/:projectId/pbis/:pbiId/tasks', requireAuth, requireProjectAccess, asyncHandler(createTaskController));
+router.patch('/:projectId/tasks/:taskId', requireAuth, requireProjectAccess, asyncHandler(updateTaskController));
+router.post('/:projectId/tasks/:taskId/sub-tasks', requireAuth, requireProjectAccess, asyncHandler(createSubTaskController));
+router.patch('/:projectId/sub-tasks/:subTaskId', requireAuth, requireProjectAccess, asyncHandler(updateSubTaskController));
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
 // US-04a / SCRUM-121. Admin-only, and only for the Admin responsible for
 // this project (requireProjectResponsibility, US-04d's
@@ -37,7 +38,7 @@ router.patch(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  editTaskController
+  asyncHandler(editTaskController)
 );
 
 // DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId
@@ -47,7 +48,7 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  deleteTaskController
+  asyncHandler(deleteTaskController)
 );
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/assignee
@@ -57,7 +58,7 @@ router.patch(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  assignTaskController
+  asyncHandler(assignTaskController)
 );
 
 // POST /api/projects/:projectId/tasks/:taskId/complete
@@ -66,7 +67,7 @@ router.post(
   '/:projectId/tasks/:taskId/complete',
   requireAuth,
   requireProjectAccess,
-  completeTaskController
+  asyncHandler(completeTaskController)
 );
 
 // POST /api/projects/:projectId/sub-tasks/:subTaskId/complete
@@ -74,7 +75,7 @@ router.post(
   '/:projectId/sub-tasks/:subTaskId/complete',
   requireAuth,
   requireProjectAccess,
-  completeSubTaskController
+  asyncHandler(completeSubTaskController)
 );
 
 // POST /api/projects/:projectId/pbis/:pbiId/complete
@@ -82,7 +83,7 @@ router.post(
   '/:projectId/pbis/:pbiId/complete',
   requireAuth,
   requireProjectAccess,
-  completePbiController
+  asyncHandler(completePbiController)
 );
 
 export default router;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -118,6 +118,29 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
     expect(screen.getByRole('link', { name: 'Organization Dashboard' })).toBeInTheDocument();
   });
 
+  // NFR-03 / SCRUM-191.
+  it('offers Retry after a failed load, and a successful retry shows the projects', async () => {
+    getResponsibleProjects
+      .mockRejectedValueOnce(Object.assign(new Error('Could not reach the server.'), { status: 0 }))
+      .mockResolvedValueOnce({ projects: [{ id: '4', name: 'Mobile App' }] });
+
+    renderSidebar();
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByRole('link', { name: 'Mobile App' })).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(getResponsibleProjects).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not offer Retry when access is refused (403)', async () => {
+    getResponsibleProjects.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }));
+
+    renderSidebar();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("You don't have access to these projects.");
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+  });
+
   it('does not ask for projects when there is no token', () => {
     renderSidebar({ id: 3, name: 'Admin', role: 'admin' });
 
@@ -138,5 +161,18 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
     expect(screen.getByRole('link', { name: 'Team Alpha' })).toHaveAttribute('href', '/teams/1');
     expect(screen.getByLabelText('Search teams')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sign out/ })).toBeInTheDocument();
+  });
+
+  // Regression: "System Settings" used to be a <button> with no onClick -
+  // clicking it did nothing. Now a real link to the Settings page.
+  it('links "System Settings" to /settings', async () => {
+    getResponsibleProjects.mockResolvedValue({ projects: [] });
+
+    renderSidebar();
+
+    expect(screen.getByRole('link', { name: /System Settings/ })).toHaveAttribute(
+      'href',
+      '/settings'
+    );
   });
 });
