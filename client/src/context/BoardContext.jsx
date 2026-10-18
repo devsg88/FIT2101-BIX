@@ -90,6 +90,20 @@ export function BoardProvider({ projectId, children }) {
     setStatus('loading');
     setError(null);
 
+    // NFR-02: the members list does not depend on the board response, so it
+    // is requested at the same time instead of after it - one round trip
+    // fewer before the assignee dropdown is ready. Its failure is caught
+    // right here, so it can never fail the board load (or go unhandled if
+    // the board fails first); it is only applied once the board has loaded.
+    const membersRequest = (async () => {
+      try {
+        const result = await getProjectMembers(projectId, token);
+        return Array.isArray(result?.members) ? result.members : [];
+      } catch {
+        return [];
+      }
+    })();
+
     try {
       const data = await getBoard(projectId, token);
       applyBoardData(data);
@@ -110,16 +124,10 @@ export function BoardProvider({ projectId, children }) {
       return;
     }
 
-    // Members are fetched after the board succeeds, and in their own
-    // try/catch: this list only feeds the assignee dropdown (SCRUM-124), so
-    // a failure here should not turn an otherwise-loadable board into an
-    // error page. It just leaves `members` empty until the next reload.
-    try {
-      const { members: loadedMembers } = await getProjectMembers(projectId, token);
-      setMembers(Array.isArray(loadedMembers) ? loadedMembers : []);
-    } catch (err) {
-      setMembers([]);
-    }
+    // Members only feed the assignee dropdown (SCRUM-124), so a failure there
+    // must not turn an otherwise-loadable board into an error page: it just
+    // leaves `members` empty until the next reload.
+    setMembers(await membersRequest);
   }, [projectId, token, applyBoardData]);
 
   // Load the board once when this component mounts (or if projectId/token change).
