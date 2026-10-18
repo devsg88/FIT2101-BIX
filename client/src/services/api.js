@@ -79,6 +79,12 @@ export function getDashboard(token) {
   });
 }
 
+export function getSprintAnalytics(projectId, token) {
+  return request(`/projects/${projectId}/analytics/sprints`, {
+    headers: authHeader(token)
+  });
+}
+
 // POST /api/projects  (US-04d, Admin only)
 // Creates a project owned by the logged-in Admin. Only the name is sent; the
 // server takes the responsible Admin from the token, never from the body.
