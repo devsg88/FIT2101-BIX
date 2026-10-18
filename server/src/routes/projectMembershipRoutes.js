@@ -11,6 +11,7 @@ import {
   getProjectMembersController,
   removeProjectMemberController
 } from '../controllers/projectMembershipController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js). See projectMembershipController.js
 // for why this route exists as part of US-04a/SCRUM-122.
@@ -20,7 +21,7 @@ const router = Router();
 // Only an admin responsible for this project or a developer assigned to it
 // may see who else is on it - same project-access rule as the board/PBI/
 // sprint/task routes.
-router.get('/:projectId/members', requireAuth, requireProjectAccess, getProjectMembersController);
+router.get('/:projectId/members', requireAuth, requireProjectAccess, asyncHandler(getProjectMembersController));
 
 // GET /api/projects/:projectId/available-developers
 // Admin-only, and only the Admin responsible for this project - same guards
@@ -30,7 +31,7 @@ router.get(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  getAvailableDevelopersController
+  asyncHandler(getAvailableDevelopersController)
 );
 
 // POST /api/projects/:projectId/members   body: { user_id }
@@ -42,7 +43,7 @@ router.post(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  addProjectMemberController
+  asyncHandler(addProjectMemberController)
 );
 
 // DELETE /api/projects/:projectId/members/:userId
@@ -51,7 +52,7 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  removeProjectMemberController
+  asyncHandler(removeProjectMemberController)
 );
 
 export default router;

@@ -9,6 +9,7 @@ import {
   deleteSubTaskController,
   assignSubTaskController
 } from '../controllers/subTaskController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js). Nested one level deeper than
 // taskRoutes.js - a sub-task's path carries its parent task's id too, so
@@ -23,7 +24,7 @@ router.patch(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  editSubTaskController
+  asyncHandler(editSubTaskController)
 );
 
 // DELETE /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId
@@ -32,7 +33,7 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  deleteSubTaskController
+  asyncHandler(deleteSubTaskController)
 );
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/tasks/:taskId/sub-tasks/:subTaskId/assignee
@@ -42,7 +43,7 @@ router.patch(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  assignSubTaskController
+  asyncHandler(assignSubTaskController)
 );
 
 export default router;

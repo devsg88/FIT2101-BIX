@@ -6,6 +6,7 @@ import {
   requireProjectResponsibility
 } from '../middleware/authMiddleware.js';
 import { createSprintController, startSprintController } from '../controllers/sprintController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js).
 const router = Router();
@@ -21,7 +22,7 @@ router.post(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  createSprintController
+  asyncHandler(createSprintController)
 );
 
 // POST /api/projects/:projectId/sprints/:sprintId/start
@@ -32,7 +33,7 @@ router.post(
   '/:projectId/sprints/:sprintId/start',
   requireAuth,
   requireProjectAccess,
-  startSprintController
+  asyncHandler(startSprintController)
 );
 
 export default router;

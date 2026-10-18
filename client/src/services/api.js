@@ -13,6 +13,18 @@ export function setSessionExpiredHandler(handler) {
   sessionExpiredHandler = handler;
 }
 
+// NFR-03 / SCRUM-191. Shown when the request never got a response at all
+// (server down, connection lost, blocked request) instead of the browser's
+// own wording such as "Failed to fetch". status 0 marks it as a network
+// failure for callers that need to tell it apart from an HTTP error.
+export const NETWORK_ERROR_MESSAGE =
+  'Could not reach the server. Check your connection and try again.';
+
+// Used when an error response carries no message of its own (e.g. a proxy's
+// HTML error page), instead of "Request failed with status 502".
+export const SERVER_ERROR_FALLBACK_MESSAGE = 'Something went wrong on our side. Please try again.';
+export const REQUEST_ERROR_FALLBACK_MESSAGE = 'The request could not be completed. Please try again.';
+
 async function request(path, options = {}) {
   const { headers, ...rest } = options;
   // Merge caller headers on top of the default Content-Type. Pulling `headers`
@@ -21,17 +33,30 @@ async function request(path, options = {}) {
   // send a JSON body.
   const mergedHeaders = { 'Content-Type': 'application/json', ...headers };
 
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: mergedHeaders,
-    ...rest
-  });
+  let res;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      headers: mergedHeaders,
+      ...rest
+    });
+  } catch (cause) {
+    // A deliberate cancellation is not a failure to report.
+    if (cause?.name === 'AbortError') {
+      throw cause;
+    }
+    const err = new Error(NETWORK_ERROR_MESSAGE);
+    err.status = 0;
+    err.cause = cause;
+    throw err;
+  }
 
   if (!res.ok) {
     if (res.status === 401 && mergedHeaders.Authorization) {
       sessionExpiredHandler?.();
     }
     const body = await res.json().catch(() => ({}));
-    const err = new Error(body.message || `Request failed with status ${res.status}`);
+    const fallback = res.status >= 500 ? SERVER_ERROR_FALLBACK_MESSAGE : REQUEST_ERROR_FALLBACK_MESSAGE;
+    const err = new Error(typeof body.message === 'string' && body.message ? body.message : fallback);
     // Callers that need to tell "not permitted" apart from any other failure
     // (e.g. the Completed Work History sidebar showing a dedicated
     // access-denied message instead of a generic retry) can check this
