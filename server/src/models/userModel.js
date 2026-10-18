@@ -9,6 +9,15 @@ export async function findUserByEmail(email) {
   return rows[0] || null;
 }
 
+export async function findUserById(userId) {
+  const { rows } = await pool.query(
+    'SELECT id, name, email, role FROM users WHERE id = $1',
+    [userId]
+  );
+
+  return rows[0] || null;
+}
+
 // All developers, org-wide - the base list an admin picks from before
 // narrowing to "available for this team/project" (see teamModel.js and
 // projectMembershipModel.js, which exclude users already assigned).
