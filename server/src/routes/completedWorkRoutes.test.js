@@ -43,6 +43,8 @@ describe('completedWorkRoutes', () => {
     // that runs at that position, by identity, not just by name.
     expect(layer.route.stack[0].handle).toBe(requireAuth);
     expect(layer.route.stack[1].handle).toBe(requireProjectAccess);
-    expect(layer.route.stack[2].handle).toBe(getCompletedWorkController);
+    // NFR-03: the controller runs inside asyncHandler (same name, wrapped).
+    expect(layer.route.stack[2].handle.name).toBe(getCompletedWorkController.name);
+    expect(layer.route.stack[2].handle).not.toBe(getCompletedWorkController);
   });
 });

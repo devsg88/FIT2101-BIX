@@ -66,6 +66,23 @@ describe('Sprint analytics HTTP access', () => {
     expect(await res.json()).toEqual({ project_id: '1', ...data });
   });
 
+  it.each(['sprints', 'projects'])('keeps security headers on %s analytics responses', async (dimension) => {
+    const admin = { id: '3', role: 'admin' };
+    const res = await (dimension === 'sprints' ? send(admin) : sendProjects(admin));
+    expect(res.status).toBe(200);
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('x-powered-by')).toBeNull();
+  });
+
+  it('retains the central JSON not-found handler after analytics routes', async () => {
+    const res = await fetch(`${baseUrl}/api/no-such-analytics-route`);
+    expect(res.status).toBe(404);
+    expect(res.headers.get('content-type')).toMatch(/application\/json/);
+    expect(await res.json()).toEqual({ message: 'Not found' });
+    expect(getSprintAnalytics).not.toHaveBeenCalled();
+    expect(getProjectAnalytics).not.toHaveBeenCalled();
+  });
+
   it('rejects an admin responsible for a different project', async () => {
     getProjectResponsibility.mockResolvedValue({ isResponsible: false });
     const res = await send({ id: '9', role: 'admin' });

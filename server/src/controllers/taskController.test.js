@@ -15,10 +15,9 @@ import {
   getTaskById,
   getTaskInPbi,
   updateTaskInPbi as updateTask,
-  deleteTask,
+  deleteTaskWithSubTasks,
   assignTask
 } from '../models/taskModel.js';
-import { deleteSubTasksByTaskId } from '../models/subTaskModel.js';
 import { listProjectMembers } from '../models/projectMembershipModel.js';
 
 vi.mock('../models/pbiModel.js');
@@ -340,8 +339,7 @@ describe('deleteTaskController', () => {
       message: 'Cannot delete work items on a completed PBI'
     });
     expect(getTaskInPbi).not.toHaveBeenCalled();
-    expect(deleteSubTasksByTaskId).not.toHaveBeenCalled();
-    expect(deleteTask).not.toHaveBeenCalled();
+    expect(deleteTaskWithSubTasks).not.toHaveBeenCalled();
   });
 
   it('returns 404 when the task does not belong to that PBI', async () => {
@@ -352,30 +350,40 @@ describe('deleteTaskController', () => {
     await deleteTaskController(mockAdminReq(), res);
 
     expect(res.status).toHaveBeenCalledWith(404);
-    expect(deleteSubTasksByTaskId).not.toHaveBeenCalled();
+    expect(deleteTaskWithSubTasks).not.toHaveBeenCalled();
   });
 
-  it('deletes the task\'s sub-tasks before the task itself, then confirms', async () => {
+  it('deletes the task and its sub-tasks in one atomic model call, then confirms', async () => {
     getPbiById.mockResolvedValue(openPbi);
     getTaskInPbi.mockResolvedValue(existingTask);
-    deleteTask.mockResolvedValue(true);
+    deleteTaskWithSubTasks.mockResolvedValue(true);
     const res = mockRes();
-    const callOrder = [];
-    deleteSubTasksByTaskId.mockImplementation(async () => { callOrder.push('subtasks'); });
-    deleteTask.mockImplementation(async () => { callOrder.push('task'); return true; });
 
     await deleteTaskController(mockAdminReq(), res);
 
-    expect(deleteSubTasksByTaskId).toHaveBeenCalledWith(3);
-    expect(deleteTask).toHaveBeenCalledWith(2, 3);
-    expect(callOrder).toEqual(['subtasks', 'task']);
+    expect(deleteTaskWithSubTasks).toHaveBeenCalledTimes(1);
+    expect(deleteTaskWithSubTasks).toHaveBeenCalledWith(2, 3);
     expect(res.json).toHaveBeenCalledWith({ message: 'Task deleted', id: 3 });
+  });
+
+  it('answers a failed delete with the safe 500 message and no database detail', async () => {
+    getPbiById.mockResolvedValue(openPbi);
+    getTaskInPbi.mockResolvedValue(existingTask);
+    deleteTaskWithSubTasks.mockRejectedValue(
+      Object.assign(new Error('update or delete on table "tasks" violates foreign key constraint'), { code: '23503' })
+    );
+    const res = mockRes();
+
+    await deleteTaskController(mockAdminReq(), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to delete the task' });
   });
 
   it('returns 404 if the task disappears between the check and the delete', async () => {
     getPbiById.mockResolvedValue(openPbi);
     getTaskInPbi.mockResolvedValue(existingTask);
-    deleteTask.mockResolvedValue(false);
+    deleteTaskWithSubTasks.mockResolvedValue(false);
     const res = mockRes();
 
     await deleteTaskController(mockAdminReq(), res);

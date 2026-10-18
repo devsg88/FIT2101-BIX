@@ -84,11 +84,12 @@ describe('burndownRoutes wiring', () => {
 
     expect(layer).toBeDefined();
     expect(layer.route.methods.get).toBe(true);
-    expect(layer.route.stack.map((handler) => handler.handle)).toEqual([
-      requireAuth,
-      requireProjectAccess,
-      controller
-    ]);
+    const handlers = layer.route.stack.map((handler) => handler.handle);
+    expect(handlers).toHaveLength(3);
+    expect(handlers.slice(0, 2)).toEqual([requireAuth, requireProjectAccess]);
+    // NFR-03: the controller runs inside asyncHandler, which keeps its name.
+    expect(handlers[2].name).toBe(controller.name);
+    expect(handlers[2]).not.toBe(controller);
   });
 });
 
