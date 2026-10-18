@@ -5,11 +5,12 @@ import {
   getDemoMailboxController,
   resetPasswordController
 } from '../controllers/passwordResetController.js';
+import { loginRateLimiter } from '../middleware/rateLimitMiddleware.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
-router.post('/login', asyncHandler(loginController));
+router.post('/login', loginRateLimiter, asyncHandler(loginController));
 router.post('/forgot-password', asyncHandler(forgotPasswordController));
 router.post('/reset-password', asyncHandler(resetPasswordController));
 router.get('/demo-mailbox', getDemoMailboxController);

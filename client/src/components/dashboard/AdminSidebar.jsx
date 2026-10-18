@@ -131,9 +131,9 @@ export default function AdminSidebar() {
       )}
 
       <div className="admin-sidebar__bottom">
-        <button type="button" className="admin-sidebar__settings">
+        <Link to="/settings" className="admin-sidebar__settings">
           <span aria-hidden="true">⚙</span> System Settings
-        </button>
+        </Link>
         <button type="button" className="admin-sidebar__signout" onClick={handleSignOut}>
           <span aria-hidden="true">⎋</span> Sign out
         </button>

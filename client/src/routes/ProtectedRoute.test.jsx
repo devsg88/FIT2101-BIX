@@ -78,12 +78,28 @@ describe('ProtectedRoute', () => {
     expect(screen.getByText('Admin Team Page')).toBeInTheDocument();
   });
 
-  it('redirects to /dashboard, not /login, when the user is authenticated but the wrong role', () => {
+  // NFR-01: a wrong-role user stays on the URL they requested and sees
+  // AccessDenied there, rather than being silently bounced to /dashboard
+  // with no explanation - not /login either, since they do have a valid
+  // session, they're just not permitted on this particular page.
+  it('shows Access Denied, not a silent redirect, when the user is authenticated but the wrong role', () => {
     useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'abc' } });
 
     renderRoleGuarded(['admin']);
 
-    expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
     expect(screen.queryByText('Admin Team Page')).not.toBeInTheDocument();
+    expect(screen.queryByText('Dashboard Page')).not.toBeInTheDocument();
+  });
+
+  it("Access Denied's Back to Dashboard link points at /dashboard", () => {
+    useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'abc' } });
+
+    renderRoleGuarded(['admin']);
+
+    expect(screen.getByRole('link', { name: 'Back to Dashboard' })).toHaveAttribute(
+      'href',
+      '/dashboard'
+    );
   });
 });

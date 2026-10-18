@@ -63,6 +63,22 @@ describe('DeletePbiDialog (US-04b, SCRUM-102)', () => {
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
   });
 
+  // NFR-01: a 403 (e.g. the backend disagrees that this Admin is still
+  // responsible for the project) shows the same dedicated permission-denied
+  // styling as every other action-level 403 in the app.
+  it('shows the forbidden styling for a 403, not the plain error style', async () => {
+    const forbidden = new Error('You are not responsible for this project');
+    forbidden.status = 403;
+    deletePbi.mockRejectedValue(forbidden);
+    renderDialog();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('You are not responsible for this project');
+    expect(alert.className).toContain('--forbidden');
+  });
+
   it('blocks closing and a second delete while the request is in flight', async () => {
     let finish;
     deletePbi.mockReturnValue(new Promise((resolve) => { finish = resolve; }));

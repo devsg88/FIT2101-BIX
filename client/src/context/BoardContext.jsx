@@ -14,6 +14,7 @@ import {
   updateSubTask,
   getBoard,
   movePbi,
+  createSprint as apiCreateSprint,
   startSprint,
   updatePbiPlanning,
   updateTaskInPbi as apiUpdateTask,
@@ -58,7 +59,7 @@ export function BoardProvider({ projectId, children }) {
   const [project, setProject] = useState(null);
   const [pbis, setPbis] = useState([]); // the one and only list of PBIs
   const [sprints, setSprints] = useState([]);
-  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error'
+  const [status, setStatus] = useState('loading'); // 'loading' | 'ready' | 'error' | 'forbidden'
   const [error, setError] = useState(null);
   // US-04a / SCRUM-124. This project's members, for the assignee dropdown.
   // Loaded alongside the board (see loadBoard below) rather than lazily on
@@ -94,8 +95,18 @@ export function BoardProvider({ projectId, children }) {
       applyBoardData(data);
       setStatus('ready');
     } catch (err) {
-      setError(err.message);
-      setStatus('error');
+      // NFR-01: a 403 here (not a member, or an Admin not responsible for
+      // this project - e.g. a Developer who typed/bookmarked another
+      // project's board URL) is a permission decision the backend already
+      // made, not a transient failure - same 'forbidden' vs 'error' split
+      // CompletedWorkSidebar below already uses, so Board.jsx can show
+      // AccessDenied instead of a "Retry" that could never succeed.
+      if (err?.status === 403) {
+        setStatus('forbidden');
+      } else {
+        setError(err.message);
+        setStatus('error');
+      }
       return;
     }
 
@@ -146,9 +157,14 @@ export function BoardProvider({ projectId, children }) {
       } catch (err) {
         // The move itself succeeded, only the refresh afterward failed, say
         // so rather than letting this read as "the move failed".
-        throw new Error(
+        const refreshError = new Error(
           `The move was saved, but the board could not be refreshed: ${err.message}`
         );
+        // NFR-01: carry the original status (e.g. 403) across, so a caller
+        // checking err.status for "not permitted" styling still sees it on
+        // this wrapped error, the same as on the unwrapped one.
+        refreshError.status = err.status;
+        throw refreshError;
       }
     },
     [projectId, token, applyBoardData]
@@ -162,6 +178,9 @@ export function BoardProvider({ projectId, children }) {
       } catch (err) {
         const refreshError = new Error(`${savedMessage}: ${err.message}`);
         refreshError.saved = true;
+        // NFR-01: see movePbiStage's identical note above - keep the
+        // original status (e.g. 403) on the wrapped error.
+        refreshError.status = err.status;
         throw refreshError;
       }
     },
@@ -244,6 +263,20 @@ export function BoardProvider({ projectId, children }) {
       await apiAssignSubTask(projectId, pbiId, taskId, subTaskId, assigneeId, token);
       await refreshBoardAfterSave(
         'The assignment was saved, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
+  // US-10 gap closed (NFR-01 frontend audit): the real way a sprint row
+  // comes to exist, previously only db/seed.sql did this. The fresh GET
+  // afterward is what lets StartSprintButton see the new sprint and stop
+  // showing its "create one first" state.
+  const createNewSprint = useCallback(
+    async (name) => {
+      await apiCreateSprint(projectId, name, token);
+      await refreshBoardAfterSave(
+        'The sprint was created, but the board could not be refreshed'
       );
     },
     [projectId, token, refreshBoardAfterSave]
@@ -357,6 +390,7 @@ export function BoardProvider({ projectId, children }) {
       reloadBoard: loadBoard,
       movePbiStage,
       savePbiPlanning,
+      createNewSprint,
       startPlannedSprint,
       editTask,
       deleteTask,
@@ -384,6 +418,7 @@ export function BoardProvider({ projectId, children }) {
       loadBoard,
       movePbiStage,
       savePbiPlanning,
+      createNewSprint,
       startPlannedSprint,
       editTask,
       deleteTask,

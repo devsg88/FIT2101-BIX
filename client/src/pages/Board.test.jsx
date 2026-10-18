@@ -7,11 +7,14 @@ import {
   getBoard,
   movePbi,
   startSprint,
-  updatePbiPlanning, 
-  getCompletedWork, 
-  completeTask, 
-  completeSubTask, 
-  completePbi
+  createSprint,
+  updatePbiPlanning,
+  getCompletedWork,
+  completeTask,
+  completeSubTask,
+  completePbi,
+  getProjectMembers,
+  getAvailableDevelopers
 } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
@@ -132,7 +135,10 @@ describe('Board page', () => {
 
     // The sub-task is marked done, the task is not, the checkboxes should
     // reflect that (and never be interactive, there is no toggle feature yet).
-    const [taskCheckbox, subTaskCheckbox] = screen.getAllByRole('checkbox');
+    // Queried by name, not position, since "Show only my cards" (Board.jsx)
+    // is also a checkbox on the page now.
+    const taskCheckbox = screen.getByRole('checkbox', { name: 'Build the upload API endpoint' });
+    const subTaskCheckbox = screen.getByRole('checkbox', { name: 'Validate file size and type' });
     expect(taskCheckbox).not.toBeChecked();
     expect(taskCheckbox).toBeDisabled();
     expect(subTaskCheckbox).toBeChecked();
@@ -163,6 +169,24 @@ describe('Board page', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
     expect(screen.getByText(/Failed to load the project board/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+
+  // NFR-01: a Developer who types/bookmarks a URL for a project they are
+  // not assigned to (or an Admin not responsible for it) gets this 403 from
+  // the backend on the very first load - shown as Access Denied, not the
+  // generic "Couldn't load the board" / Retry treatment above.
+  it('shows Access Denied, not the generic error/Retry, when the board load is forbidden', async () => {
+    const forbidden = new Error('You are not a member of this project');
+    forbidden.status = 403;
+    getBoard.mockRejectedValue(forbidden);
+
+    renderBoard();
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument()
+    );
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/You are not a member of this project/)).not.toBeInTheDocument();
   });
 
   it('offers "Move to Sprint Planning" only on a Product Backlog card', async () => {
@@ -292,6 +316,36 @@ describe('Board page', () => {
     );
   });
 
+  // NFR-01 / BoardContext.jsx: movePbiStage wraps a failed post-move refresh
+  // in a brand-new Error - this proves that wrapping still carries the
+  // original err.status (e.g. 403) across, so this rare case (access was
+  // revoked between the move succeeding and the refresh running) still
+  // renders with the forbidden styling instead of silently losing it.
+  it('keeps the forbidden styling even when a 403 hits the post-move refresh, not the move itself', async () => {
+    const forbiddenRefresh = new Error('You are not a member of this project');
+    forbiddenRefresh.status = 403;
+    getBoard
+      .mockResolvedValueOnce({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+      })
+      .mockRejectedValueOnce(forbiddenRefresh);
+    movePbi.mockResolvedValue({ pbi: { id: 1, stage: 'sprint_planning' } });
+
+    renderBoard('/projects/7/board');
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(
+      'The move was saved, but the board could not be refreshed: You are not a member of this project'
+    );
+    expect(alert.className).toContain('--forbidden');
+  });
+
   it('shows an error and leaves the card in place when the move is rejected', async () => {
     getBoard.mockResolvedValue({
       project: { id: 7, name: 'BIX Platform' },
@@ -312,6 +366,38 @@ describe('Board page', () => {
       )
     );
 
+    const backlogColumn = screen
+      .getByRole('heading', { name: 'Product Backlog' })
+      .closest('section');
+    expect(backlogColumn).toHaveTextContent('Reset password');
+  });
+
+  // NFR-01: an action-level 403 (e.g. a Developer's stale UI still showing
+  // a move/delete/edit control the backend will now refuse) stays right on
+  // the card as an inline error - never a full-page redirect, unlike a
+  // page-level 403 (see the earlier "forbidden" board-load test above).
+  it('shows a distinct permission-denied style for a 403 on an action, not the plain error style', async () => {
+    getBoard.mockResolvedValue({
+      project: { id: 7, name: 'BIX Platform' },
+      sprints: [],
+      pbis: [{ id: 1, title: 'Reset password', stage: 'product_backlog', tasks: [] }]
+    });
+    const forbidden = new Error('You do not have permission to perform this action');
+    forbidden.status = 403;
+    movePbi.mockRejectedValue(forbidden);
+
+    renderBoard();
+
+    await waitFor(() => expect(screen.getByText('Reset password')).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole('button', { name: /Move to Sprint Planning/ }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('You do not have permission to perform this action');
+    expect(alert.className).toContain('--forbidden');
+
+    // Still stays on the board - no navigation away, same as any other
+    // action-level error.
     const backlogColumn = screen
       .getByRole('heading', { name: 'Product Backlog' })
       .closest('section');
@@ -412,6 +498,99 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Sprint Planning' })
       .closest('section');
     expect(planningColumn).not.toHaveTextContent('Upload photo');
+  });
+
+  // US-10 gap closed (NFR-01 frontend audit): every Start Sprint test above
+  // seeds `sprints` with a 'planning' row already present - the realistic
+  // "a project created today has zero sprints" case was never exercised
+  // anywhere in this suite. These four tests close exactly that gap.
+  describe('Sprint Planning has work but no sprint exists yet', () => {
+    const plannedPbi = {
+      id: 2,
+      title: 'Upload photo',
+      stage: 'sprint_planning',
+      estimated_hours: '16.00',
+      planned_start_date: '2026-09-15',
+      planned_end_date: '2026-09-22',
+      tasks: []
+    };
+
+    it('shows an Admin the Create Sprint form instead of a dead, disabled Start Sprint button', async () => {
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [plannedPbi]
+      });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+      expect(screen.getByRole('button', { name: 'Create Sprint' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Sprint name')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start Sprint' })).not.toBeInTheDocument();
+    });
+
+    it('lets an Admin create the sprint, after which Start Sprint becomes available', async () => {
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+      getBoard
+        .mockResolvedValueOnce({
+          project: { id: 7, name: 'BIX Platform' },
+          sprints: [],
+          pbis: [plannedPbi]
+        })
+        .mockResolvedValueOnce({
+          project: { id: 7, name: 'BIX Platform' },
+          sprints: [{ id: 9, name: 'Sprint 1', status: 'planning' }],
+          pbis: [plannedPbi]
+        });
+      createSprint.mockResolvedValue({ sprint: { id: 9, name: 'Sprint 1', status: 'planning' } });
+
+      renderBoard('/projects/7/board');
+      await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByLabelText('Sprint name'), { target: { value: 'Sprint 1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create Sprint' }));
+
+      expect(await screen.findByRole('button', { name: 'Start Sprint' })).toBeInTheDocument();
+      expect(createSprint).toHaveBeenCalledWith('7', 'Sprint 1', 'tok');
+    });
+
+    it('shows a Developer an explanatory message, not a form or a dead button', async () => {
+      useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'tok' } });
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [plannedPbi]
+      });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+      expect(
+        screen.getByText(/ask an admin to create one/i)
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Create Sprint' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start Sprint' })).not.toBeInTheDocument();
+    });
+
+    it('shows nothing at all when Sprint Planning is also empty', async () => {
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: []
+      });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('BIX Platform')).toBeInTheDocument());
+
+      expect(screen.queryByRole('button', { name: 'Create Sprint' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start Sprint' })).not.toBeInTheDocument();
+    });
   });
 
   it('shows a visible error and keeps the PBI put when the move is refused for an access reason', async () => {
@@ -895,5 +1074,32 @@ describe('Board top bar: Manage backlog link (US-04b)', () => {
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete board' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage backlog' })).not.toBeInTheDocument();
+  });
+
+  // US-03/US-05: the only in-app entry point to ManageMembersModal, the fix
+  // for "no way to add/remove a developer from a project" found in the
+  // NFR-01 frontend audit. The modal's own behavior is covered in
+  // ManageMembersModal.test.jsx - this only proves the button is there for
+  // an Admin, absent for a Developer, and actually opens the modal.
+  it('shows Admins a "Manage members" button that opens the modal', async () => {
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+    getProjectMembers.mockResolvedValue({ members: [] });
+    getAvailableDevelopers.mockResolvedValue({ developers: [] });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    fireEvent.click(screen.getByRole('button', { name: 'Manage members' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Manage Members' })).toBeInTheDocument();
+  });
+
+  it('does not show Developers a "Manage members" button', async () => {
+    useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'tok' } });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    expect(screen.queryByRole('button', { name: 'Manage members' })).not.toBeInTheDocument();
   });
 });

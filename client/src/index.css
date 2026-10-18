@@ -149,6 +149,23 @@ input {
   line-height: 1.5;
 }
 
+.login-session-banner {
+  width: 100%;
+  max-width: 470px;
+  margin: 0 0 16px;
+  padding: 13px 16px;
+  border: 1.5px solid #e3a008;
+  border-radius: 10px;
+  background: #fff6de;
+  color: #6b4e00;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.login-session-banner strong {
+  font-weight: 600;
+}
+
 .login-form {
   width: 100%;
 }
@@ -213,6 +230,16 @@ input {
 .login-error--server {
   margin-top: -8px;
   margin-bottom: 16px;
+}
+
+.login-error--forbidden {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.login-error__icon {
+  flex: none;
 }
 
 .login-options {
@@ -500,6 +527,7 @@ input {
 
 .admin-sidebar__settings {
   color: #4a4941;
+  text-decoration: none;
 }
 
 .admin-sidebar__signout {
@@ -1224,19 +1252,35 @@ input {
 }
 
 .dev-user-dropdown__item {
+  display: block;
   width: 100%;
   padding: 8px 12px;
   background: none;
   border: none;
   text-align: left;
+  text-decoration: none;
   font-size: 13px;
   font-weight: 600;
-  color: #c53030;
   cursor: pointer;
   border-radius: 4px;
 }
 
-.dev-user-dropdown__item:hover {
+/* Settings (US-16, T16.4) is a plain navigation link, same neutral color
+   AdminSidebar already uses for its own Settings entry - Sign out is the
+   only destructive/red item in this menu. */
+.dev-user-dropdown__item--settings {
+  color: #4a4941;
+}
+
+.dev-user-dropdown__item--settings:hover {
+  background: #f1efe6;
+}
+
+.dev-user-dropdown__item--signout {
+  color: #c53030;
+}
+
+.dev-user-dropdown__item--signout:hover {
   background: #fee2e2;
 }
 
@@ -1752,10 +1796,46 @@ input {
   margin-bottom: 0;
 }
 
+/* Urgency (derived from planned_end_date on an Active Sprint item, not a
+   fabricated priority field - see getPbiUrgency in Board.jsx). */
+.project-board__card--overdue {
+  border-left: 4px solid #a3341c;
+}
+
+.project-board__card--due-soon {
+  border-left: 4px solid #c98a1f;
+}
+
+.project-board__card-title-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
 .project-board__card-title {
   margin: 0 0 0.25rem;
   font-size: 0.9375rem;
   font-weight: 700;
+}
+
+.project-board__urgency-badge {
+  flex: none;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.project-board__urgency-badge--overdue {
+  background: #fbe2dc;
+  color: #a3341c;
+}
+
+.project-board__urgency-badge--due-soon {
+  background: #faf0da;
+  color: #8a5c10;
 }
 
 .project-board__card-description {
@@ -1769,6 +1849,41 @@ input {
   margin: 0 0 0.375rem;
   font-size: 0.75rem;
   color: #555;
+}
+
+/* --- Task count toggle ("N/M tasks done") ---------------------------------- */
+
+.project-board__tasks-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin: 0 0 0.375rem;
+  padding: 0.1875rem 0;
+  border: none;
+  background: none;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+}
+
+/* --- "Show only my cards" toggle, above the columns ------------------------ */
+
+.project-board__columns-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.project-board__my-cards-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  width: fit-content;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 /* --- Task / sub-task checklist -------------------------------------------- */
@@ -1893,6 +2008,16 @@ input {
   margin: 0.375rem 0 0;
   color: #a3341c;
   font-size: 0.75rem;
+}
+
+.project-board__card-error--forbidden {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.project-board__card-error__icon {
+  flex: none;
 }
 
 /* US-08b / US-10 - Yichi Zhang: planning form under the card, Start Sprint
@@ -2699,6 +2824,14 @@ input {
   font-size: 0.875rem;
   font-weight: 600;
   color: #000;
+  /* Also used on a real <button> ("Manage members") so it reads the same
+     as the "Manage backlog" <Link> next to it - harmless on an anchor,
+     since anchors have no border/background to reset anyway. */
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  cursor: pointer;
 }
 
 .pbi-backlog__header {
@@ -3018,4 +3151,107 @@ input {
   border-radius: 8px;
   max-width: 48rem;
   text-align: center;
+}
+
+/* --- Access Denied (NFR-01) ------------------------------------------- */
+
+.access-denied {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 28rem;
+  margin: 3.5rem auto;
+  padding: 2.5rem 2rem;
+  text-align: center;
+  background: #fffdf2;
+  border: 2px solid #242420;
+  border-radius: 18px;
+}
+
+.access-denied__icon {
+  color: #a62c2c;
+  margin-bottom: 0.5rem;
+}
+
+.access-denied__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.access-denied__message {
+  margin: 0;
+  color: #46453f;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.access-denied__back {
+  margin-top: 0.75rem;
+  padding: 10px 22px;
+  border: 1.5px solid #242420;
+  border-radius: 7px;
+  background: #f7a839;
+  color: #242420;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.access-denied__back:hover {
+  background: #f0981a;
+}
+
+.access-denied__contact {
+  margin: 0.75rem 0 0;
+  color: #737168;
+  font-size: 13px;
+}
+
+/* --- System Settings (minimal placeholder page) ------------------------ */
+
+.settings-page__account {
+  max-width: 28rem;
+  margin-top: 1.5rem;
+  padding: 18px 22px;
+  border: 1.5px solid #20201d;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.settings-page__account h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.settings-page__details {
+  margin: 0;
+}
+
+.settings-page__detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px solid #ece9df;
+  font-size: 14px;
+}
+
+.settings-page__detail-row:first-child {
+  border-top: none;
+}
+
+.settings-page__detail-row dt {
+  color: #737168;
+}
+
+.settings-page__detail-row dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.settings-page__note {
+  margin-top: 1.25rem;
+  color: #737168;
+  font-size: 13px;
 }
