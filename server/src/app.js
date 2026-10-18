@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import authRoutes from './routes/authRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
@@ -13,6 +14,11 @@ import projectMembershipRoutes from './routes/projectMembershipRoutes.js';
 import burndownRoutes from './routes/burndownRoutes.js';
 
 const app = express();
+
+// Sets the standard set of defensive response headers (X-Content-Type-
+// Options, X-Frame-Options, etc.) that a hand-rolled Express app otherwise
+// sends none of.
+app.use(helmet());
 
 // Restricts which frontend origins may call this API. The client's own dev
 // server (client/vite.config.js) runs on 5173 and proxies /api requests
