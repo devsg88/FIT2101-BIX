@@ -243,6 +243,17 @@ export function updatePbiPlanning(projectId, pbiId, planning, token) {
   });
 }
 
+// POST /api/projects/:projectId/sprints   body: { name }  (US-10)
+// The real way a sprint row comes to exist - previously only db/seed.sql
+// did this. Admin-only on the backend. Resolves with { sprint }.
+export function createSprint(projectId, name, token) {
+  return request(`/projects/${projectId}/sprints`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ name })
+  });
+}
+
 // POST /api/projects/:projectId/sprints/:sprintId/start  (US-10  Yichi Zhang)
 // Moves every Sprint Planning PBI into Active Sprint together. Resolves with
 // { sprint, pbis } on success, or throws (empty sprint, missing estimates, ...).

@@ -14,6 +14,7 @@ import {
   updateSubTask,
   getBoard,
   movePbi,
+  createSprint as apiCreateSprint,
   startSprint,
   updatePbiPlanning,
   updateTaskInPbi as apiUpdateTask,
@@ -267,6 +268,20 @@ export function BoardProvider({ projectId, children }) {
     [projectId, token, refreshBoardAfterSave]
   );
 
+  // US-10 gap closed (NFR-01 frontend audit): the real way a sprint row
+  // comes to exist, previously only db/seed.sql did this. The fresh GET
+  // afterward is what lets StartSprintButton see the new sprint and stop
+  // showing its "create one first" state.
+  const createNewSprint = useCallback(
+    async (name) => {
+      await apiCreateSprint(projectId, name, token);
+      await refreshBoardAfterSave(
+        'The sprint was created, but the board could not be refreshed'
+      );
+    },
+    [projectId, token, refreshBoardAfterSave]
+  );
+
   // US-10 — Yichi Zhang. After a successful start, every former Sprint
   // Planning card should reappear under Active Sprint from the fresh GET.
   const startPlannedSprint = useCallback(
@@ -375,6 +390,7 @@ export function BoardProvider({ projectId, children }) {
       reloadBoard: loadBoard,
       movePbiStage,
       savePbiPlanning,
+      createNewSprint,
       startPlannedSprint,
       editTask,
       deleteTask,
@@ -402,6 +418,7 @@ export function BoardProvider({ projectId, children }) {
       loadBoard,
       movePbiStage,
       savePbiPlanning,
+      createNewSprint,
       startPlannedSprint,
       editTask,
       deleteTask,

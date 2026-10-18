@@ -7,6 +7,7 @@ import {
   getBoard,
   movePbi,
   startSprint,
+  createSprint,
   updatePbiPlanning,
   getCompletedWork,
   completeTask,
@@ -497,6 +498,99 @@ describe('Board page', () => {
       .getByRole('heading', { name: 'Sprint Planning' })
       .closest('section');
     expect(planningColumn).not.toHaveTextContent('Upload photo');
+  });
+
+  // US-10 gap closed (NFR-01 frontend audit): every Start Sprint test above
+  // seeds `sprints` with a 'planning' row already present - the realistic
+  // "a project created today has zero sprints" case was never exercised
+  // anywhere in this suite. These four tests close exactly that gap.
+  describe('Sprint Planning has work but no sprint exists yet', () => {
+    const plannedPbi = {
+      id: 2,
+      title: 'Upload photo',
+      stage: 'sprint_planning',
+      estimated_hours: '16.00',
+      planned_start_date: '2026-09-15',
+      planned_end_date: '2026-09-22',
+      tasks: []
+    };
+
+    it('shows an Admin the Create Sprint form instead of a dead, disabled Start Sprint button', async () => {
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [plannedPbi]
+      });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+      expect(screen.getByRole('button', { name: 'Create Sprint' })).toBeInTheDocument();
+      expect(screen.getByLabelText('Sprint name')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start Sprint' })).not.toBeInTheDocument();
+    });
+
+    it('lets an Admin create the sprint, after which Start Sprint becomes available', async () => {
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+      getBoard
+        .mockResolvedValueOnce({
+          project: { id: 7, name: 'BIX Platform' },
+          sprints: [],
+          pbis: [plannedPbi]
+        })
+        .mockResolvedValueOnce({
+          project: { id: 7, name: 'BIX Platform' },
+          sprints: [{ id: 9, name: 'Sprint 1', status: 'planning' }],
+          pbis: [plannedPbi]
+        });
+      createSprint.mockResolvedValue({ sprint: { id: 9, name: 'Sprint 1', status: 'planning' } });
+
+      renderBoard('/projects/7/board');
+      await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+      fireEvent.change(screen.getByLabelText('Sprint name'), { target: { value: 'Sprint 1' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create Sprint' }));
+
+      expect(await screen.findByRole('button', { name: 'Start Sprint' })).toBeInTheDocument();
+      expect(createSprint).toHaveBeenCalledWith('7', 'Sprint 1', 'tok');
+    });
+
+    it('shows a Developer an explanatory message, not a form or a dead button', async () => {
+      useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'tok' } });
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: [plannedPbi]
+      });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('Upload photo')).toBeInTheDocument());
+
+      expect(
+        screen.getByText(/ask an admin to create one/i)
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Create Sprint' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start Sprint' })).not.toBeInTheDocument();
+    });
+
+    it('shows nothing at all when Sprint Planning is also empty', async () => {
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+      getBoard.mockResolvedValue({
+        project: { id: 7, name: 'BIX Platform' },
+        sprints: [],
+        pbis: []
+      });
+
+      renderBoard('/projects/7/board');
+
+      await waitFor(() => expect(screen.getByText('BIX Platform')).toBeInTheDocument());
+
+      expect(screen.queryByRole('button', { name: 'Create Sprint' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Start Sprint' })).not.toBeInTheDocument();
+    });
   });
 
   it('shows a visible error and keeps the PBI put when the move is refused for an access reason', async () => {

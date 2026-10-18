@@ -689,10 +689,74 @@ function PlanningForm({ pbi }) {
   );
 }
 
+// US-10 gap closed (NFR-01 frontend audit): previously, with Sprint
+// Planning items but no sprint row yet (true for every project created
+// through the real "Create Project" flow - the only INSERT INTO sprints
+// anywhere used to be db/seed.sql), this rendered a permanently-disabled
+// Start Sprint button with a misleading "add estimate and dates" tooltip,
+// even once every item had both. Admin-only (matches createSprintController
+// being admin-only on the backend) - a Developer in that same situation sees
+// an explanatory message instead of a dead end.
+function CreateSprintForm() {
+  const { user } = useAuth();
+  const { createNewSprint } = useBoard();
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (user?.role !== 'admin') {
+    return (
+      <p className="project-board__hint">
+        This project has no Sprint yet - ask an admin to create one before Sprint Planning items can be started.
+      </p>
+    );
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError(new Error('A sprint name is required'));
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await createNewSprint(trimmedName);
+      setName('');
+    } catch (err) {
+      setError(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form className="project-board__start-sprint" onSubmit={handleSubmit}>
+      <label className="project-board__planning-label">
+        Sprint name
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSaving}
+          placeholder="e.g. Sprint 1"
+        />
+      </label>
+      <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+        {isSaving ? 'Creating...' : 'Create Sprint'}
+      </button>
+      <ActionError error={error} fallback="Something went wrong creating the sprint. Please try again." />
+    </form>
+  );
+}
+
 // US-10  Yichi Zhang.
 // Lives at the bottom of the Sprint Planning column so it is not mistaken
 // for a per-card action. Disabled until every item in that column has
-// estimate + dates (US-08b) and a sprint still in status "planning" exists.
+// estimate + dates (US-08b). Only ever rendered once a sprint still in
+// status "planning" actually exists - see CreateSprintForm above for the
+// case where one doesn't yet.
 function StartSprintButton() {
   const { sprints, pbisByStage, startPlannedSprint } = useBoard();
   const [isStarting, setIsStarting] = useState(false);
@@ -700,15 +764,14 @@ function StartSprintButton() {
 
   const planningSprint = sprints.find((sprint) => sprint.status === 'planning');
   const planningPbis = pbisByStage.sprint_planning;
-  const canStart =
-    Boolean(planningSprint) &&
-    planningPbis.length > 0 &&
-    planningPbis.every(hasPlanningDetails);
+
+  if (!planningSprint) {
+    return planningPbis.length === 0 ? null : <CreateSprintForm />;
+  }
+
+  const canStart = planningPbis.length > 0 && planningPbis.every(hasPlanningDetails);
 
   const handleClick = async () => {
-    if (!planningSprint) {
-      return;
-    }
     setIsStarting(true);
     setError(null);
     try {
@@ -719,10 +782,6 @@ function StartSprintButton() {
       setIsStarting(false);
     }
   };
-
-  if (!planningSprint && planningPbis.length === 0) {
-    return null;
-  }
 
   return (
     <div className="project-board__start-sprint">
