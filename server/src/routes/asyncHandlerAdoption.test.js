@@ -15,9 +15,11 @@ import * as burndownController from '../controllers/burndownController.js';
 import * as dashboardController from '../controllers/dashboardController.js';
 import * as authController from '../controllers/authController.js';
 import * as passwordResetController from '../controllers/passwordResetController.js';
+import * as projectController from '../controllers/projectController.js';
+import * as sprintController from '../controllers/sprintController.js';
 
-// NFR-03 / SCRUM-189. Proves asyncHandler is really adopted on every route in
-// the non-conflicting route files: each controller is replaced by a mock that
+// NFR-03 / SCRUM-189. Proves asyncHandler is really adopted on every async
+// route in the app: each controller is replaced by a mock that
 // REJECTS - something the real controllers' own try/catch normally prevents -
 // and the request goes through the real app (route, auth and access
 // middleware, then the wrapped controller). A wrapped route answers the safe
@@ -28,8 +30,9 @@ import * as passwordResetController from '../controllers/passwordResetController
 // route-wiring tests (boardRoutes.test.js, pbiRoutes.test.js, ...), which pass
 // unchanged because asyncHandler keeps each controller's name.
 //
-// Not covered here, deliberately: projectRoutes.js and sprintRoutes.js are not
-// wrapped yet - their adoption waits for the overlapping US07 route work.
+// The one route left unwrapped on purpose is GET /api/auth/demo-mailbox:
+// getDemoMailboxController is synchronous (an in-memory list), and Express 4
+// already catches anything a synchronous handler throws.
 vi.mock('../models/projectModel.js');
 vi.mock('../models/projectMembershipModel.js');
 vi.mock('../models/boardModel.js');
@@ -45,6 +48,8 @@ vi.mock('../controllers/burndownController.js');
 vi.mock('../controllers/dashboardController.js');
 vi.mock('../controllers/authController.js');
 vi.mock('../controllers/passwordResetController.js');
+vi.mock('../controllers/projectController.js');
+vi.mock('../controllers/sprintController.js');
 
 const TEST_SECRET = 'async-adoption-test-secret';
 const INTERNAL = 'internal: relation "tasks" does not exist at character 42';
@@ -81,7 +86,16 @@ const WRAPPED_ROUTES = [
   ['dashboardRoutes', 'GET', '/api/dashboard', dashboardController, 'getDashboardController'],
   ['authRoutes', 'POST', '/api/auth/login', authController, 'loginController'],
   ['authRoutes', 'POST', '/api/auth/forgot-password', passwordResetController, 'forgotPasswordController'],
-  ['authRoutes', 'POST', '/api/auth/reset-password', passwordResetController, 'resetPasswordController']
+  ['authRoutes', 'POST', '/api/auth/reset-password', passwordResetController, 'resetPasswordController'],
+  ['projectMembershipRoutes', 'GET', '/api/projects/1/available-developers', projectMembershipController, 'getAvailableDevelopersController'],
+  ['projectMembershipRoutes', 'POST', '/api/projects/1/members', projectMembershipController, 'addProjectMemberController'],
+  ['projectMembershipRoutes', 'DELETE', '/api/projects/1/members/7', projectMembershipController, 'removeProjectMemberController'],
+  ['projectRoutes', 'POST', '/api/projects', projectController, 'createProjectController'],
+  ['projectRoutes', 'GET', '/api/projects', projectController, 'listResponsibleProjectsController'],
+  ['projectRoutes', 'PATCH', '/api/projects/1', projectController, 'updateProjectController'],
+  ['projectRoutes', 'DELETE', '/api/projects/1', projectController, 'deleteProjectController'],
+  ['sprintRoutes', 'POST', '/api/projects/1/sprints', sprintController, 'createSprintController'],
+  ['sprintRoutes', 'POST', '/api/projects/1/sprints/5/start', sprintController, 'startSprintController']
 ];
 
 const admin = { id: '3', role: 'admin' };
@@ -128,8 +142,24 @@ describe('asyncHandler adoption on the non-conflicting routes', () => {
     });
   }
 
-  it('covers all 29 wrapped controllers', () => {
-    expect(WRAPPED_ROUTES).toHaveLength(29);
+  it('covers all 38 wrapped controllers', () => {
+    expect(WRAPPED_ROUTES).toHaveLength(38);
+  });
+
+  it('still checks the role before a wrapped project controller (Developer creating a project: 403)', async () => {
+    const res = await send('POST', '/api/projects', { id: '7', role: 'developer' });
+
+    expect(res.status).toBe(403);
+    expect(projectController.createProjectController).not.toHaveBeenCalled();
+  });
+
+  it('still checks responsibility before a wrapped sprint controller (403)', async () => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible: false });
+
+    const res = await send('POST', '/api/projects/1/sprints');
+
+    expect(res.status).toBe(403);
+    expect(sprintController.createSprintController).not.toHaveBeenCalled();
   });
 
   it.each(WRAPPED_ROUTES)('%s %s %s: a rejecting controller becomes the safe JSON 500', async (file, method, path, controllers, name) => {

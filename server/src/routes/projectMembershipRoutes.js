@@ -31,7 +31,7 @@ router.get(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  getAvailableDevelopersController
+  asyncHandler(getAvailableDevelopersController)
 );
 
 // POST /api/projects/:projectId/members   body: { user_id }
@@ -43,7 +43,7 @@ router.post(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  addProjectMemberController
+  asyncHandler(addProjectMemberController)
 );
 
 // DELETE /api/projects/:projectId/members/:userId
@@ -52,7 +52,7 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  removeProjectMemberController
+  asyncHandler(removeProjectMemberController)
 );
 
 export default router;

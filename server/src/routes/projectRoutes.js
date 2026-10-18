@@ -10,6 +10,7 @@ import {
   updateProjectController,
   deleteProjectController
 } from '../controllers/projectController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js). Project-level routes that are not
 // scoped to one existing project; the board, PBI and sprint routes under
@@ -20,14 +21,14 @@ const router = Router();
 // US-04d / SCRUM-19. Admin-only: the creating Admin becomes the project's
 // responsible Admin (see projectController.js). There is no :projectId yet,
 // so requireProjectResponsibility does not apply here.
-router.post('/', requireAuth, requireRole('admin'), createProjectController);
+router.post('/', requireAuth, requireRole('admin'), asyncHandler(createProjectController));
 
 // GET /api/projects
 // US-04c / SCRUM-17. Admin-only: the projects the logged-in Admin is
 // responsible for (projects.responsible_admin_id = req.user.id), used to
 // navigate to their boards. Developers get 403 here; their own project list
 // comes from project membership (see dashboardController).
-router.get('/', requireAuth, requireRole('admin'), listResponsibleProjectsController);
+router.get('/', requireAuth, requireRole('admin'), asyncHandler(listResponsibleProjectsController));
 
 // PATCH /api/projects/:projectId   body: { name }
 // US-04c / SCRUM-17. Renames the project (its board). Only the Admin
@@ -37,7 +38,7 @@ router.patch(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  updateProjectController
+  asyncHandler(updateProjectController)
 );
 
 // DELETE /api/projects/:projectId
@@ -49,7 +50,7 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  deleteProjectController
+  asyncHandler(deleteProjectController)
 );
 
 export default router;
