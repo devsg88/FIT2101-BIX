@@ -42,6 +42,14 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
     await screen.findByText('No responsible projects yet.');
   });
 
+  it('links to Project analytics alongside Sprint analytics', async () => {
+    getResponsibleProjects.mockResolvedValue({ projects: [] });
+    renderSidebar();
+    expect(screen.getByRole('link', { name: 'Project analytics' })).toHaveAttribute('href', '/analytics/projects');
+    expect(screen.getByRole('link', { name: 'Sprint analytics' })).toHaveAttribute('href', '/analytics/sprints');
+    await screen.findByText('No responsible projects yet.');
+  });
+
   it('loads the projects with the logged-in Admin token', async () => {
     getResponsibleProjects.mockResolvedValue({ projects: [] });
 

@@ -11,6 +11,7 @@ import TeamDetail from './pages/TeamDetail.jsx';
 import ProductBacklog from './pages/ProductBacklog.jsx';
 import Burndown from './pages/Burndown.jsx';
 import SprintAnalytics from './pages/SprintAnalytics.jsx';
+import ProjectAnalytics from './pages/ProjectAnalytics.jsx';
 import Settings from './pages/Settings.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
 
@@ -122,6 +123,14 @@ export default function App() {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <SprintAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/projects"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <ProjectAnalytics />
           </ProtectedRoute>
         }
       />

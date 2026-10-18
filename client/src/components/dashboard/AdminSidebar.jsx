@@ -93,6 +93,10 @@ export default function AdminSidebar() {
         isActive ? 'admin-sidebar__org-link' : 'admin-sidebar__analytics-link'}>
         Sprint analytics
       </NavLink>
+      <NavLink to="/analytics/projects" className={({ isActive }) =>
+        isActive ? 'admin-sidebar__org-link' : 'admin-sidebar__analytics-link'}>
+        Project analytics
+      </NavLink>
 
       <p className="admin-sidebar__label">Active teams ({allTeams.length})</p>
       <div className="admin-sidebar__team-list">
