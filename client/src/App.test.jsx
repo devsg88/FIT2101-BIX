@@ -28,6 +28,10 @@ vi.mock('./pages/Settings.jsx', () => ({
   default: () => <div>Settings Page</div>
 }));
 
+vi.mock('./pages/SprintAnalytics.jsx', () => ({
+  default: () => <div>Sprint Analytics Page</div>
+}));
+
 function renderApp(initialPath, user) {
   useAuth.mockReturnValue({ user });
   return render(
@@ -74,6 +78,25 @@ describe('App redirect logic', () => {
   it('redirects an unauthenticated user from the completed-work route to login', () => {
     renderApp('/projects/7/completed-work', null);
     expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+  });
+});
+
+describe('Sprint analytics route', () => {
+  it('allows an admin to open the analytics page', () => {
+    renderApp('/analytics/sprints', { id: 3, role: 'admin', token: 'abc' });
+    expect(screen.getByText('Sprint Analytics Page')).toBeInTheDocument();
+  });
+
+  it('denies developers without rendering the analytics page', () => {
+    renderApp('/analytics/sprints', { id: 7, role: 'developer', token: 'abc' });
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.queryByText('Sprint Analytics Page')).not.toBeInTheDocument();
+  });
+
+  it('redirects logged-out visitors to login', () => {
+    renderApp('/analytics/sprints', null);
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+    expect(screen.queryByText('Sprint Analytics Page')).not.toBeInTheDocument();
   });
 });
 

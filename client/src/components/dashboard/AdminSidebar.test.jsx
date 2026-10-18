@@ -35,6 +35,13 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
     vi.clearAllMocks();
   });
 
+  it('links to Sprint analytics from the admin navigation', async () => {
+    getResponsibleProjects.mockResolvedValue({ projects: [] });
+    renderSidebar();
+    expect(screen.getByRole('link', { name: 'Sprint analytics' })).toHaveAttribute('href', '/analytics/sprints');
+    await screen.findByText('No responsible projects yet.');
+  });
+
   it('loads the projects with the logged-in Admin token', async () => {
     getResponsibleProjects.mockResolvedValue({ projects: [] });
 
