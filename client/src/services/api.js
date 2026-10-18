@@ -350,6 +350,36 @@ export function getProjectMembers(projectId, token) {
   });
 }
 
+// GET /api/projects/:projectId/available-developers  (US-03/US-05)
+// Developers not already on this project - the candidate list for Add
+// Member. Admin-only (and only the responsible Admin) on the backend.
+// Resolves with { developers }.
+export function getAvailableDevelopers(projectId, token) {
+  return request(`/projects/${projectId}/available-developers`, {
+    headers: authHeader(token)
+  });
+}
+
+// POST /api/projects/:projectId/members   body: { user_id }  (US-03/US-05)
+// Adds a developer to the project - the thing US-05's access check actually
+// reads. Resolves with { members: <refreshed list> }.
+export function addProjectMember(projectId, userId, token) {
+  return request(`/projects/${projectId}/members`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ user_id: userId })
+  });
+}
+
+// DELETE /api/projects/:projectId/members/:userId  (US-03/US-05)
+// Resolves with { members: <refreshed list> }.
+export function removeProjectMember(projectId, userId, token) {
+  return request(`/projects/${projectId}/members/${userId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}
+
 // POST /api/projects/:projectId/tasks/:taskId/complete  (US-11 — Yichi Zhang)
 export function completeTask(projectId, taskId, actualHours, token) {
   return request(`/projects/${projectId}/tasks/${taskId}/complete`, {

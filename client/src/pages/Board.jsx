@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
+import ManageMembersModal from '../components/board/ManageMembersModal.jsx';
 import {
   BoardProvider,
   useBoard,
@@ -1001,6 +1002,7 @@ function BoardTopBar({ project, onOpenHistory }) {
   const { user } = useAuth();
   const { projectId } = useBoard();
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?';
+  const [isManagingMembers, setIsManagingMembers] = useState(false);
 
   return (
     <header className="project-board__topbar">
@@ -1011,6 +1013,23 @@ function BoardTopBar({ project, onOpenHistory }) {
         <Link to={`/projects/${projectId}/backlog`} className="pbi-backlog__board-link">
           Manage backlog
         </Link>
+      )}
+      {/* US-03/US-05: the only in-app way to add/remove a developer from this
+          project - see ManageMembersModal.jsx for why this exists. */}
+      {user?.role === 'admin' && (
+        <button
+          type="button"
+          className="pbi-backlog__board-link"
+          onClick={() => setIsManagingMembers(true)}
+        >
+          Manage members
+        </button>
+      )}
+      {isManagingMembers && (
+        <ManageMembersModal
+          projectId={projectId}
+          onClose={() => setIsManagingMembers(false)}
+        />
       )}
       {/* US-15: the Sprint burndown for this project. */}
       <Link to={`/projects/${projectId}/burndown`} className="project-board__burndown-link">

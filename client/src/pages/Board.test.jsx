@@ -7,11 +7,13 @@ import {
   getBoard,
   movePbi,
   startSprint,
-  updatePbiPlanning, 
-  getCompletedWork, 
-  completeTask, 
-  completeSubTask, 
-  completePbi
+  updatePbiPlanning,
+  getCompletedWork,
+  completeTask,
+  completeSubTask,
+  completePbi,
+  getProjectMembers,
+  getAvailableDevelopers
 } from '../services/api.js';
 
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
@@ -978,5 +980,32 @@ describe('Board top bar: Manage backlog link (US-04b)', () => {
     expect(screen.queryByRole('button', { name: 'Rename' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Delete board' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage backlog' })).not.toBeInTheDocument();
+  });
+
+  // US-03/US-05: the only in-app entry point to ManageMembersModal, the fix
+  // for "no way to add/remove a developer from a project" found in the
+  // NFR-01 frontend audit. The modal's own behavior is covered in
+  // ManageMembersModal.test.jsx - this only proves the button is there for
+  // an Admin, absent for a Developer, and actually opens the modal.
+  it('shows Admins a "Manage members" button that opens the modal', async () => {
+    useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'tok' } });
+    getProjectMembers.mockResolvedValue({ members: [] });
+    getAvailableDevelopers.mockResolvedValue({ developers: [] });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    fireEvent.click(screen.getByRole('button', { name: 'Manage members' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Manage Members' })).toBeInTheDocument();
+  });
+
+  it('does not show Developers a "Manage members" button', async () => {
+    useAuth.mockReturnValue({ user: { id: 2, role: 'developer', token: 'tok' } });
+
+    renderBoard('/projects/7/board');
+
+    await screen.findByText('BIX Platform');
+    expect(screen.queryByRole('button', { name: 'Manage members' })).not.toBeInTheDocument();
   });
 });
