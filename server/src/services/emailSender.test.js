@@ -41,7 +41,9 @@ describe('sendPasswordResetEmail', () => {
     });
 
     expect(nodemailer.createTransport).toHaveBeenCalledWith({
-      service: 'gmail',
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
       auth: { user: 'bix.sender@gmail.com', pass: 'app-password' }
     });
     expect(sendMail).toHaveBeenCalledWith(
