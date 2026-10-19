@@ -3,9 +3,12 @@ import { sendPasswordResetEmail } from './emailSender.js';
 
 // US-14 — Yichi Zhang (SCRUM-171)
 // Recovery channel: the account's registered email.
-// Always delivered to the local demo mailbox; also attempts real delivery
-// via sendPasswordResetEmail (emailSender.js) when SMTP is configured. The
-// forgot-password HTTP response never includes the token either way.
+// Real delivery via sendPasswordResetEmail (emailSender.js, Brevo API) is
+// the actual channel now; the local demo mailbox is a dev-only fallback,
+// gated behind DEMO_MAILBOX_ENABLED (off by default - see authRoutes.js)
+// so a deployed environment never stores a reset link somewhere an
+// unauthenticated visitor could read it. The forgot-password HTTP response
+// never includes the token either way.
 
 export function buildPasswordResetUrl(rawToken, origin = process.env.APP_ORIGIN) {
   const base = String(origin || 'http://localhost:5173').replace(/\/$/, '');
@@ -15,12 +18,14 @@ export function buildPasswordResetUrl(rawToken, origin = process.env.APP_ORIGIN)
 export async function deliverPasswordResetToken({ email, rawToken }) {
   const resetUrl = buildPasswordResetUrl(rawToken);
 
-  addDemoMailboxMessage({
-    to: email,
-    subject: 'Reset your BIX password',
-    body: `Use the link below to choose a new password. It expires in one hour and can be used only once.\n\n${resetUrl}`,
-    resetUrl
-  });
+  if (process.env.DEMO_MAILBOX_ENABLED === 'true') {
+    addDemoMailboxMessage({
+      to: email,
+      subject: 'Reset your BIX password',
+      body: `Use the link below to choose a new password. It expires in one hour and can be used only once.\n\n${resetUrl}`,
+      resetUrl
+    });
+  }
 
   // A failed send must never change what forgotPasswordController tells the
   // caller - it always returns the same generic confirmation regardless, so

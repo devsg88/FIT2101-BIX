@@ -73,11 +73,13 @@ export default function ForgotPassword() {
                 <p className="login-notice" role="status">
                   {confirmation}
                 </p>
-                <p className="login-card__footer">
-                  This demo does not send real email.
-                  {' '}
-                  <Link to="/demo-mailbox">Open demo inbox</Link>
-                </p>
+                {import.meta.env.VITE_DEMO_MAILBOX_ENABLED === 'true' && (
+                  <p className="login-card__footer">
+                    Local dev: real email isn&apos;t set up on this machine.
+                    {' '}
+                    <Link to="/demo-mailbox">Open demo inbox</Link>
+                  </p>
+                )}
               </>
             )}
 

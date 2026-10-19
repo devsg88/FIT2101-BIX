@@ -184,9 +184,16 @@ describe('Password reset routes (US-14)', () => {
     expect(screen.getByRole('heading', { name: 'Reset password' })).toBeInTheDocument();
   });
 
-  it('renders the demo inbox without requiring a session', () => {
+  it('renders the demo inbox without requiring a session when enabled', () => {
+    vi.stubEnv('VITE_DEMO_MAILBOX_ENABLED', 'true');
     renderApp('/demo-mailbox', null);
     expect(screen.getByRole('heading', { name: 'Demo inbox' })).toBeInTheDocument();
+    vi.unstubAllEnvs();
+  });
+
+  it('does not route to the demo inbox when VITE_DEMO_MAILBOX_ENABLED is unset (deployed default)', () => {
+    renderApp('/demo-mailbox', null);
+    expect(screen.queryByRole('heading', { name: 'Demo inbox' })).not.toBeInTheDocument();
   });
 });
 

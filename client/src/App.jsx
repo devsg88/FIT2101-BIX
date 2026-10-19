@@ -36,7 +36,15 @@ export default function App() {
       />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/demo-mailbox" element={<DemoMailbox />} />
+      {/* Local-only stand-in for the password-reset email (see
+          resetTokenDelivery.js on the backend) - unauthenticated and shows
+          every recent reset link, not just the caller's own. Real email
+          delivery now covers this job, so it only exists when explicitly
+          opted into. Left out of the route table entirely when disabled,
+          not just hidden, so a deployed build ships no trace of the page. */}
+      {import.meta.env.VITE_DEMO_MAILBOX_ENABLED === 'true' && (
+        <Route path="/demo-mailbox" element={<DemoMailbox />} />
+      )}
       <Route
         path="/dashboard"
         element={
