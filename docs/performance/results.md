@@ -17,6 +17,12 @@ the NFR-02 work; the measurements it starts from are in
   `23c458c7a22de07294c262dbd2e03d1e`: 8 projects, 320 PBIs, 1,280 tasks,
   2,560 sub-tasks). Localhost, one machine, one user, no network latency or
   concurrency; the API benchmark does not include browser rendering.
+- **Method** (`npm run perf:bench`, details in [`baseline.md`](baseline.md)
+  §5): real HTTP requests to the app, 5 warm-up then 30 measured runs per
+  journey, median and p95, queries per request counted in the benchmark
+  process, self-restoring mutations, dataset fingerprint checked before and
+  after. Baseline v1 (`c0a65c7`) and v2 (`363f514`) were measured this way
+  before any optimisation.
 
 ## 2. Baseline (v2)
 
@@ -130,6 +136,10 @@ rolled back. The planner was never forced (no `enable_seqscan = off`).
 | Developer dashboard summary | `project_id` via user's projects | `idx_pbi_project_id`, `idx_tasks_pbi_id` | Seq Scan | Index Scan on PBIs (120 rows), Seq Scan on tasks (101,280 rows), 10.0 ms |
 | Access checks | `project_members (project_id, user_id)`, `projects.id` | primary keys | Seq Scan (31 / 8 rows) | Seq Scan (31 / 9 rows) |
 
+The dashboard figure here (10.0 ms) and the one in §4 (12.2 ms) come from
+different rolled-back experiments - this index audit also added 20,000 PBIs
+and 200,000 sub-tasks - so the two timings are not directly comparable.
+
 - Sequential scans at normal size are the planner's correct choice for
   tables of 1-27 pages; they are not evidence of a missing index. As the
   tables grow, the planner switches to the existing indexes on its own and
@@ -147,36 +157,97 @@ rolled back. The planner was never forced (no `enable_seqscan = off`).
 - **Revisit when:** the dashboard summary's sequential scan of `tasks` shows
   up in measured latency at real data sizes (that is a query-shape question,
   not a missing index), or a new feature filters on columns not covered
-  above (e.g. analytics queries once merged).
+  above. The Analytics endpoints merged later run a fixed 2-3 queries each
+  (§10) and were not part of this index audit.
 
-## 7. Current regression results
+## 7. Route-level lazy loading (SCRUM-195, commit `314d5bb`)
 
-On `feature/NFR-02-performance` at `e5a061c`:
+**Dependency status:** Project Analytics (SCRUM-32) and Sprint Analytics
+(SCRUM-33) reached main (`5bbff64`) together with US07/US09 (`f7139a8`), which
+was merged into this branch (`450af89`), so lazy loading covers all three
+reporting pages at once.
+
+**Implementation:** `App.jsx` loads Burndown, Sprint Analytics and Project
+Analytics with `React.lazy`, behind one `Suspense` fallback. `ProtectedRoute`
+still runs first, so a page is never downloaded for a user who is not allowed
+on it; a chunk that fails to download is handled by the existing app-level
+ErrorBoundary. No new dependency, no visual or behaviour change.
+
+Production build, same commit before and after the change:
+
+| | Before | After |
+|---|---|---|
+| Initial JS | 283.28 kB / 79.41 kB gzip (1 chunk) | 269.70 kB / 76.71 kB gzip |
+| Initial CSS | 47.36 kB / 8.95 kB gzip | 44.68 kB / 8.39 kB gzip |
+| Deferred, loaded on first visit | - | Burndown 6.73 kB / 2.50 kB gzip; Sprint Analytics 4.38 / 1.53; Project Analytics 2.94 / 1.12; shared chart 1.64 / 0.71; analytics CSS 2.68 / 0.91 |
+
+- **Initial download reduction:** JS -13.58 kB raw, **-2.70 kB gzip
+  (-3.4% gzip)**; CSS -2.68 kB raw, -0.56 kB gzip. Together about
+  -3.3 kB gzip of the first page load.
+- The reporting code is **deferred, not removed**: it is downloaded the first
+  time one of those pages is opened (5.86 kB gzip of JS across the four
+  chunks if all three are visited - slightly more than was saved, because
+  small separate files compress less well).
+- The gain is modest because the app has no chart library; the bulk of the
+  initial bundle is React, React DOM and the router.
+- Validation: the two analytics route tests now wait for the lazily loaded
+  page; new tests cover the Burndown route (loading state, then page;
+  logged-out redirect) and the ErrorBoundary showing its recovery screen when
+  a page chunk fails to load.
+
+## 8. Final validation
+
+On `feature/NFR-02-performance` after `314d5bb`, with current main (Analytics,
+US07/US09) merged:
 
 | Check | Result |
 |---|---|
-| Backend tests | 894 passed, 5 skipped (optional US-08c database suite), 0 failed |
-| Frontend tests | 327 passed, 0 failed |
-| Production build | passes; JS 264.59 kB / 75.06 kB gzip |
-| Full benchmark vs v2 | all medians within noise; same query counts on every journey |
-| Response sizes | unchanged (create/delete journeys differ by 1-2 bytes as new record ids grow) |
+| Backend tests | 1,041 passed, 14 skipped (optional PostgreSQL suites: US-08c, US07 focus, US09 roles), 0 failed |
+| Frontend tests | 411 passed, 0 failed |
+| Production build | passes; initial JS 269.70 kB / 76.71 kB gzip plus the deferred chunks in §7 |
 | Query count vs data size | board 6 / 6, completed work 7 / 7 (seeded vs empty) |
 | Dataset fingerprint | `23c458c7…` before and after every run, including rolled-back experiments |
 
-## 8. Target compliance
+**Benchmark after the merge.** Two final runs were slower than baseline v2 on
+every journey - between 5% and 44%, mostly 15-30% - including journeys no code
+change touched. Running the baseline-v2 code (`00c016c`) and the current code
+back to back on the same machine, twice each, showed the same slowdown for
+both: per-journey medians differed by -5% to +11%, within the run-to-run
+spread of identical code (up to about 29%). The shift was machine load, not a
+regression. Query counts are unchanged except where merged features added
+work:
+
+- Product Backlog: 2 → 3 queries (US07 current-focus lookup);
+- board +348 B, sprint list +320 B, backlog and completed work +28 B each
+  (US07/US09 focus and sprint-role fields).
+
+## 9. Target compliance
+
+Across the final runs (current code, after the merge):
 
 | Target | Result |
 |---|---|
-| Reads p95 ≤ 300 ms (provisional) | Met - slowest read p95 16.0 ms (Developer board) |
-| Mutations p95 ≤ 500 ms (provisional) | Met - slowest mutation p95 10.9 ms (complete task) |
-| Core flows within about 3 s (user-facing) | API time is far inside it; browser timings were not captured, and the manual smoke tests of the core flows showed no noticeable delay |
+| Reads p95 ≤ 300 ms (provisional) | Met - slowest read p95 24.7 ms (Admin board) |
+| Mutations p95 ≤ 500 ms (provisional) | Met - slowest mutation p95 31.7 ms (one Delete PBI run; 10-17 ms in the other runs) |
+| Core flows within about 3 s (user-facing) | API time is far inside it; browser timings were not captured, and manual smoke tests of the core flows showed no noticeable delay |
 
-## 9. Remaining work
+## 10. Post-integration journeys (not part of the v1/v2 comparison)
 
-- **SCRUM-195 lazy loading:** pending. The Burndown page and chart are about
-  2.8 KB gzip; the Project and Sprint analytics pages (about 3.6 KB gzip,
-  hand-written charts, no chart library) are on unmerged branches. The
-  route-level lazy-loading decision will be made once, against the analytics
-  merge status, and measured as initial-chunk size before/after.
-- The analytics routes will also need checking against these results (query
-  shape, indexes) once they reach main.
+Measured with the same method (5 warm-up + 30 runs) after Analytics merged:
+
+| Journey | Request | Median (ms) | p95 (ms) | Queries | Response |
+|---|---|---|---|---|---|
+| Project Analytics | `GET /api/projects/analytics` | 10.5 | 12.5 | 2 | 1,447 B |
+| Sprint Analytics | `GET /api/projects/1/analytics/sprints` | 8.2 | 9.5 | 3 | 1,972 B |
+
+Both use a fixed number of aggregated queries (no N+1). Their routes, and
+US07's new current-focus and sprint-role routes, were also wrapped with the
+NFR-03 `asyncHandler` (`01c31e5`), which they had reached main without.
+
+## 11. Limitations
+
+Localhost, one machine, one user, no network latency or concurrency; the API
+benchmark does not include browser rendering, and the bundle figures are
+transfer sizes rather than load times. Comparisons are only meaningful on the
+same machine and dataset, which is why the final check compares old and new
+code back to back.
