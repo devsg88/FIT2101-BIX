@@ -124,4 +124,19 @@ describe('projectMembershipModel', () => {
       { id: 1, name: 'BIX Platform', status: 'active', done_count: 3, total_count: 4 }
     ]);
   });
+
+  // NFR-02: both aggregates must be restricted to the user's projects before
+  // grouping, not computed for every project and joined afterwards.
+  it('getProjectSummariesForUser limits the sprint and task aggregates to the user projects, in one query', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    await getProjectSummariesForUser(2);
+
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/WITH my_projects AS \([\s\S]*WHERE pm\.user_id = \$1/);
+    expect(sql).toMatch(/FROM sprints s\s+WHERE s\.project_id IN \(SELECT id FROM my_projects\)/);
+    expect(sql).toMatch(/JOIN product_backlog_items pbi ON pbi\.id = t\.pbi_id\s+WHERE pbi\.project_id IN \(SELECT id FROM my_projects\)/);
+    expect(params).toEqual([2]);
+  });
 });

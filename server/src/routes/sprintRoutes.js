@@ -50,7 +50,7 @@ router.patch(
   '/:projectId/sprints/:sprintId/roles',
   requireAuth,
   requireProjectAccess,
-  updateSprintRolesController
+  asyncHandler(updateSprintRolesController)
 );
 
 export default router;

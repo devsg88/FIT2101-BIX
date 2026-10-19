@@ -95,36 +95,50 @@ export async function listProjectsForUser(userId) {
 //     this into a percentage; left as two counts here so a project with no
 //     tasks is not forced into a fake 0% vs "no data" distinction by this
 //     layer.
+//
+// NFR-02: the sprint and task aggregates are restricted to this user's
+// projects (my_projects) BEFORE grouping. They used to group every project's
+// sprints and tasks and only then join to the user's projects, so the work
+// grew with the whole database rather than with the user's own projects.
+// Same single statement and same results; on the NFR-02 performance dataset
+// with 100,000 unrelated tasks added, execution dropped from ~35 ms to ~12 ms
+// (see docs/performance).
 export async function getProjectSummariesForUser(userId) {
   const { rows } = await pool.query(
-    `SELECT
-       p.id,
-       p.name,
+    `WITH my_projects AS (
+       SELECT p.id, p.name
+         FROM project_members pm
+         JOIN projects p ON p.id = pm.project_id
+        WHERE pm.user_id = $1
+     )
+     SELECT
+       mp.id,
+       mp.name,
        COALESCE(sprint_status.status, 'not-started') AS status,
        COALESCE(task_stats.done_count, 0)::int AS done_count,
        COALESCE(task_stats.total_count, 0)::int AS total_count
-     FROM project_members pm
-     JOIN projects p ON p.id = pm.project_id
+     FROM my_projects mp
      LEFT JOIN (
-       SELECT project_id,
+       SELECT s.project_id,
               CASE
-                WHEN bool_or(status = 'active') THEN 'active'
-                WHEN bool_or(status = 'planning') THEN 'planning'
+                WHEN bool_or(s.status = 'active') THEN 'active'
+                WHEN bool_or(s.status = 'planning') THEN 'planning'
                 ELSE 'not-started'
               END AS status
-         FROM sprints
-        GROUP BY project_id
-     ) sprint_status ON sprint_status.project_id = p.id
+         FROM sprints s
+        WHERE s.project_id IN (SELECT id FROM my_projects)
+        GROUP BY s.project_id
+     ) sprint_status ON sprint_status.project_id = mp.id
      LEFT JOIN (
        SELECT pbi.project_id,
               COUNT(*) FILTER (WHERE t.status = 'done') AS done_count,
               COUNT(*) AS total_count
          FROM tasks t
          JOIN product_backlog_items pbi ON pbi.id = t.pbi_id
+        WHERE pbi.project_id IN (SELECT id FROM my_projects)
         GROUP BY pbi.project_id
-     ) task_stats ON task_stats.project_id = p.id
-     WHERE pm.user_id = $1
-     ORDER BY p.name`,
+     ) task_stats ON task_stats.project_id = mp.id
+     ORDER BY mp.name`,
     [userId]
   );
   return rows;

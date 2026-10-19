@@ -17,6 +17,7 @@ import * as authController from '../controllers/authController.js';
 import * as passwordResetController from '../controllers/passwordResetController.js';
 import * as projectController from '../controllers/projectController.js';
 import * as sprintController from '../controllers/sprintController.js';
+import * as analyticsController from '../controllers/analyticsController.js';
 
 // NFR-03 / SCRUM-189. Proves asyncHandler is really adopted on every async
 // route in the app: each controller is replaced by a mock that
@@ -50,6 +51,7 @@ vi.mock('../controllers/authController.js');
 vi.mock('../controllers/passwordResetController.js');
 vi.mock('../controllers/projectController.js');
 vi.mock('../controllers/sprintController.js');
+vi.mock('../controllers/analyticsController.js');
 
 const TEST_SECRET = 'async-adoption-test-secret';
 const INTERNAL = 'internal: relation "tasks" does not exist at character 42';
@@ -95,7 +97,12 @@ const WRAPPED_ROUTES = [
   ['projectRoutes', 'PATCH', '/api/projects/1', projectController, 'updateProjectController'],
   ['projectRoutes', 'DELETE', '/api/projects/1', projectController, 'deleteProjectController'],
   ['sprintRoutes', 'POST', '/api/projects/1/sprints', sprintController, 'createSprintController'],
-  ['sprintRoutes', 'POST', '/api/projects/1/sprints/5/start', sprintController, 'startSprintController']
+  ['sprintRoutes', 'POST', '/api/projects/1/sprints/5/start', sprintController, 'startSprintController'],
+  // Merged later: US07/US09 current focus and sprint roles, and Analytics.
+  ['projectRoutes', 'PATCH', '/api/projects/1/focus', projectController, 'setCurrentFocusController'],
+  ['sprintRoutes', 'PATCH', '/api/projects/1/sprints/5/roles', sprintController, 'updateSprintRolesController'],
+  ['analyticsRoutes', 'GET', '/api/projects/analytics', analyticsController, 'getProjectAnalyticsController'],
+  ['analyticsRoutes', 'GET', '/api/projects/1/analytics/sprints', analyticsController, 'getSprintAnalyticsController']
 ];
 
 const admin = { id: '3', role: 'admin' };
@@ -142,8 +149,8 @@ describe('asyncHandler adoption on the non-conflicting routes', () => {
     });
   }
 
-  it('covers all 38 wrapped controllers', () => {
-    expect(WRAPPED_ROUTES).toHaveLength(38);
+  it('covers all 42 wrapped controllers', () => {
+    expect(WRAPPED_ROUTES).toHaveLength(42);
   });
 
   it('still checks the role before a wrapped project controller (Developer creating a project: 403)', async () => {

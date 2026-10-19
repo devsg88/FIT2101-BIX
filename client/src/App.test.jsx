@@ -36,6 +36,10 @@ vi.mock('./pages/ProjectAnalytics.jsx', () => ({
   default: () => <div>Project Analytics Page</div>
 }));
 
+vi.mock('./pages/Burndown.jsx', () => ({
+  default: () => <div>Burndown Page</div>
+}));
+
 function renderApp(initialPath, user) {
   useAuth.mockReturnValue({ user });
   return render(
@@ -86,9 +90,10 @@ describe('App redirect logic', () => {
 });
 
 describe('Sprint analytics route', () => {
-  it('allows an admin to open the analytics page', () => {
+  it('allows an admin to open the analytics page', async () => {
     renderApp('/analytics/sprints', { id: 3, role: 'admin', token: 'abc' });
-    expect(screen.getByText('Sprint Analytics Page')).toBeInTheDocument();
+    // Lazy-loaded route (NFR-02): the page arrives after its chunk loads.
+    expect(await screen.findByText('Sprint Analytics Page')).toBeInTheDocument();
   });
 
   it('denies developers without rendering the analytics page', () => {
@@ -105,9 +110,10 @@ describe('Sprint analytics route', () => {
 });
 
 describe('Project analytics route', () => {
-  it('allows an admin to open project comparisons', () => {
+  it('allows an admin to open project comparisons', async () => {
     renderApp('/analytics/projects', { id: 3, role: 'admin', token: 'abc' });
-    expect(screen.getByText('Project Analytics Page')).toBeInTheDocument();
+    // Lazy-loaded route (NFR-02): the page arrives after its chunk loads.
+    expect(await screen.findByText('Project Analytics Page')).toBeInTheDocument();
   });
 
   it('does not render project comparisons for a developer', () => {
@@ -181,5 +187,24 @@ describe('Password reset routes (US-14)', () => {
   it('renders the demo inbox without requiring a session', () => {
     renderApp('/demo-mailbox', null);
     expect(screen.getByRole('heading', { name: 'Demo inbox' })).toBeInTheDocument();
+  });
+});
+
+// NFR-02 / SCRUM-195: the reporting pages are lazy-loaded. The route guard
+// still decides first, and the page appears once its chunk has loaded.
+describe('Burndown route (lazy-loaded)', () => {
+  it('shows a loading state, then the Burndown page, for an authenticated user', async () => {
+    renderApp('/projects/1/burndown', { id: 7, role: 'developer', token: 'abc' });
+
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(await screen.findByText('Burndown Page')).toBeInTheDocument();
+    expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+  });
+
+  it('redirects a logged-out visitor to login without rendering Burndown', () => {
+    renderApp('/projects/1/burndown', null);
+
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+    expect(screen.queryByText('Burndown Page')).not.toBeInTheDocument();
   });
 });

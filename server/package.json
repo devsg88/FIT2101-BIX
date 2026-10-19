@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
-    "test": "vitest"
+    "test": "vitest",
+    "perf:seed": "node scripts/perf/seed-perf-data.js",
+    "perf:bench": "node scripts/perf/benchmark.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
