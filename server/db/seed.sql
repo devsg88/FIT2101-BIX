@@ -28,7 +28,10 @@ BEGIN;
 -- -------------------------------------------------------------------------
 INSERT INTO projects (id, name) VALUES
     (1, 'BIX Platform'),
-    (2, 'Mobile App')
+    (2, 'Mobile App'),
+    (3, 'Analytics Dashboard'),
+    (4, 'Customer Portal'),
+    (5, 'Internal Tools')
 ON CONFLICT (id) DO NOTHING;
 
 -- -------------------------------------------------------------------------
@@ -106,7 +109,7 @@ ON CONFLICT (id) DO NOTHING;
 -- -------------------------------------------------------------------------
 -- users
 --   Shared demo accounts for local development and assessment.
---   Pang and Admin use the same seeded bcrypt password hash.
+--   Everyone except user 2 uses the same seeded bcrypt password hash.
 --   Demo login password: password123
 --   User 2 ("Developer") is deliberately seeded with a real, checkable
 --   inbox (not a fake @bix.app address) so the Forgot Password flow
@@ -115,29 +118,43 @@ ON CONFLICT (id) DO NOTHING;
 --   demo login password is Password123 (capital P), not the shared one.
 -- -------------------------------------------------------------------------
 INSERT INTO users (id, name, email, role, password_hash) VALUES
-    (1, 'Pang',      'pang@bix.app',               'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
-    (2, 'Developer', 'devtejsingh8276@gmail.com',  'developer', '$2b$10$zDMb8sa6M5Ljx8ssL4hoiOq0XfVB1YIalbKJTcQv954R..bY6B2yO'),
-    (3, 'Admin',     'admin@bix.app',               'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm')
+    (1, 'Pang',         'pang@bix.app',               'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (2, 'Developer',    'devtejsingh8276@gmail.com',  'developer', '$2b$10$zDMb8sa6M5Ljx8ssL4hoiOq0XfVB1YIalbKJTcQv954R..bY6B2yO'),
+    (3, 'Admin',        'admin@bix.app',               'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (4, 'Johnny Admin', 'johnadmin@bix.app',           'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (5, 'Sarah Chen',   'sarah@bix.app',               'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (6, 'Marcus Lee',   'marcus@bix.app',              'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (7, 'Priya Nair',   'priya@bix.app',               'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm')
 ON CONFLICT (id) DO NOTHING;
 
 -- -------------------------------------------------------------------------
 -- project responsibility  (US-04d)
---   The seeded Admin is responsible for BIX Platform (project 1) only.
---   Mobile App (project 2) is deliberately left with no responsible Admin
---   (NULL), so the "Admin not responsible for this project" path can be
---   exercised against real seed data, the same way project 2 already covers
---   the US-05 "not a member" path below.
+--   The seeded Admin is responsible for BIX Platform (1) and Analytics
+--   Dashboard (3); Johnny Admin is responsible for Customer Portal (4) and
+--   Internal Tools (5) - so each admin also has at least one project the
+--   *other* admin owns, to exercise "Admin not responsible for this
+--   project" against real seed data. Mobile App (project 2) is deliberately
+--   left with no responsible Admin (NULL) - the original such case, kept as
+--   the one project nobody owns, same as the "not a member" gap it also
+--   covers below.
 --
 --   Done as an UPDATE here, not in the projects INSERT above, because the
---   projects rows are inserted before users exist. The Admin is looked up by
---   email and role rather than by a hard-coded id; if that account is
+--   projects rows are inserted before users exist. Each Admin is looked up
+--   by email and role rather than by a hard-coded id; if that account is
 --   missing, the subquery is NULL and the project simply stays unowned.
 -- -------------------------------------------------------------------------
 UPDATE projects
    SET responsible_admin_id = (
          SELECT id FROM users WHERE email = 'admin@bix.app' AND role = 'admin'
        )
- WHERE id = 1
+ WHERE id IN (1, 3)
+   AND responsible_admin_id IS NULL;
+
+UPDATE projects
+   SET responsible_admin_id = (
+         SELECT id FROM users WHERE email = 'johnadmin@bix.app' AND role = 'admin'
+       )
+ WHERE id IN (4, 5)
    AND responsible_admin_id IS NULL;
 
 -- -------------------------------------------------------------------------
@@ -160,11 +177,22 @@ ON CONFLICT (team_id, user_id) DO NOTHING;
 --   Pang (1) and Developer (2) are assigned to BIX Platform (project 1).
 --   Neither is assigned to Mobile App (project 2), so it exercises the
 --   US-05 "not a member" path against a project with real seed data instead
---   of only a non-existent id.
+--   of only a non-existent id. Mobile App is kept with no members at all,
+--   on purpose - the rest of this block spreads the other developers
+--   (Sarah 5, Marcus 6, Priya 7) unevenly across the three newer projects,
+--   so every developer is on at least one project but none of them is on
+--   every project - there is always a real "not assigned here" case to
+--   demo for any given developer/project pair.
 -- -------------------------------------------------------------------------
 INSERT INTO project_members (project_id, user_id) VALUES
     (1, 1),
-    (1, 2)
+    (1, 2),
+    (3, 5),
+    (3, 6),
+    (4, 6),
+    (4, 7),
+    (5, 1),
+    (5, 7)
 ON CONFLICT (project_id, user_id) DO NOTHING;
 
 -- US-11 (Yichi Zhang): assign seed tasks after users exist.
