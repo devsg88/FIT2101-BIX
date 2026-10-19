@@ -33,6 +33,23 @@ export async function getSprintById(projectId, sprintId) {
   return rows[0] ?? null;
 }
 
+// US-10 gap closed: previously the only INSERT INTO sprints anywhere in the
+// codebase was in db/seed.sql - a project created through the real
+// "Create Project" flow had zero sprints, so Start Sprint could never
+// succeed on it (it only ever UPDATEs an existing sprint row, see
+// startSprint below). `status` is left to its schema default ('planning')
+// and `started_at` stays NULL until Start Sprint runs - a created sprint is
+// not an active one.
+export async function createSprint(projectId, name) {
+  const { rows } = await pool.query(
+    `INSERT INTO sprints (project_id, name)
+     VALUES ($1, $2)
+     RETURNING ${SPRINT_COLUMNS}`,
+    [projectId, name]
+  );
+  return rows[0];
+}
+
 // Updates a sprint's Scrum Master and/or Product Owner (US-09 / SCRUM-176).
 //
 // changes may hold either or both of:

@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { createProject } from '../../services/api.js';
+import ActionError from '../common/ActionError.jsx';
 
 // "+ Create Project" (US-04d): the Admin names a new project and becomes its
 // responsible Admin. There is no Figma screen for this flow, so it reuses the
@@ -32,7 +33,7 @@ export default function CreateProjectModal({ onClose }) {
 
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('A project name is required');
+      setError(new Error('A project name is required'));
       return;
     }
 
@@ -45,7 +46,7 @@ export default function CreateProjectModal({ onClose }) {
       setCreatedProject(project);
     } catch (err) {
       // Keep the typed name so the Admin can correct it and try again.
-      setError(err.message || 'The project could not be created. Please try again.');
+      setError(err);
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);
@@ -121,11 +122,12 @@ export default function CreateProjectModal({ onClose }) {
               autoFocus
             />
 
-            {error && (
-              <p id="create-project-error" className="login-error" role="alert">
-                {error}
-              </p>
-            )}
+            <ActionError
+              id="create-project-error"
+              error={error}
+              fallback="The project could not be created. Please try again."
+              className="login-error"
+            />
 
             <div className="admin-modal__actions">
               <button

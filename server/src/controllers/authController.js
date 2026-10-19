@@ -2,6 +2,10 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { findUserByEmail } from '../models/userModel.js';
 
+// Configurable via .env (JWT_EXPIRES_IN); defaults to the 8h security
+// baseline rather than being hardcoded here.
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
+
 export async function loginController(req, res) {
   const { email, password } = req.body;
 
@@ -25,7 +29,7 @@ export async function loginController(req, res) {
     const token = jwt.sign(
       { id: user.id, role: user.role },
       process.env.JWT_SECRET,
-      { expiresIn: '8h' }
+      { expiresIn: JWT_EXPIRES_IN }
     );
 
     return res.json({

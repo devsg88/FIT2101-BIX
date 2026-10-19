@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getResponsibleProjects } from '../../services/api.js';
 import { allTeams } from '../../data/orgMockData.js';
@@ -26,7 +26,9 @@ export default function AdminSidebar() {
   const token = user?.token;
 
   const [projects, setProjects] = useState([]);
-  const [projectsStatus, setProjectsStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error'
+  const [projectsStatus, setProjectsStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error' | 'forbidden'
+  // NFR-03: bumped by Retry to run the load again.
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     if (!token) {
@@ -42,16 +44,17 @@ export default function AdminSidebar() {
         setProjects(Array.isArray(data?.projects) ? data.projects : []);
         setProjectsStatus('ready');
       })
-      .catch(() => {
+      .catch((err) => {
         if (!isMounted) return;
         setProjects([]);
-        setProjectsStatus('error');
+        // A 403 is an access decision, not a passing failure: no Retry.
+        setProjectsStatus(err?.status === 403 ? 'forbidden' : 'error');
       });
 
     return () => {
       isMounted = false;
     };
-  }, [token]);
+  }, [token, loadAttempt]);
 
   const activeTeamId = teamId ? Number(teamId) : allTeams[0]?.id;
 
@@ -89,6 +92,14 @@ export default function AdminSidebar() {
       <Link to="/dashboard" className="admin-sidebar__org-link">
         Organization Dashboard
       </Link>
+      <NavLink to="/analytics/sprints" className={({ isActive }) =>
+        isActive ? 'admin-sidebar__org-link' : 'admin-sidebar__analytics-link'}>
+        Sprint analytics
+      </NavLink>
+      <NavLink to="/analytics/projects" className={({ isActive }) =>
+        isActive ? 'admin-sidebar__org-link' : 'admin-sidebar__analytics-link'}>
+        Project analytics
+      </NavLink>
 
       <p className="admin-sidebar__label">Active teams ({allTeams.length})</p>
       <div className="admin-sidebar__team-list">
@@ -111,7 +122,15 @@ export default function AdminSidebar() {
         <p className="admin-sidebar__label" role="status">Loading projects...</p>
       )}
       {projectsStatus === 'error' && (
-        <p className="admin-sidebar__label" role="alert">Couldn&apos;t load projects.</p>
+        <div className="admin-sidebar__label" role="alert">
+          <p>Couldn&apos;t load projects.</p>
+          <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+            Retry
+          </button>
+        </div>
+      )}
+      {projectsStatus === 'forbidden' && (
+        <p className="admin-sidebar__label" role="alert">You don&apos;t have access to these projects.</p>
       )}
       {projectsStatus === 'ready' && projects.length === 0 && (
         <p className="admin-sidebar__label">No responsible projects yet.</p>
@@ -131,9 +150,9 @@ export default function AdminSidebar() {
       )}
 
       <div className="admin-sidebar__bottom">
-        <button type="button" className="admin-sidebar__settings">
+        <Link to="/settings" className="admin-sidebar__settings">
           <span aria-hidden="true">⚙</span> System Settings
-        </button>
+        </Link>
         <button type="button" className="admin-sidebar__signout" onClick={handleSignOut}>
           <span aria-hidden="true">⎋</span> Sign out
         </button>

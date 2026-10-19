@@ -1,5 +1,10 @@
 import { getPbisByStage } from '../models/pbiModel.js';
-import { getSprintById, startSprint, updateSprintRoles } from '../models/sprintModel.js';
+import {
+  createSprint,
+  getSprintById,
+  startSprint,
+  updateSprintRoles
+} from '../models/sprintModel.js';
 import { findUserById } from '../models/userModel.js';
 import { isProjectMember } from '../models/projectMembershipModel.js';
 import { getProjectResponsibility } from '../models/projectModel.js';
@@ -16,6 +21,53 @@ import { checkStageTransition } from '../constants/stageTransitions.js';
 // Guarded by requireProjectAccess at the route (../routes/sprintRoutes.js):
 // a Developer must be a member of the project, an Admin its responsible
 // Admin.
+
+function parseSprintName(body) {
+  const rawName = body?.name;
+
+  if (rawName === undefined || rawName === null) {
+    return { error: 'A sprint name is required' };
+  }
+  if (typeof rawName !== 'string') {
+    return { error: 'The sprint name must be text' };
+  }
+
+  const name = rawName.trim();
+  if (name === '') {
+    return { error: 'A sprint name is required' };
+  }
+
+  return { name };
+}
+
+// POST /api/projects/:projectId/sprints   body: { name }
+//
+// US-10 gap closed (NFR-01 frontend audit): the only way to get a sprint
+// row into the database used to be db/seed.sql. Admin-only, and only the
+// Admin responsible for this project (requireProjectResponsibility at the
+// route, ../routes/sprintRoutes.js) - the project's existence is already
+// confirmed by that middleware, same convention createPbiController uses,
+// so this does not re-check it. Always created with status 'planning' (the
+// schema default) - Start Sprint is a separate, later action.
+export async function createSprintController(req, res) {
+  const projectId = Number(req.params.projectId);
+
+  if (!Number.isInteger(projectId) || projectId <= 0) {
+    return res.status(400).json({ message: 'A valid projectId is required' });
+  }
+
+  const parsed = parseSprintName(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ message: parsed.error });
+  }
+
+  try {
+    const sprint = await createSprint(projectId, parsed.name);
+    return res.status(201).json({ sprint });
+  } catch (err) {
+    return res.status(500).json({ message: 'Failed to create the sprint' });
+  }
+}
 
 function hasPlanningDetails(pbi) {
   return (

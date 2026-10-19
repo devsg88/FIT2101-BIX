@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { startSprintController, updateSprintRolesController } from './sprintController.js';
+import {
+  createSprintController,
+  startSprintController,
+  updateSprintRolesController
+} from './sprintController.js';
 import { getPbisByStage } from '../models/pbiModel.js';
-import { getSprintById, startSprint, updateSprintRoles } from '../models/sprintModel.js';
+import {
+  createSprint,
+  getSprintById,
+  startSprint,
+  updateSprintRoles
+} from '../models/sprintModel.js';
 import { findUserById } from '../models/userModel.js';
 import { isProjectMember } from '../models/projectMembershipModel.js';
 import { getProjectResponsibility } from '../models/projectModel.js';
@@ -306,5 +315,65 @@ describe('updateSprintRolesController', () => {
 
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ message: 'Failed to update the sprint roles' });
+  });
+});
+
+describe('createSprintController (US-10 gap closed, NFR-01 frontend audit)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mockReqWithBody(body, { projectId = '1' } = {}) {
+    return { params: { projectId }, body };
+  }
+
+  it('returns 400 when projectId is not a positive integer', async () => {
+    const res = mockRes();
+
+    await createSprintController(mockReqWithBody({ name: 'Sprint 4' }, { projectId: 'abc' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(createSprint).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when name is missing', async () => {
+    const res = mockRes();
+
+    await createSprintController(mockReqWithBody({}), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ message: 'A sprint name is required' });
+    expect(createSprint).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when name is blank after trimming', async () => {
+    const res = mockRes();
+
+    await createSprintController(mockReqWithBody({ name: '   ' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(createSprint).not.toHaveBeenCalled();
+  });
+
+  it('creates the sprint with the trimmed name and returns it', async () => {
+    const created = { id: 4, project_id: 1, name: 'Sprint 4', status: 'planning' };
+    createSprint.mockResolvedValue(created);
+    const res = mockRes();
+
+    await createSprintController(mockReqWithBody({ name: '  Sprint 4  ' }), res);
+
+    expect(createSprint).toHaveBeenCalledWith(1, 'Sprint 4');
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({ sprint: created });
+  });
+
+  it('returns 500 without leaking details when something unexpected throws', async () => {
+    createSprint.mockRejectedValue(new Error('connection terminated unexpectedly'));
+    const res = mockRes();
+
+    await createSprintController(mockReqWithBody({ name: 'Sprint 4' }), res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to create the sprint' });
   });
 });

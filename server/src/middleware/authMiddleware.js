@@ -12,7 +12,7 @@ export function requireAuth(req, res, next) {
 
   try {
     const token = authHeader.split(' ')[1];
-    req.user = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = jwt.verify(token, process.env.JWT_SECRET, { algorithms: ['HS256'] });
     next();
   } catch (err) {
     return res.status(401).json({ message: 'Invalid or expired token' });

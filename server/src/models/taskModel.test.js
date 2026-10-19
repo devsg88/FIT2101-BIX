@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { pool } from '../config/db.js';
 import {
   createTask, updateTask, createSubTask, updateSubTask, getSubTasksByPbi,
-  getTaskInPbi, updateTaskInPbi, deleteTask, assignTask
+  getTaskInPbi, updateTaskInPbi, deleteTask, deleteTaskWithSubTasks, assignTask
 } from './taskModel.js';
 
-vi.mock('../config/db.js', () => ({ pool: { query: vi.fn() } }));
+vi.mock('../config/db.js', () => ({ pool: { query: vi.fn(), connect: vi.fn() } }));
 
 describe('Sprint Planning persistence', () => {
   beforeEach(() => vi.resetAllMocks());
@@ -152,5 +152,94 @@ describe('assignTask', () => {
 
     const [, params] = pool.query.mock.calls[0];
     expect(params).toEqual([null, 1, 2]);
+  });
+});
+
+// NFR-03 / SCRUM-192. deleteTaskController deletes through this: the task's
+// sub-tasks and the task in one transaction, so a failure part-way cannot
+// leave the task without its sub-tasks.
+describe('deleteTaskWithSubTasks', () => {
+  let client;
+
+  // Answers each statement in order; `failOn` makes the matching statement
+  // reject, as a dropped connection or a foreign-key error would.
+  function useClient({ taskFound = true, failOn = null } = {}) {
+    client = {
+      query: vi.fn(async (sql) => {
+        if (failOn && failOn.test(sql)) {
+          throw Object.assign(new Error('simulated database failure'), { code: '08006' });
+        }
+        if (/^SELECT id FROM tasks/.test(sql)) {
+          return { rows: taskFound ? [{ id: 3 }] : [] };
+        }
+        return { rows: [], rowCount: 1 };
+      }),
+      release: vi.fn()
+    };
+    pool.connect.mockResolvedValue(client);
+  }
+
+  const statements = () => client.query.mock.calls.map(([sql]) => sql.replace(/\s+/g, ' ').trim());
+
+  beforeEach(() => vi.resetAllMocks());
+
+  it('locks the task, deletes its sub-tasks then the task, and commits - all on one connection', async () => {
+    useClient();
+
+    expect(await deleteTaskWithSubTasks(2, 3)).toBe(true);
+
+    expect(statements()).toEqual([
+      'BEGIN',
+      'SELECT id FROM tasks WHERE id = $1 AND pbi_id = $2 FOR UPDATE',
+      'DELETE FROM sub_tasks WHERE task_id = $1',
+      'DELETE FROM tasks WHERE id = $1 AND pbi_id = $2',
+      'COMMIT'
+    ]);
+    expect(client.query.mock.calls[1][1]).toEqual([3, 2]);
+    expect(client.query.mock.calls[2][1]).toEqual([3]);
+    expect(client.query.mock.calls[3][1]).toEqual([3, 2]);
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes nothing and returns false when the task is not in that PBI', async () => {
+    useClient({ taskFound: false });
+
+    expect(await deleteTaskWithSubTasks(2, 3)).toBe(false);
+
+    expect(statements()).toEqual([
+      'BEGIN',
+      'SELECT id FROM tasks WHERE id = $1 AND pbi_id = $2 FOR UPDATE',
+      'ROLLBACK'
+    ]);
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back the sub-task delete when deleting the task fails afterwards', async () => {
+    useClient({ failOn: /^DELETE FROM tasks/ });
+
+    await expect(deleteTaskWithSubTasks(2, 3)).rejects.toThrow('simulated database failure');
+
+    // The sub-task DELETE ran inside the transaction, and the transaction was
+    // rolled back - never committed - so those sub-tasks are restored.
+    expect(statements()).toEqual([
+      'BEGIN',
+      'SELECT id FROM tasks WHERE id = $1 AND pbi_id = $2 FOR UPDATE',
+      'DELETE FROM sub_tasks WHERE task_id = $1',
+      'DELETE FROM tasks WHERE id = $1 AND pbi_id = $2',
+      'ROLLBACK'
+    ]);
+    expect(statements()).not.toContain('COMMIT');
+    expect(client.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back when deleting the sub-tasks fails, before the task is touched', async () => {
+    useClient({ failOn: /^DELETE FROM sub_tasks/ });
+
+    await expect(deleteTaskWithSubTasks(2, 3)).rejects.toThrow('simulated database failure');
+
+    expect(statements()).not.toContain('DELETE FROM tasks WHERE id = $1 AND pbi_id = $2');
+    expect(statements().at(-1)).toBe('ROLLBACK');
+    expect(client.release).toHaveBeenCalledTimes(1);
   });
 });

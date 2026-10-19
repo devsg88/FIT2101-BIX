@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import app from '../app.js';
 import { getProjectResponsibility } from '../models/projectModel.js';
 import { getPbiById } from '../models/pbiModel.js';
-import { getTaskInPbi, updateTaskInPbi as updateTask, deleteTask, assignTask } from '../models/taskModel.js';
+import { getTaskInPbi, updateTaskInPbi as updateTask, deleteTask, deleteTaskWithSubTasks, assignTask } from '../models/taskModel.js';
 import {
   getSubTaskById,
   updateSubTask,
@@ -34,14 +34,14 @@ const SUB_TASK = `${TASK}/sub-tasks/4`;
 // write it ends in.
 const ROUTES = [
   { label: 'edit task', method: 'PATCH', path: TASK, body: { title: 'Renamed', status: 'in_progress' }, write: () => updateTask },
-  { label: 'delete task', method: 'DELETE', path: TASK, write: () => deleteTask },
+  { label: 'delete task', method: 'DELETE', path: TASK, write: () => deleteTaskWithSubTasks },
   { label: 'assign task', method: 'PATCH', path: `${TASK}/assignee`, body: { assignee_id: 2 }, write: () => assignTask },
   { label: 'edit sub-task', method: 'PATCH', path: SUB_TASK, body: { title: 'Renamed', status: 'in_progress' }, write: () => updateSubTask },
   { label: 'delete sub-task', method: 'DELETE', path: SUB_TASK, write: () => deleteSubTask },
   { label: 'assign sub-task', method: 'PATCH', path: `${SUB_TASK}/assignee`, body: { assignee_id: 2 }, write: () => assignSubTask }
 ];
 
-const WRITES = () => [updateTask, deleteTask, deleteSubTasksByTaskId, assignTask, updateSubTask, deleteSubTask, assignSubTask];
+const WRITES = () => [updateTask, deleteTask, deleteTaskWithSubTasks, deleteSubTasksByTaskId, assignTask, updateSubTask, deleteSubTask, assignSubTask];
 
 describe('US-04a Admin task / sub-task routes use project responsibility (US-04d)', () => {
   const TEST_SECRET = 'task-routes-responsibility-test-secret';
@@ -93,6 +93,7 @@ describe('US-04a Admin task / sub-task routes use project responsibility (US-04d
     listProjectMembers.mockResolvedValue([{ id: '2', name: 'Developer' }]);
     updateTask.mockResolvedValue({ id: 3 });
     deleteTask.mockResolvedValue(true);
+    deleteTaskWithSubTasks.mockResolvedValue(true);
     deleteSubTasksByTaskId.mockResolvedValue(undefined);
     assignTask.mockResolvedValue({ id: 3, assignee_id: '2' });
     updateSubTask.mockResolvedValue({ id: 4 });

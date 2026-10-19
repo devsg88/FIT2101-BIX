@@ -10,6 +10,9 @@ import Board from './pages/Board.jsx';
 import TeamDetail from './pages/TeamDetail.jsx';
 import ProductBacklog from './pages/ProductBacklog.jsx';
 import Burndown from './pages/Burndown.jsx';
+import SprintAnalytics from './pages/SprintAnalytics.jsx';
+import ProjectAnalytics from './pages/ProjectAnalytics.jsx';
+import Settings from './pages/Settings.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
 
 export default function App() {
@@ -100,6 +103,34 @@ export default function App() {
         element={
           <ProtectedRoute allowedRoles={['admin']}>
             <TeamDetail />
+          </ProtectedRoute>
+        }
+      />
+      {/* Settings (US-16): any authenticated user, not admin-only - Settings.jsx
+          itself picks the Admin (System Settings + AdminSidebar) or Developer
+          (Account Settings + dev topbar) view from the logged-in user's role,
+          so the route only needs to require a session, same as /dashboard. */}
+      <Route
+        path="/settings"
+        element={
+          <ProtectedRoute>
+            <Settings />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/sprints"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <SprintAnalytics />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/analytics/projects"
+        element={
+          <ProtectedRoute allowedRoles={['admin']}>
+            <ProjectAnalytics />
           </ProtectedRoute>
         }
       />

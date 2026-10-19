@@ -5,7 +5,7 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { listDevelopers, findUserById } from './userModel.js';
+import { findUserById, listDevelopers } from './userModel.js';
 
 describe('listDevelopers', () => {
   beforeEach(() => {
@@ -24,7 +24,11 @@ describe('listDevelopers', () => {
   });
 });
 
-// US-09 / SCRUM-177
+// Added for US-03/US-05: addProjectMemberController uses this to verify a
+// target user actually exists and is really a developer, server-side,
+// rather than trusting the client's own available-developers list.
+// US-09 / SCRUM-177 also uses it to refuse a Scrum Master who is not a
+// real user.
 describe('findUserById', () => {
   beforeEach(() => {
     vi.clearAllMocks();

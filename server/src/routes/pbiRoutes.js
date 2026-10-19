@@ -13,6 +13,7 @@ import {
   updatePbiDetailsController,
   updatePlanningController
 } from '../controllers/pbiController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js).
 const router = Router();
@@ -26,7 +27,7 @@ router.get(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  listPbisController
+  asyncHandler(listPbisController)
 );
 
 // POST /api/projects/:projectId/pbis
@@ -38,7 +39,7 @@ router.post(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  createPbiController
+  asyncHandler(createPbiController)
 );
 
 // PATCH /api/projects/:projectId/pbis/:pbiId
@@ -48,7 +49,7 @@ router.patch(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  updatePbiDetailsController
+  asyncHandler(updatePbiDetailsController)
 );
 
 // DELETE /api/projects/:projectId/pbis/:pbiId
@@ -59,7 +60,7 @@ router.delete(
   requireAuth,
   requireRole('admin'),
   requireProjectResponsibility,
-  deletePbiController
+  asyncHandler(deletePbiController)
 );
 
 // The two board actions below are used by Developers AND Admins, so they use
@@ -73,7 +74,7 @@ router.patch(
   '/:projectId/pbis/:pbiId/stage',
   requireAuth,
   requireProjectAccess,
-  moveStageController
+  asyncHandler(moveStageController)
 );
 
 // PATCH /api/projects/:projectId/pbis/:pbiId/planning
@@ -82,7 +83,7 @@ router.patch(
   '/:projectId/pbis/:pbiId/planning',
   requireAuth,
   requireProjectAccess,
-  updatePlanningController
+  asyncHandler(updatePlanningController)
 );
 
 export default router;

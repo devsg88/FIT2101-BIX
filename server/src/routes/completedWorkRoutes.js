@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth, requireProjectAccess } from '../middleware/authMiddleware.js';
 import { getCompletedWorkController } from '../controllers/completedWorkController.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 // Mounted at /api/projects (see app.js).
 const router = Router();
@@ -15,7 +16,7 @@ router.get(
   '/:projectId/completed-work',
   requireAuth,
   requireProjectAccess,
-  getCompletedWorkController
+  asyncHandler(getCompletedWorkController)
 );
 
 export default router;

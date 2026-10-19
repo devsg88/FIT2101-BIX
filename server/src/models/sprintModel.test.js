@@ -5,7 +5,31 @@ vi.mock('../config/db.js', () => ({
 }));
 
 import { pool } from '../config/db.js';
-import { startSprint, updateSprintRoles, getSprintsByProject } from './sprintModel.js';
+import {
+  createSprint,
+  startSprint,
+  updateSprintRoles,
+  getSprintsByProject
+} from './sprintModel.js';
+
+describe('createSprint', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('inserts a new sprint row for the project and returns it', async () => {
+    const created = { id: 4, project_id: 1, name: 'Sprint 4', status: 'planning', started_at: null };
+    pool.query.mockResolvedValue({ rows: [created] });
+
+    const result = await createSprint(1, 'Sprint 4');
+
+    expect(pool.query).toHaveBeenCalledWith(expect.stringMatching(/INSERT INTO sprints/i), [
+      1,
+      'Sprint 4'
+    ]);
+    expect(result).toEqual(created);
+  });
+});
 
 describe('startSprint', () => {
   beforeEach(() => {

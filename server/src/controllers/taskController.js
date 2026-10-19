@@ -7,10 +7,9 @@ import {
   getTaskById,
   getTaskInPbi,
   updateTaskInPbi,
-  deleteTask,
+  deleteTaskWithSubTasks,
   assignTask
 } from '../models/taskModel.js';
-import { deleteSubTasksByTaskId } from '../models/subTaskModel.js';
 import {
   isTaskStatus,
   TASK_STATUSES,
@@ -286,11 +285,10 @@ export async function deleteTaskController(req, res) {
 
     // Known gap #4: every parent->child foreign key is ON DELETE RESTRICT
     // (see server/db/schema.sql), so the task's sub-tasks must be removed
-    // first, bottom-up, or the task's own DELETE fails against the
-    // database constraint. deleteSubTasksByTaskId is unconditional - a task
-    // with no sub-tasks is a harmless no-op DELETE.
-    await deleteSubTasksByTaskId(taskId);
-    const deleted = await deleteTask(pbiId, taskId);
+    // first, bottom-up. NFR-03: deleteTaskWithSubTasks does both in one
+    // transaction, so a failure part-way can never leave the task without
+    // its sub-tasks.
+    const deleted = await deleteTaskWithSubTasks(pbiId, taskId);
     if (!deleted) {
       return res.status(404).json({ message: 'Task not found' });
     }

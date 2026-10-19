@@ -5,12 +5,15 @@ import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
 import CurrentFocusBanner from '../components/board/CurrentFocusBanner.jsx';
 import SprintRolesPanel from '../components/board/SprintRolesPanel.jsx';
 import WorkItemRoles from '../components/board/WorkItemRoles.jsx';
+import ManageMembersModal from '../components/board/ManageMembersModal.jsx';
 import {
   BoardProvider,
   useBoard,
   STAGE_LABELS
 } from '../context/BoardContext.jsx';
 import { getCompletedWork } from '../services/api.js';
+import AccessDenied from '../components/common/AccessDenied.jsx';
+import ActionError from '../components/common/ActionError.jsx';
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -43,6 +46,30 @@ function hasPlanningDetails(pbi) {
     Boolean(pbi.planned_start_date) &&
     Boolean(pbi.planned_end_date)
   );
+}
+
+const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+// A real, derivable urgency signal - not a fabricated priority field (there
+// is no actual priority data anywhere in this app yet, see the "Priority"
+// note in ProductBacklog.jsx). Only meaningful once a PBI is committed to
+// the current sprint and has a real deadline: a Product Backlog or Sprint
+// Planning item is never "overdue", it hasn't started yet. Reads the date
+// the same way formatShortDate does (digits straight from the string, local
+// end-of-day), so this agrees with whatever date the card itself displays.
+function getPbiUrgency(pbi) {
+  if (pbi.stage !== 'active_sprint' || !pbi.planned_end_date) {
+    return null;
+  }
+  const end = new Date(`${String(pbi.planned_end_date).slice(0, 10)}T23:59:59`);
+  const diffMs = end.getTime() - Date.now();
+  if (diffMs < 0) {
+    return 'overdue';
+  }
+  if (diffMs <= 2 * ONE_DAY_MS) {
+    return 'due-soon';
+  }
+  return null;
 }
 
 // The "Est: 16h | Sep 15 - Sep 22" line, or "Status: Unestimated" when
@@ -97,7 +124,7 @@ function ChecklistEditForm({ item, onSave, onCancel }) {
       // No local reset of isEditing here - the parent (ChecklistRow) owns
       // that state and closes the form on a successful save.
     } catch (err) {
-      setError(err?.message || 'Something went wrong saving this item. Please try again.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -136,9 +163,10 @@ function ChecklistEditForm({ item, onSave, onCancel }) {
           Cancel
         </button>
       </div>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong saving this item. Please try again."
+      />
     </form>
   );
 }
@@ -168,7 +196,7 @@ function AssigneeSelect({ item, kind, pbiId, taskId }) {
         await assignSubTask(pbiId, taskId, item.id, assigneeId);
       }
     } catch (err) {
-      setError(err?.message || 'Something went wrong saving the assignment. Please try again.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -195,9 +223,10 @@ function AssigneeSelect({ item, kind, pbiId, taskId }) {
           </option>
         ))}
       </select>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong saving the assignment. Please try again."
+      />
     </span>
   );
 }
@@ -214,6 +243,14 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState(null);
+
+  // A leftover delete-failure message must not resurface once the user has
+  // moved on to editing instead - same pattern ProjectTitle's startEditing
+  // already uses for its own error state.
+  const startEditing = () => {
+    setError(null);
+    setIsEditing(true);
+  };
 
   const handleSave = async (payload) => {
     if (kind === 'task') {
@@ -242,7 +279,7 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
       // No local "removed" state to reset on success: the item is gone from
       // the refreshed board and this component unmounts along with it.
     } catch (err) {
-      setError(err?.message || 'Something went wrong deleting this item. Please try again.');
+      setError(err);
       setIsDeleting(false);
     }
   };
@@ -268,7 +305,7 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
       )}
       {canManage && (
         <span className="project-board__checklist-actions">
-          <button type="button" onClick={() => setIsEditing(true)}>
+          <button type="button" onClick={startEditing} disabled={isDeleting}>
             Edit
           </button>
           <button type="button" onClick={handleDelete} disabled={isDeleting} aria-busy={isDeleting}>
@@ -276,9 +313,10 @@ function ChecklistRow({ item, kind, pbiId, taskId, canManage }) {
           </button>
         </span>
       )}
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong deleting this item. Please try again."
+      />
     </div>
   );
 }
@@ -302,7 +340,7 @@ function SubTaskCompleteButton({ subTask }) {
     try {
       await completeAssignedSubTask(subTask.id);
     } catch (err) {
-      setError(err?.message || 'Could not complete this sub-task.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -313,7 +351,7 @@ function SubTaskCompleteButton({ subTask }) {
       <button type="button" onClick={handleClick} disabled={isSaving}>
         {isSaving ? 'Saving...' : 'Mark complete'}
       </button>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback="Could not complete this sub-task." />
     </div>
   );
 }
@@ -333,7 +371,7 @@ function TaskCompleteForm({ task }) {
     event.preventDefault();
     const actualHours = Number(hours);
     if (!Number.isFinite(actualHours) || actualHours <= 0) {
-      setError('Actual hours must be greater than 0');
+      setError(new Error('Actual hours must be greater than 0'));
       return;
     }
     setIsSaving(true);
@@ -341,7 +379,7 @@ function TaskCompleteForm({ task }) {
     try {
       await completeAssignedTask(task.id, actualHours);
     } catch (err) {
-      setError(err?.message || 'Could not complete this task.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -373,7 +411,7 @@ function TaskCompleteForm({ task }) {
       <button type="submit" disabled={isSaving}>
         {isSaving ? 'Saving...' : 'Complete task'}
       </button>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback="Could not complete this task." />
     </form>
   );
 }
@@ -466,7 +504,7 @@ function CompletePbiButton({ pbi }) {
       if (!hasTasks) {
         const actualHours = Number(hours);
         if (!Number.isFinite(actualHours) || actualHours <= 0) {
-          setError('Actual hours must be greater than 0');
+          setError(new Error('Actual hours must be greater than 0'));
           setIsSaving(false);
           return;
         }
@@ -474,7 +512,7 @@ function CompletePbiButton({ pbi }) {
       }
       await completeActivePbi(pbi.id, payload);
     } catch (err) {
-      setError(err?.message || 'Could not complete this item.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -508,7 +546,7 @@ function CompletePbiButton({ pbi }) {
       >
         {isSaving ? 'Saving...' : 'Complete PBI'}
       </button>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback="Could not complete this item." />
     </form>
   );
 }
@@ -543,11 +581,12 @@ function MoveToSprintPlanningButton({ pbiId }) {
       // Every rejection (an invalid move, an expired/missing login, a 403,
       // a 404, a 500, or the network failing outright) reaches here as a
       // thrown Error with a message - see the `request` helper in
-      // services/api.js, it never resolves on a failed request. The
-      // fallback below only matters if something ever threw a value that
-      // was not a proper Error, so this can never end up silently showing
-      // nothing while leaving the user unsure what happened.
-      setError(err?.message || 'Something went wrong moving this item. Please try again.');
+      // services/api.js, it never resolves on a failed request. ActionError
+      // reads err.status itself (NFR-01) to show a 403 distinctly from any
+      // other failure; its fallback only matters if something ever threw a
+      // value that was not a proper Error, so this can never end up
+      // silently showing nothing while leaving the user unsure what happened.
+      setError(err);
       // Deliberately not touching any board/PBI state here: the PBI is still
       // showing whatever the last successful board load said, i.e. its
       // stage before this attempt, so a failed move never moves the card.
@@ -567,9 +606,10 @@ function MoveToSprintPlanningButton({ pbiId }) {
       >
         {isMoving ? 'Moving...' : 'Move to Sprint Planning ->'}
       </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong moving this item. Please try again."
+      />
     </div>
   );
 }
@@ -599,7 +639,7 @@ function PlanningForm({ pbi }) {
         estimated_hours: Number(estimatedHours)
       });
     } catch (err) {
-      setError(err?.message || 'Something went wrong saving planning details. Please try again.');
+      setError(err);
       // Leave the form values as the user typed them so they can fix and retry.
     } finally {
       setIsSaving(false);
@@ -644,9 +684,72 @@ function PlanningForm({ pbi }) {
       <button type="submit" disabled={isSaving} aria-busy={isSaving}>
         {isSaving ? 'Saving...' : 'Save estimate'}
       </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong saving planning details. Please try again."
+      />
+    </form>
+  );
+}
+
+// US-10 gap closed (NFR-01 frontend audit): previously, with Sprint
+// Planning items but no sprint row yet (true for every project created
+// through the real "Create Project" flow - the only INSERT INTO sprints
+// anywhere used to be db/seed.sql), this rendered a permanently-disabled
+// Start Sprint button with a misleading "add estimate and dates" tooltip,
+// even once every item had both. Admin-only (matches createSprintController
+// being admin-only on the backend) - a Developer in that same situation sees
+// an explanatory message instead of a dead end.
+function CreateSprintForm() {
+  const { user } = useAuth();
+  const { createNewSprint } = useBoard();
+  const [name, setName] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (user?.role !== 'admin') {
+    return (
+      <p className="project-board__hint">
+        This project has no Sprint yet - ask an admin to create one before Sprint Planning items can be started.
+      </p>
+    );
+  }
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError(new Error('A sprint name is required'));
+      return;
+    }
+    setIsSaving(true);
+    setError(null);
+    try {
+      await createNewSprint(trimmedName);
+      setName('');
+    } catch (err) {
+      setError(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <form className="project-board__start-sprint" onSubmit={handleSubmit}>
+      <label className="project-board__planning-label">
+        Sprint name
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          disabled={isSaving}
+          placeholder="e.g. Sprint 1"
+        />
+      </label>
+      <button type="submit" disabled={isSaving} aria-busy={isSaving}>
+        {isSaving ? 'Creating...' : 'Create Sprint'}
+      </button>
+      <ActionError error={error} fallback="Something went wrong creating the sprint. Please try again." />
     </form>
   );
 }
@@ -654,7 +757,9 @@ function PlanningForm({ pbi }) {
 // US-10  Yichi Zhang.
 // Lives at the bottom of the Sprint Planning column so it is not mistaken
 // for a per-card action. Disabled until every item in that column has
-// estimate + dates (US-08b) and a sprint still in status "planning" exists.
+// estimate + dates (US-08b). Only ever rendered once a sprint still in
+// status "planning" actually exists - see CreateSprintForm above for the
+// case where one doesn't yet.
 function StartSprintButton() {
   const { sprints, pbisByStage, startPlannedSprint } = useBoard();
   const [isStarting, setIsStarting] = useState(false);
@@ -662,29 +767,24 @@ function StartSprintButton() {
 
   const planningSprint = sprints.find((sprint) => sprint.status === 'planning');
   const planningPbis = pbisByStage.sprint_planning;
-  const canStart =
-    Boolean(planningSprint) &&
-    planningPbis.length > 0 &&
-    planningPbis.every(hasPlanningDetails);
+
+  if (!planningSprint) {
+    return planningPbis.length === 0 ? null : <CreateSprintForm />;
+  }
+
+  const canStart = planningPbis.length > 0 && planningPbis.every(hasPlanningDetails);
 
   const handleClick = async () => {
-    if (!planningSprint) {
-      return;
-    }
     setIsStarting(true);
     setError(null);
     try {
       await startPlannedSprint(planningSprint.id);
     } catch (err) {
-      setError(err?.message || 'Something went wrong starting the sprint. Please try again.');
+      setError(err);
     } finally {
       setIsStarting(false);
     }
   };
-
-  if (!planningSprint && planningPbis.length === 0) {
-    return null;
-  }
 
   return (
     <div className="project-board__start-sprint">
@@ -701,9 +801,10 @@ function StartSprintButton() {
       >
         {isStarting ? 'Starting...' : 'Start Sprint'}
       </button>
-      {error && (
-        <p className="project-board__card-error" role="alert">{error}</p>
-      )}
+      <ActionError
+        error={error}
+        fallback="Something went wrong starting the sprint. Please try again."
+      />
     </div>
   );
 }
@@ -739,24 +840,61 @@ function sprintForPbi(sprints, pbi) {
 // the project's Current Focus (US-07): highlighted with a badge. The focus
 // itself is set and cleared by the Admin on Manage Backlog. sprint is the sprint this card's
 // work belongs to (US-09), whose Scrum Master and Product Owner are shown.
+//
+// The task checklist defaults to expanded (unchanged from before) rather
+// than collapsed, so every existing test and workflow that expects a task's
+// title to be visible immediately keeps working - this only adds a toggle
+// and a "N/M done" summary on top of that, it does not change what's shown
+// by default. Only top-level tasks are counted, not nested sub-tasks, to
+// keep the summary a single, unambiguous number.
 function PbiCard({ pbi, canManage, isFocused, sprint }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+  const tasks = pbi.tasks || [];
+  const totalCount = tasks.length;
+  const doneCount = tasks.filter((task) => isDone(task.status)).length;
+  const urgency = getPbiUrgency(pbi);
+
+  const classNames = ['project-board__card'];
+  if (urgency) classNames.push(`project-board__card--${urgency}`);
+  if (isFocused) classNames.push('project-board__card--focused');
+
   return (
-    <article
-      className={`project-board__card${isFocused ? ' project-board__card--focused' : ''}`}
-    >
+    <article className={classNames.join(' ')}>
       {isFocused && <span className="project-board__focus-badge">Current Focus</span>}
-      <h3 className="project-board__card-title">{pbi.title}</h3>
+      <div className="project-board__card-title-row">
+        <h3 className="project-board__card-title">{pbi.title}</h3>
+        {urgency && (
+          <span
+            className={`project-board__urgency-badge project-board__urgency-badge--${urgency}`}
+          >
+            {urgency === 'overdue' ? 'Overdue' : 'Due soon'}
+          </span>
+        )}
+      </div>
       {pbi.description && (
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
       <WorkItemRoles sprint={sprint} compact />
-      <TaskChecklist
-        tasks={pbi.tasks}
-        pbiStage={pbi.stage}
-        pbiId={pbi.id}
-        canManage={canManage}
-      />
+      {totalCount > 0 && (
+        <button
+          type="button"
+          className="project-board__tasks-toggle"
+          onClick={() => setIsExpanded((prev) => !prev)}
+          aria-expanded={isExpanded}
+        >
+          <span>{doneCount}/{totalCount} tasks done</span>
+          <span aria-hidden="true">{isExpanded ? '-' : '+'}</span>
+        </button>
+      )}
+      {isExpanded && (
+        <TaskChecklist
+          tasks={pbi.tasks}
+          pbiStage={pbi.stage}
+          pbiId={pbi.id}
+          canManage={canManage}
+        />
+      )}
       {pbi.stage === 'sprint_planning' && (
         <WorkItemEditor kind="task" parentId={pbi.id} parentTitle={pbi.title} />
       )}
@@ -769,7 +907,25 @@ function PbiCard({ pbi, canManage, isFocused, sprint }) {
   );
 }
 
-// The four columns, one per stage, each showing its own PBIs (or an empty message).
+// True if the given user is assigned to any task or sub-task on this PBI -
+// what "my cards" means below. Checks sub-tasks too, since a developer can
+// be assigned at either level (US-04a/SCRUM-122).
+function isAssignedToPbi(pbi, userId) {
+  const tasks = pbi.tasks || [];
+  return tasks.some((task) => {
+    if (sameUserId(task.assignee_id, userId)) {
+      return true;
+    }
+    const subTasks = task.subTasks || [];
+    return subTasks.some((subTask) => sameUserId(subTask.assignee_id, userId));
+  });
+}
+
+// The four columns, one per stage, each showing its own PBIs (or an empty
+// message). "Show only my cards" filters every column to PBIs the logged-in
+// user has a task/sub-task on - a client-side view filter only, nothing is
+// fetched differently and no access rule changes; it defaults off so the
+// board shows everything, same as before this existed.
 function BoardColumns() {
   const { stages, pbisByStage, project, sprints } = useBoard();
   const focusId = project?.current_focus_pbi_id;
@@ -777,37 +933,57 @@ function BoardColumns() {
   // backend's requireRole('admin') on every one of those endpoints).
   const { user } = useAuth();
   const canManage = user?.role === 'admin';
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
 
   return (
-    <div className="project-board__columns">
-      {stages.map((stage) => (
-        <section className="project-board__column" key={stage}>
-          <div className="project-board__column-header">
-            <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
-          </div>
-          <div className="project-board__column-body">
-            {/* US-09: the column's sprint, with its Scrum Master and Product
-                Owner, above that sprint's work. */}
-            {sprintForStage(sprints, stage) && (
-              <SprintRolesPanel sprint={sprintForStage(sprints, stage)} />
-            )}
-            {pbisByStage[stage].length === 0 ? (
-              <p className="project-board__empty">No items</p>
-            ) : (
-              pbisByStage[stage].map((pbi) => (
-                <PbiCard
-                  key={pbi.id}
-                  pbi={pbi}
-                  canManage={canManage}
-                  isFocused={focusId != null && String(pbi.id) === String(focusId)}
-                  sprint={sprintForPbi(sprints, pbi)}
-                />
-              ))
-            )}
-            {stage === 'sprint_planning' && <StartSprintButton />}
-          </div>
-        </section>
-      ))}
+    <div className="project-board__columns-wrapper">
+      <label className="project-board__my-cards-toggle">
+        <input
+          type="checkbox"
+          checked={showOnlyMine}
+          onChange={(event) => setShowOnlyMine(event.target.checked)}
+        />
+        Show only my cards
+      </label>
+
+      <div className="project-board__columns">
+        {stages.map((stage) => {
+          const stagePbis = showOnlyMine
+            ? pbisByStage[stage].filter((pbi) => isAssignedToPbi(pbi, user?.id))
+            : pbisByStage[stage];
+
+          return (
+            <section className="project-board__column" key={stage}>
+              <div className="project-board__column-header">
+                <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
+              </div>
+              <div className="project-board__column-body">
+                {/* US-09: the column's sprint, with its Scrum Master and Product
+                    Owner, above that sprint's work. */}
+                {sprintForStage(sprints, stage) && (
+                  <SprintRolesPanel sprint={sprintForStage(sprints, stage)} />
+                )}
+                {stagePbis.length === 0 ? (
+                  <p className="project-board__empty">
+                    {showOnlyMine ? 'No cards assigned to you here' : 'No items'}
+                  </p>
+                ) : (
+                  stagePbis.map((pbi) => (
+                    <PbiCard
+                      key={pbi.id}
+                      pbi={pbi}
+                      canManage={canManage}
+                      isFocused={focusId != null && String(pbi.id) === String(focusId)}
+                      sprint={sprintForPbi(sprints, pbi)}
+                    />
+                  ))
+                )}
+                {stage === 'sprint_planning' && <StartSprintButton />}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -848,7 +1024,7 @@ function ProjectTitle({ project }) {
       await deleteCurrentProject();
       navigate('/dashboard');
     } catch (err) {
-      setDeleteError(err?.message || 'Something went wrong deleting this board. Please try again.');
+      setDeleteError(err);
       setIsDeleting(false);
     }
   };
@@ -857,7 +1033,7 @@ function ProjectTitle({ project }) {
     event.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('A project name is required');
+      setError(new Error('A project name is required'));
       return;
     }
     setIsSaving(true);
@@ -867,7 +1043,7 @@ function ProjectTitle({ project }) {
       setIsEditing(false);
     } catch (err) {
       // Stay in the form so the name can be corrected and saved again.
-      setError(err?.message || 'Something went wrong renaming this board. Please try again.');
+      setError(err);
     } finally {
       setIsSaving(false);
     }
@@ -891,9 +1067,7 @@ function ProjectTitle({ project }) {
             Cancel
           </button>
         </div>
-        {error && (
-          <p className="project-board__card-error" role="alert">{error}</p>
-        )}
+        <ActionError error={error} fallback="Something went wrong renaming this board. Please try again." />
       </form>
     );
   }
@@ -915,9 +1089,10 @@ function ProjectTitle({ project }) {
           </button>
         </span>
       )}
-      {deleteError && (
-        <p className="project-board__card-error" role="alert">{deleteError}</p>
-      )}
+      <ActionError
+        error={deleteError}
+        fallback="Something went wrong deleting this board. Please try again."
+      />
     </>
   );
 }
@@ -930,6 +1105,7 @@ function BoardTopBar({ project, onOpenHistory }) {
   const { user } = useAuth();
   const { projectId } = useBoard();
   const initial = user?.name ? user.name.charAt(0).toUpperCase() : '?';
+  const [isManagingMembers, setIsManagingMembers] = useState(false);
 
   return (
     <header className="project-board__topbar">
@@ -940,6 +1116,23 @@ function BoardTopBar({ project, onOpenHistory }) {
         <Link to={`/projects/${projectId}/backlog`} className="pbi-backlog__board-link">
           Manage backlog
         </Link>
+      )}
+      {/* US-03/US-05: the only in-app way to add/remove a developer from this
+          project - see ManageMembersModal.jsx for why this exists. */}
+      {user?.role === 'admin' && (
+        <button
+          type="button"
+          className="pbi-backlog__board-link"
+          onClick={() => setIsManagingMembers(true)}
+        >
+          Manage members
+        </button>
+      )}
+      {isManagingMembers && (
+        <ManageMembersModal
+          projectId={projectId}
+          onClose={() => setIsManagingMembers(false)}
+        />
       )}
       {/* US-15: the Sprint burndown for this project. */}
       <Link to={`/projects/${projectId}/burndown`} className="project-board__burndown-link">
@@ -1175,6 +1368,8 @@ function BoardView() {
         {status === 'loading' && (
           <p className="project-board__status">Loading board...</p>
         )}
+
+        {status === 'forbidden' && <AccessDenied />}
 
         {status === 'error' && (
           <div className="project-board__status" role="alert">

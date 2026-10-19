@@ -30,4 +30,18 @@ describe('sprintRoutes', () => {
 
     expect(names).toEqual(['requireAuth', 'requireProjectAccess', 'updateSprintRolesController']);
   });
+
+  // US-10 gap closed (NFR-01 frontend audit): creating a sprint is
+  // admin-only + responsible-Admin-only, same as creating a PBI - not
+  // requireProjectAccess like starting one, which both roles do.
+  it('guards POST .../sprints with requireAuth, requireRole(admin), requireProjectResponsibility before the controller', () => {
+    const names = middlewareNamesFor('post', '/:projectId/sprints');
+
+    expect(names).toEqual([
+      'requireAuth',
+      'roleGuard',
+      'requireProjectResponsibility',
+      'createSprintController'
+    ]);
+  });
 });

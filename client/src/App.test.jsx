@@ -24,6 +24,18 @@ vi.mock('./pages/DemoMailbox.jsx', () => ({
   default: () => <h2>Demo inbox</h2>
 }));
 
+vi.mock('./pages/Settings.jsx', () => ({
+  default: () => <div>Settings Page</div>
+}));
+
+vi.mock('./pages/SprintAnalytics.jsx', () => ({
+  default: () => <div>Sprint Analytics Page</div>
+}));
+
+vi.mock('./pages/ProjectAnalytics.jsx', () => ({
+  default: () => <div>Project Analytics Page</div>
+}));
+
 function renderApp(initialPath, user) {
   useAuth.mockReturnValue({ user });
   return render(
@@ -73,21 +85,84 @@ describe('App redirect logic', () => {
   });
 });
 
+describe('Sprint analytics route', () => {
+  it('allows an admin to open the analytics page', () => {
+    renderApp('/analytics/sprints', { id: 3, role: 'admin', token: 'abc' });
+    expect(screen.getByText('Sprint Analytics Page')).toBeInTheDocument();
+  });
+
+  it('denies developers without rendering the analytics page', () => {
+    renderApp('/analytics/sprints', { id: 7, role: 'developer', token: 'abc' });
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.queryByText('Sprint Analytics Page')).not.toBeInTheDocument();
+  });
+
+  it('redirects logged-out visitors to login', () => {
+    renderApp('/analytics/sprints', null);
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+    expect(screen.queryByText('Sprint Analytics Page')).not.toBeInTheDocument();
+  });
+});
+
+describe('Project analytics route', () => {
+  it('allows an admin to open project comparisons', () => {
+    renderApp('/analytics/projects', { id: 3, role: 'admin', token: 'abc' });
+    expect(screen.getByText('Project Analytics Page')).toBeInTheDocument();
+  });
+
+  it('does not render project comparisons for a developer', () => {
+    renderApp('/analytics/projects', { id: 7, role: 'developer', token: 'abc' });
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.queryByText('Project Analytics Page')).not.toBeInTheDocument();
+  });
+
+  it('redirects a logged-out visitor to login', () => {
+    renderApp('/analytics/projects', null);
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+    expect(screen.queryByText('Project Analytics Page')).not.toBeInTheDocument();
+  });
+});
+
 describe('Product Backlog route (US-04b)', () => {
   it('shows the backlog page to an Admin', () => {
     renderApp('/projects/1/backlog', { id: 3, role: 'admin', token: 'abc' });
     expect(screen.getByText('Product Backlog Page')).toBeInTheDocument();
   });
 
-  it('sends a Developer to the dashboard instead', () => {
+  // NFR-01: a wrong-role user now sees Access Denied on this same URL,
+  // not a silent bounce to the dashboard (see ProtectedRoute.jsx/.test.jsx).
+  it('shows Access Denied to a Developer instead of the backlog or the dashboard', () => {
     renderApp('/projects/1/backlog', { id: 2, role: 'developer', token: 'abc' });
     expect(screen.queryByText('Product Backlog Page')).not.toBeInTheDocument();
-    expect(screen.getByText('Dashboard Page')).toBeInTheDocument();
+    expect(screen.queryByText('Dashboard Page')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
   });
 
   it('sends a logged-out visitor to the login page', () => {
     renderApp('/projects/1/backlog', null);
     expect(screen.queryByText('Product Backlog Page')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
+  });
+});
+
+describe('Settings route', () => {
+  it('shows the Settings page to an Admin', () => {
+    renderApp('/settings', { id: 3, role: 'admin', token: 'abc' });
+    expect(screen.getByText('Settings Page')).toBeInTheDocument();
+  });
+
+  // US-16 (T16.3): previously admin-only (Access Denied for a Developer);
+  // now any authenticated user reaches the route - Settings.jsx itself
+  // picks the right view per role (see Settings.test.jsx for that).
+  it('shows the Settings page to a Developer too, not Access Denied', () => {
+    renderApp('/settings', { id: 2, role: 'developer', token: 'abc' });
+    expect(screen.getByText('Settings Page')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Access Denied' })).not.toBeInTheDocument();
+  });
+
+  it('sends a logged-out visitor to the login page', () => {
+    renderApp('/settings', null);
+    expect(screen.queryByText('Settings Page')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'BIX' })).toBeInTheDocument();
   });
 });

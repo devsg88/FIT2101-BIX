@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { deletePbi } from '../../services/api.js';
+import ActionError from '../common/ActionError.jsx';
 
 // US-04b / SCRUM-102. "Are you sure?" confirmation before deleting a PBI.
 // Nothing is deleted until the Admin presses Delete here. If the backend
@@ -24,7 +25,7 @@ export default function DeletePbiDialog({ projectId, pbi, onDeleted, onClose }) 
       await deletePbi(projectId, pbi.id, user.token);
       onDeleted(pbi);
     } catch (err) {
-      setError(err?.message || 'The item could not be deleted. Please try again.');
+      setError(err);
     } finally {
       deletingRef.current = false;
       setIsDeleting(false);
@@ -64,11 +65,11 @@ export default function DeletePbiDialog({ projectId, pbi, onDeleted, onClose }) 
           Are you sure you want to delete &ldquo;{pbi.title}&rdquo;? This cannot be undone.
         </p>
 
-        {error && (
-          <p className="login-error" role="alert">
-            {error}
-          </p>
-        )}
+        <ActionError
+          error={error}
+          fallback="The item could not be deleted. Please try again."
+          className="login-error"
+        />
 
         <div className="admin-modal__actions">
           <button

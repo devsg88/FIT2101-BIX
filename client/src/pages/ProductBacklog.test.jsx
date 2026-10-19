@@ -95,6 +95,21 @@ describe('ProductBacklog page (US-04b, SCRUM-151)', () => {
     expect(screen.queryByRole('listitem')).not.toBeInTheDocument();
   });
 
+  // NFR-01: a real 403 (err.status === 403, as services/api.js sets it) is
+  // shown as Access Denied, not the generic error/Retry treatment above -
+  // that still applies to any other failure (network, 500, ...).
+  it('shows Access Denied, not the generic error/Retry, on a 403', async () => {
+    const forbidden = new Error('You are not responsible for this project');
+    forbidden.status = 403;
+    getProjectPbis.mockRejectedValue(forbidden);
+
+    renderBacklog('/projects/2/backlog');
+
+    expect(await screen.findByRole('heading', { name: 'Access Denied' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
+    expect(screen.queryByText('You are not responsible for this project')).not.toBeInTheDocument();
+  });
+
   it('retries after a failed load', async () => {
     getProjectPbis
       .mockRejectedValueOnce(new Error('Failed to load the Product Backlog Items'))

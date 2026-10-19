@@ -303,6 +303,63 @@ describe('Board page - admin task/sub-task controls (US-04a)', () => {
       expect(screen.getAllByRole('button', { name: 'Delete' })[0]).not.toBeDisabled();
     });
 
+    // Deep-audit finding: Edit used to stay clickable while a delete was in
+    // flight on the same row, letting the row switch to the edit form right
+    // as the item was about to be deleted out from under it.
+    it('disables Edit while a delete is in flight, so the row cannot switch to the edit form mid-delete', async () => {
+      confirmSpy.mockReturnValue(true);
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'admin-tok' } });
+      getBoard
+        .mockResolvedValueOnce(boardWithOneTask)
+        .mockResolvedValueOnce({
+          ...boardWithOneTask,
+          pbis: [{ ...boardWithOneTask.pbis[0], tasks: [] }]
+        });
+      let resolveDelete;
+      deleteTask.mockReturnValue(new Promise((resolve) => { resolveDelete = resolve; }));
+
+      renderBoard();
+
+      await waitFor(() => expect(screen.getByText('Build upload endpoint')).toBeInTheDocument());
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+
+      expect(screen.getAllByRole('button', { name: 'Edit' })[0]).toBeDisabled();
+
+      resolveDelete({ message: 'Task deleted', id: 9 });
+      await waitFor(() =>
+        expect(screen.queryByText('Build upload endpoint')).not.toBeInTheDocument()
+      );
+    });
+
+    // Deep-audit finding: a failed delete's error message used to stay in
+    // this row's state and resurface after opening then cancelling Edit,
+    // even though nothing new had actually failed.
+    it('clears a previous delete error once Edit is opened, so it cannot resurface after Cancel', async () => {
+      confirmSpy.mockReturnValue(true);
+      useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'admin-tok' } });
+      getBoard.mockResolvedValue(boardWithOneTask);
+      deleteTask.mockRejectedValue(new Error('Cannot delete work items on a completed PBI'));
+
+      renderBoard();
+
+      await waitFor(() => expect(screen.getByText('Build upload endpoint')).toBeInTheDocument());
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+      await waitFor(() =>
+        expect(screen.getByRole('alert')).toHaveTextContent(
+          'Cannot delete work items on a completed PBI'
+        )
+      );
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByText('Build upload endpoint')).toBeInTheDocument();
+    });
+
     it('deletes a sub-task using its own id plus its parent task id', async () => {
       confirmSpy.mockReturnValue(true);
       useAuth.mockReturnValue({ user: { id: 3, role: 'admin', token: 'admin-tok' } });

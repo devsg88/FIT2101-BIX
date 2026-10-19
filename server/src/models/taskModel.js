@@ -211,16 +211,56 @@ export async function updateSubTask(projectId, subTaskId, { title, description }
 // SCRUM-121. Deletes exactly one task row. Does NOT touch its sub-tasks:
 // tasks.pbi_id and sub_tasks.task_id are both ON DELETE RESTRICT (see
 // server/db/schema.sql, "Deletion behaviour"), so this DELETE fails at the
-// database level while any sub-task still references this task. Callers
-// (taskController.deleteTaskController) must delete the task's sub-tasks
-// first via subTaskModel.deleteSubTasksByTaskId, then call this - bottom-up,
-// same order server/db/README.md already documents for the schema generally.
+// database level while any sub-task still references this task. Callers must
+// delete the task's sub-tasks first via subTaskModel.deleteSubTasksByTaskId,
+// then call this - bottom-up, same order server/db/README.md already documents
+// for the schema generally. deleteTaskController uses deleteTaskWithSubTasks
+// below instead, which does both in one transaction.
 export async function deleteTask(pbiId, taskId) {
   const { rowCount } = await pool.query(
     `DELETE FROM tasks WHERE id = $1 AND pbi_id = $2`,
     [taskId, pbiId]
   );
   return rowCount > 0;
+}
+
+// NFR-03 / SCRUM-192. Deletes a task and its sub-tasks as ONE unit, which is
+// what deleteTaskController uses. The two DELETEs used to run separately: if
+// the second failed (a dropped connection, or a sub-task added in between
+// making the RESTRICT foreign key fire), the sub-tasks were already gone
+// while the task stayed - partial data. Now either both happen or neither.
+//
+// The task row is locked FOR UPDATE first, so a sub-task being added to it at
+// the same moment (which needs a lock on that row for its foreign key) waits
+// until this finishes. Returns true if the task was deleted, false if no task
+// with that id exists in that PBI (nothing is deleted then). Any failure rolls
+// everything back and is rethrown for the controller to answer.
+export async function deleteTaskWithSubTasks(pbiId, taskId) {
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const task = await client.query(
+      `SELECT id FROM tasks WHERE id = $1 AND pbi_id = $2 FOR UPDATE`,
+      [taskId, pbiId]
+    );
+    if (task.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return false;
+    }
+
+    await client.query(`DELETE FROM sub_tasks WHERE task_id = $1`, [taskId]);
+    await client.query(`DELETE FROM tasks WHERE id = $1 AND pbi_id = $2`, [taskId, pbiId]);
+
+    await client.query('COMMIT');
+    return true;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 // SCRUM-122. assigneeId may be null to unassign a task; a non-null value is

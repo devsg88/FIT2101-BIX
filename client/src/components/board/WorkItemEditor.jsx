@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useBoard } from '../../context/BoardContext.jsx';
+import ActionError from '../common/ActionError.jsx';
 
 export default function WorkItemEditor({ kind, parentId, parentTitle, item }) {
   const { saveTask, saveSubTask, reloadBoard } = useBoard();
@@ -23,7 +24,7 @@ export default function WorkItemEditor({ kind, parentId, parentTitle, item }) {
   async function handleSubmit(event) {
     event.preventDefault();
     if (!title.trim()) {
-      setError('A non-empty title is required');
+      setError(new Error('A non-empty title is required'));
       return;
     }
     setIsSaving(true);
@@ -35,7 +36,7 @@ export default function WorkItemEditor({ kind, parentId, parentTitle, item }) {
       });
       setIsOpen(false);
     } catch (err) {
-      setError(err.message || `Could not save this ${label}.`);
+      setError(err);
       setSaved(Boolean(err.saved));
     } finally {
       setIsSaving(false);
@@ -77,7 +78,7 @@ export default function WorkItemEditor({ kind, parentId, parentTitle, item }) {
         {!saved && <button type="button" disabled={isSaving} onClick={() => setIsOpen(false)}>Cancel</button>}
         {saved && <button type="button" onClick={reloadBoard}>Refresh board</button>}
       </div>
-      {error && <p className="project-board__card-error" role="alert">{error}</p>}
+      <ActionError error={error} fallback={`Could not save this ${label}.`} />
     </form>
   );
 }

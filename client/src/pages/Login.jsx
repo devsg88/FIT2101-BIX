@@ -1,6 +1,10 @@
+import { useSearchParams } from 'react-router-dom';
 import LoginForm from '../components/auth/LoginForm.jsx';
 
 export default function Login() {
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('sessionExpired') === '1';
+
   return (
     <main className="login-page">
       <section className="login-brand">
@@ -68,6 +72,11 @@ export default function Login() {
       </section>
 
       <section className="login-panel">
+        {sessionExpired && (
+          <p className="login-session-banner" role="alert">
+            <strong>Session expired.</strong> Please log in again.
+          </p>
+        )}
         <LoginForm />
       </section>
     </main>
