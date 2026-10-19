@@ -106,13 +106,18 @@ ON CONFLICT (id) DO NOTHING;
 -- -------------------------------------------------------------------------
 -- users
 --   Shared demo accounts for local development and assessment.
---   All three accounts use the same seeded bcrypt password hash.
+--   Pang and Admin use the same seeded bcrypt password hash.
 --   Demo login password: password123
+--   User 2 ("Developer") is deliberately seeded with a real, checkable
+--   inbox (not a fake @bix.app address) so the Forgot Password flow
+--   (US-14, see server/src/services/emailSender.js) is actually
+--   demonstrable end to end against a deployed environment - its own
+--   demo login password is Password123 (capital P), not the shared one.
 -- -------------------------------------------------------------------------
 INSERT INTO users (id, name, email, role, password_hash) VALUES
-    (1, 'Pang',      'pang@bix.app',      'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
-    (2, 'Developer', 'developer@bix.app', 'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
-    (3, 'Admin',     'admin@bix.app',     'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm')
+    (1, 'Pang',      'pang@bix.app',               'developer', '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm'),
+    (2, 'Developer', 'devtejsingh8276@gmail.com',  'developer', '$2b$10$zDMb8sa6M5Ljx8ssL4hoiOq0XfVB1YIalbKJTcQv954R..bY6B2yO'),
+    (3, 'Admin',     'admin@bix.app',               'admin',     '$2b$10$unb69kAx.iy7mc3SEKOKGe1xa9G5THJOTwtYGxlN.EQQcu5YtlZjm')
 ON CONFLICT (id) DO NOTHING;
 
 -- -------------------------------------------------------------------------
