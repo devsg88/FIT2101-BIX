@@ -8,8 +8,9 @@ import { createProject } from '../../services/api.js';
 vi.mock('../../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
 vi.mock('../../services/api.js', () => ({
   createProject: vi.fn(),
-  // AdminSidebar (US-04c) loads the Admin's projects on mount.
-  getResponsibleProjects: vi.fn(() => Promise.resolve({ projects: [] }))
+  // AdminSidebar (US-04c) loads the Admin's projects and team list on mount.
+  getResponsibleProjects: vi.fn(() => Promise.resolve({ projects: [] })),
+  getTeams: vi.fn(() => Promise.resolve({ teams: [] }))
 }));
 
 // Matches the real shape Dashboard.jsx passes down - the full response from

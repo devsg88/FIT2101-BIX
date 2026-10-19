@@ -480,3 +480,49 @@ export function completePbi(projectId, pbiId, payload, token) {
     body: JSON.stringify(payload || {})
   });
 }
+
+// GET /api/teams
+// Every team - the list AdminSidebar.jsx and TeamDetail.jsx read instead of
+// client/src/data/orgMockData.js. Admin-only on the backend. Resolves with
+// { teams }.
+export function getTeams(token) {
+  return request('/teams', {
+    headers: authHeader(token)
+  });
+}
+
+// GET /api/teams/:teamId/members
+// Resolves with { team, members }.
+export function getTeamMembers(teamId, token) {
+  return request(`/teams/${teamId}/members`, {
+    headers: authHeader(token)
+  });
+}
+
+// GET /api/teams/:teamId/available-developers
+// Developers not already on this team - the candidate list for "+ Assign
+// Developer". Resolves with { developers }.
+export function getAvailableDevelopersForTeam(teamId, token) {
+  return request(`/teams/${teamId}/available-developers`, {
+    headers: authHeader(token)
+  });
+}
+
+// POST /api/teams/:teamId/members   body: { user_id }
+// Resolves with { members: <refreshed list> }.
+export function addTeamMember(teamId, userId, token) {
+  return request(`/teams/${teamId}/members`, {
+    method: 'POST',
+    headers: authHeader(token),
+    body: JSON.stringify({ user_id: userId })
+  });
+}
+
+// DELETE /api/teams/:teamId/members/:userId
+// Resolves with { members: <refreshed list> }.
+export function removeTeamMember(teamId, userId, token) {
+  return request(`/teams/${teamId}/members/${userId}`, {
+    method: 'DELETE',
+    headers: authHeader(token)
+  });
+}

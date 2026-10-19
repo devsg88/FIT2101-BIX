@@ -3,10 +3,13 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
-import { getResponsibleProjects } from '../../services/api.js';
+import { getResponsibleProjects, getTeams } from '../../services/api.js';
 
 vi.mock('../../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
-vi.mock('../../services/api.js', () => ({ getResponsibleProjects: vi.fn() }));
+vi.mock('../../services/api.js', () => ({
+  getResponsibleProjects: vi.fn(),
+  getTeams: vi.fn()
+}));
 
 const admin = { id: 3, name: 'Admin', role: 'admin', token: 'tok-admin' };
 
@@ -33,6 +36,7 @@ function deferred() {
 describe('AdminSidebar - Your projects (US-04c)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    getTeams.mockResolvedValue({ teams: [] });
   });
 
   it('links to Sprint analytics from the admin navigation', async () => {
@@ -67,7 +71,7 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
     renderSidebar();
 
     expect(screen.getByText('Your projects')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent('Loading projects...');
+    expect(screen.getByText('Loading projects...')).toBeInTheDocument();
 
     pending.resolve({ projects: [] });
     await screen.findByText('No responsible projects yet.');
@@ -165,10 +169,12 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
 
   it('keeps the existing sidebar navigation alongside the new section', async () => {
     getResponsibleProjects.mockResolvedValue({ projects: [{ id: '1', name: 'BIX Platform' }] });
+    getTeams.mockResolvedValue({ teams: [{ id: 1, name: 'Team Alpha' }] });
 
     renderSidebar();
 
     await screen.findByRole('link', { name: 'BIX Platform' });
+    await screen.findByRole('link', { name: 'Team Alpha' });
     expect(screen.getByRole('link', { name: 'Organization Dashboard' })).toHaveAttribute(
       'href',
       '/dashboard'
@@ -189,5 +195,95 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
       'href',
       '/settings'
     );
+  });
+});
+
+// The team list used to be client/src/data/orgMockData.js (fake, never
+// touched the database). Now real data from GET /api/teams, same pattern as
+// "Your projects" above.
+describe('AdminSidebar - team list (real data)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getResponsibleProjects.mockResolvedValue({ projects: [] });
+  });
+
+  it('shows a loading message while teams are being fetched', async () => {
+    const pending = deferred();
+    getTeams.mockReturnValue(pending.promise);
+
+    renderSidebar();
+
+    expect(screen.getByText('Active teams (0)')).toBeInTheDocument();
+    const statuses = screen.getAllByRole('status');
+    expect(statuses.some((el) => el.textContent === 'Loading teams...')).toBe(true);
+
+    pending.resolve({ teams: [] });
+    await screen.findByText('No teams yet.');
+  });
+
+  it('lists each team returned by the server, by name, linked to its page', async () => {
+    getTeams.mockResolvedValue({
+      teams: [
+        { id: 1, name: 'Team Alpha' },
+        { id: 2, name: 'Team Bravo' }
+      ]
+    });
+
+    renderSidebar();
+
+    expect(await screen.findByRole('link', { name: 'Team Alpha' })).toHaveAttribute(
+      'href',
+      '/teams/1'
+    );
+    expect(screen.getByRole('link', { name: 'Team Bravo' })).toHaveAttribute('href', '/teams/2');
+    expect(screen.getByText('Active teams (2)')).toBeInTheDocument();
+  });
+
+  it('filters the team list by the search box', async () => {
+    getTeams.mockResolvedValue({
+      teams: [
+        { id: 1, name: 'Team Alpha' },
+        { id: 2, name: 'Team Bravo' }
+      ]
+    });
+
+    renderSidebar();
+    await screen.findByRole('link', { name: 'Team Alpha' });
+
+    fireEvent.change(screen.getByLabelText('Search teams'), { target: { value: 'bravo' } });
+
+    expect(screen.queryByRole('link', { name: 'Team Alpha' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Team Bravo' })).toBeInTheDocument();
+  });
+
+  it('shows an empty-state message when there are no teams yet', async () => {
+    getTeams.mockResolvedValue({ teams: [] });
+
+    renderSidebar();
+
+    expect(await screen.findByText('No teams yet.')).toBeInTheDocument();
+  });
+
+  it('shows an error message with Retry when teams cannot be loaded, and a successful retry recovers', async () => {
+    getTeams
+      .mockRejectedValueOnce(new Error('Could not reach the server.'))
+      .mockResolvedValueOnce({ teams: [{ id: 1, name: 'Team Alpha' }] });
+
+    renderSidebar();
+
+    expect(await screen.findByText("Couldn't load teams.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    expect(await screen.findByRole('link', { name: 'Team Alpha' })).toBeInTheDocument();
+    expect(getTeams).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not offer Retry when access to the team list is refused (403)', async () => {
+    getTeams.mockRejectedValue(Object.assign(new Error('Forbidden'), { status: 403 }));
+
+    renderSidebar();
+
+    expect(await screen.findByText("You don't have access to the team list.")).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
   });
 });

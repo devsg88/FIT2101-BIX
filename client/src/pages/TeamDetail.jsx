@@ -1,62 +1,41 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 import AdminSidebar from '../components/dashboard/AdminSidebar.jsx';
-import { allDevelopers, allTeams, developerIdsByTeam } from '../data/orgMockData.js';
+import { useAuth } from '../context/AuthContext.jsx';
+import { addTeamMember, getAvailableDevelopersForTeam, getTeamMembers, removeTeamMember } from '../services/api.js';
 
-// Handles the logic for the assign developer popup
-function AssignDeveloperModal({ team, currentDeveloperIds, onAssign, onClose }) {
-  
-  // stores the developer name searched for by the admin
+// Handles the logic for the assign developer popup. developers is the real
+// candidate list from GET /api/teams/:teamId/available-developers (already
+// excludes current members and non-developers server-side - see
+// teamController.js), so there is no client-side "already on another team"
+// cross-check here the way the old mock-data version had: nothing in the
+// real schema models one-developer-per-team as a rule (teamModel.js: "a
+// developer's team and the projects they can access are tracked
+// independently"), so every returned candidate is genuinely assignable.
+function AssignDeveloperModal({ teamName, developers, onAssign, onClose, isSubmitting }) {
   const [searchQuery, setSearchQuery] = useState('');
-  // stores the developer clicked by the admin
   const [selectedDeveloperId, setSelectedDeveloperId] = useState(null);
 
-  // find which developers are already assigned to another team 
-  // allows the popup to show them as unavailable 
-  const elsewhereDeveloperIds = useMemo(() => {
-    const byTeam = developerIdsByTeam();
-    const elsewhere = new Set();
-    for (const [otherTeamId, developerIds] of byTeam) {
-      if (otherTeamId === team.id) {
-        continue;
-      }
-      for (const id of developerIds) {
-        elsewhere.add(id);
-      }
-    }
-    return elsewhere;
-  }, [team.id]);
-
-  // Creates the list of developer rows inside the assign developers popup
   const candidates = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    
-    // start with the full developers list
-    return allDevelopers
-      .filter((developer) => !currentDeveloperIds.has(developer.id)) 
-      .filter( //
-        (developer) =>
-          !query ||
-          developer.name.toLowerCase().includes(query) ||
-          developer.email.toLowerCase().includes(query)
-      );
-  }, [searchQuery, currentDeveloperIds]);
+    if (!query) {
+      return developers;
+    }
+    return developers.filter(
+      (developer) =>
+        developer.name.toLowerCase().includes(query) ||
+        developer.email.toLowerCase().includes(query)
+    );
+  }, [searchQuery, developers]);
 
-  // handleSubmit runs when admin presses the assign button after selecting a developer
   const handleSubmit = (event) => {
     event.preventDefault();
-
-    // search for the selected developer object from allDevelopers
-    const developer = allDevelopers.find((d) => d.id === selectedDeveloperId);
-    if (!developer) {
+    if (selectedDeveloperId == null) {
       return;
     }
-
-    // adds the selected developer as a new member row in the team members list
-    onAssign(developer);
+    onAssign(selectedDeveloperId);
   };
 
-  // UI for assign developer popup
   return (
     <div className="admin-modal-overlay" onClick={onClose}>
       <div
@@ -73,9 +52,7 @@ function AssignDeveloperModal({ team, currentDeveloperIds, onAssign, onClose }) 
           </button>
         </div>
 
-        <p className="admin-modal__subtitle">
-          Select a developer to assign to {team.name} ({team.currentProject})
-        </p>
+        <p className="admin-modal__subtitle">Select a developer to assign to {teamName}</p>
 
         <input
           type="text"
@@ -92,31 +69,21 @@ function AssignDeveloperModal({ team, currentDeveloperIds, onAssign, onClose }) 
               <p className="admin-modal__empty">No developers match your search.</p>
             )}
 
-            {/* loop through each developer */}
             {candidates.map((developer) => {
-              const isElsewhere = elsewhereDeveloperIds.has(developer.id);
               const isSelected = selectedDeveloperId === developer.id;
 
               return (
-                // each developer is a clickable button
                 <button
                   type="button"
                   key={developer.id}
                   className={`admin-modal__row ${isSelected ? 'admin-modal__row--selected' : ''}`}
-                  disabled={isElsewhere}
                   onClick={() => setSelectedDeveloperId(developer.id)}
                 >
                   <span className="admin-modal__row-info">
                     <strong>{developer.name}</strong>
                     <span className="admin-modal__row-email">{developer.email}</span>
                   </span>
-                  <span
-                    className={`admin-status-pill ${
-                      isElsewhere ? 'admin-status-pill--blocked' : 'admin-status-pill--active'
-                    }`}
-                  >
-                    {isElsewhere ? 'Assigned elsewhere' : 'Available'}
-                  </span>
+                  <span className="admin-status-pill admin-status-pill--active">Available</span>
                 </button>
               );
             })}
@@ -126,8 +93,12 @@ function AssignDeveloperModal({ team, currentDeveloperIds, onAssign, onClose }) 
             <button type="button" className="admin-btn admin-btn--filter" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="admin-btn admin-btn--solid" disabled={!selectedDeveloperId}>
-              Assign
+            <button
+              type="submit"
+              className="admin-btn admin-btn--solid"
+              disabled={selectedDeveloperId == null || isSubmitting}
+            >
+              {isSubmitting ? 'Assigning...' : 'Assign'}
             </button>
           </div>
         </form>
@@ -137,54 +108,92 @@ function AssignDeveloperModal({ team, currentDeveloperIds, onAssign, onClose }) 
 }
 
 export default function TeamDetail() {
-  
-  // read team id from URL
   const { teamId } = useParams();
-  // find the corresponding team object from allTeams
-  const team = useMemo(() => allTeams.find((t) => String(t.id) === teamId), [teamId]);
+  const { user } = useAuth();
+  const token = user?.token;
 
-  // Current displayed team member list
-  const [members, setMembers] = useState(team ? team.members : []);
-  // Control whether the popup is visible
+  const [team, setTeam] = useState(null);
+  const [members, setMembers] = useState([]);
+  // 'loading' | 'ready' | 'not-found' | 'error'
+  const [status, setStatus] = useState('loading');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [availableDevelopers, setAvailableDevelopers] = useState([]);
+  const [isLoadingAvailable, setIsLoadingAvailable] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionError, setActionError] = useState('');
 
-  // Handle switching from one team to another 
   useEffect(() => {
-    setMembers(team ? team.members : []);
-    setShowAssignModal(false);
-  }, [teamId]);
+    if (!token) {
+      return undefined;
+    }
 
-  if (!team) {
+    let isMounted = true;
+    setStatus('loading');
+
+    getTeamMembers(teamId, token)
+      .then((data) => {
+        if (!isMounted) return;
+        setTeam(data.team);
+        setMembers(Array.isArray(data?.members) ? data.members : []);
+        setStatus('ready');
+      })
+      .catch((err) => {
+        if (!isMounted) return;
+        setStatus(err?.status === 404 ? 'not-found' : 'error');
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [teamId, token, loadAttempt]);
+
+  if (status === 'not-found') {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const currentDeveloperIds = new Set(
-    members.filter((member) => member.developerId != null).map((member) => member.developerId)
-  );
-
-  // Handle developer assignment
-  // Take existing team members -> add the selected developer as new member
-  // -> update the page and close the popup
-  const handleAssign = (developer) => {
-    setMembers((prev) => [
-      ...prev,
-      {
-        id: `${team.id}-${developer.id}`,
-        name: developer.name,
-        role: 'Developer',
-        status: 'Active',
-        removable: true,
-        developerId: developer.id
-      }
-    ]);
-    setShowAssignModal(false);
+  const openAssignModal = () => {
+    setActionError('');
+    setShowAssignModal(true);
+    setIsLoadingAvailable(true);
+    getAvailableDevelopersForTeam(teamId, token)
+      .then((data) => {
+        setAvailableDevelopers(Array.isArray(data?.developers) ? data.developers : []);
+      })
+      .catch((err) => {
+        setActionError(err.message);
+        setShowAssignModal(false);
+      })
+      .finally(() => {
+        setIsLoadingAvailable(false);
+      });
   };
 
-  // Handle developer removal
-  // Creates new member list containing everyone but the developer whose remove
-  // button was clicked
-  const handleRemove = (memberId) => {
-    setMembers((prev) => prev.filter((member) => member.id !== memberId));
+  const handleAssign = (developerId) => {
+    setIsSubmitting(true);
+    addTeamMember(teamId, developerId, token)
+      .then((data) => {
+        setMembers(Array.isArray(data?.members) ? data.members : []);
+        setShowAssignModal(false);
+      })
+      .catch((err) => {
+        setActionError(err.message);
+      })
+      .finally(() => {
+        setIsSubmitting(false);
+      });
+  };
+
+  const handleRemove = (userId) => {
+    setActionError('');
+    removeTeamMember(teamId, userId, token)
+      .then((data) => {
+        setMembers(Array.isArray(data?.members) ? data.members : []);
+      })
+      .catch((err) => {
+        setActionError(err.message);
+      });
   };
 
   return (
@@ -192,85 +201,80 @@ export default function TeamDetail() {
       <AdminSidebar />
 
       <main className="admin-dashboard__main">
-        <div className="team-detail__header">
-          {/* show sidebar with different teams */}
-          <h1>{team.name}</h1>
-          <p className="team-detail__project">Current Project: {team.currentProject}</p>
-          <span className={`admin-status-pill admin-status-pill--${team.statusType}`}>{team.status}</span>
-          {/* Admin route into the board (US-04a): Link keeps the in-memory
-              login, a plain <a href> would reload the page and log out. */}
-          {team.projectId != null && (
-            <Link
-              to={`/projects/${team.projectId}/board`}
-              className="admin-btn admin-btn--solid team-detail__board-link"
-            >
-              View Board
-            </Link>
-          )}
-        </div>
+        {status === 'loading' && <p className="dashboard-status" role="status">Loading team...</p>}
 
-        <section className="team-members-card">
-          <div className="team-members-card__header">
-            <div>
-              <h2>Team Members</h2>
-              <p>Manage team members and their roles for this project</p>
-            </div>
-            {/* Assign developer button */}
-            <button
-              type="button"
-              className="admin-btn admin-btn--solid"
-              onClick={() => setShowAssignModal(true)}
-            >
-              + Assign Developer
+        {status === 'error' && (
+          <div className="dashboard-status" role="alert">
+            <p>Couldn&apos;t load this team.</p>
+            <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+              Retry
             </button>
           </div>
+        )}
 
-          <div className="team-members-table__columns">
-            <span>Name</span>
-            <span>Role</span>
-            <span>Status</span>
-            <span>Action</span>
-            <span />
-          </div>
+        {status === 'ready' && team && (
+          <>
+            <div className="team-detail__header">
+              <h1>{team.name}</h1>
+            </div>
 
-          <div className="team-members-table__body">
-            {/* show the selected team's information */}
-            {members.map((member) => (
-              <div className="team-members-table__row" key={member.id}>
-                <strong className="team-members-table__name">{member.name}</strong>
-                <span className="team-members-table__role">{member.role}</span>
-                <span className="admin-status-pill admin-status-pill--active">{member.status}</span>
-                <span className="team-members-table__action">
-                  {member.removable && (
-                    <button
-                      type="button"
-                      className="admin-remove-btn"
-                      onClick={() => handleRemove(member.id)}
-                    >
-                      Remove
-                    </button>
-                  )}
-                </span>
-                <button
-                  type="button"
-                  className="team-health-table__menu"
-                  aria-label={`More actions for ${member.name}`}
-                >
-                  •••
+            <section className="team-members-card">
+              <div className="team-members-card__header">
+                <div>
+                  <h2>Team Members</h2>
+                  <p>Manage which developers are on this team</p>
+                </div>
+                <button type="button" className="admin-btn admin-btn--solid" onClick={openAssignModal}>
+                  + Assign Developer
                 </button>
               </div>
-            ))}
-          </div>
-        </section>
+
+              {actionError && (
+                <p className="login-error login-error--server" role="alert">
+                  {actionError}
+                </p>
+              )}
+
+              <div className="team-members-table__columns">
+                <span>Name</span>
+                <span>Role</span>
+                <span>Action</span>
+              </div>
+
+              <div className="team-members-table__body">
+                {members.length === 0 && (
+                  <p className="admin-modal__empty">No developers on this team yet.</p>
+                )}
+                {members.map((member) => (
+                  <div className="team-members-table__row" key={member.id}>
+                    <strong className="team-members-table__name">{member.name}</strong>
+                    <span className="team-members-table__role">
+                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                    </span>
+                    <span className="team-members-table__action">
+                      <button
+                        type="button"
+                        className="admin-remove-btn"
+                        onClick={() => handleRemove(member.id)}
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </>
+        )}
       </main>
 
-      {/* if showAssignModal is true, render AssignDeveloperModal, otherwise dont render anything */}
       {showAssignModal && (
         <AssignDeveloperModal
-          team={team}
-          currentDeveloperIds={currentDeveloperIds}
+          teamName={team?.name ?? 'this team'}
+          developers={isLoadingAvailable ? [] : availableDevelopers}
           onAssign={handleAssign}
           onClose={() => setShowAssignModal(false)}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>

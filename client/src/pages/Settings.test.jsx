@@ -9,7 +9,9 @@ vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));
 // mount - mocked here purely so Settings can render in isolation, same
 // convention as other admin pages.
 vi.mock('../services/api.js', () => ({
-  getResponsibleProjects: vi.fn(() => Promise.resolve({ projects: [] }))
+  getResponsibleProjects: vi.fn(() => Promise.resolve({ projects: [] })),
+  // AdminSidebar (rendered on the Admin view) also loads the team list.
+  getTeams: vi.fn(() => Promise.resolve({ teams: [] }))
 }));
 
 function renderSettings(user, logout = vi.fn()) {
