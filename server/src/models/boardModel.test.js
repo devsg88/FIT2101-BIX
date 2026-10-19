@@ -8,7 +8,7 @@ vi.mock('./sprintModel.js');
 vi.mock('./taskModel.js');
 
 import { pool } from '../config/db.js';
-import { getBoard, getPbiBreakdown } from './boardModel.js';
+import { getBoard, getPbiBreakdown, getProjectById } from './boardModel.js';
 import { getPbiById } from './pbiModel.js';
 import { getTasksByPbi, getSubTasksByPbi } from './taskModel.js';
 import {
@@ -94,5 +94,31 @@ describe('getPbiBreakdown', () => {
     getPbiById.mockResolvedValue(null);
     expect(await getPbiBreakdown(7, 10)).toBeNull();
     expect(getTasksByPbi).not.toHaveBeenCalled();
+  });
+});
+
+// US-07 / SCRUM-199
+describe('getProjectById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns the project with its current focus PBI id for the board', async () => {
+    pool.query.mockResolvedValue({
+      rows: [{ id: '1', name: 'BIX Platform', current_focus_pbi_id: '7' }]
+    });
+
+    const project = await getProjectById(1);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/SELECT id, name, current_focus_pbi_id FROM projects WHERE id = \$1/);
+    expect(params).toEqual([1]);
+    expect(project).toEqual({ id: '1', name: 'BIX Platform', current_focus_pbi_id: '7' });
+  });
+
+  it('returns null when the project does not exist', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    expect(await getProjectById(999)).toBeNull();
   });
 });

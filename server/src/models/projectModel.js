@@ -91,6 +91,39 @@ export async function updateProjectName(projectId, name) {
 // PostgreSQL "foreign_key_violation".
 const FOREIGN_KEY_VIOLATION = '23503';
 
+// Sets or clears a project's Current Focus PBI (US-07 / SCRUM-198). Pass a
+// PBI id to set the focus, or null to clear it.
+//
+// The foreign key only checks that the PBI exists, not which project it is
+// in, so the EXISTS check makes sure the PBI belongs to this same project.
+// Both checks run in one UPDATE, so nothing can change in between.
+//
+// Returns the updated { id, current_focus_pbi_id }, or null when nothing was
+// updated: the project does not exist, or the PBI is not in this project.
+// A PBI deleted at the same moment trips the foreign key, which is also
+// reported as null.
+export async function setCurrentFocus(projectId, pbiId) {
+  try {
+    const { rows } = await pool.query(
+      `UPDATE projects
+          SET current_focus_pbi_id = $2
+        WHERE id = $1
+          AND ($2::bigint IS NULL
+               OR EXISTS (SELECT 1
+                            FROM product_backlog_items
+                           WHERE id = $2 AND project_id = $1))
+        RETURNING id, current_focus_pbi_id`,
+      [projectId, pbiId]
+    );
+    return rows[0] ?? null;
+  } catch (err) {
+    if (err.code === FOREIGN_KEY_VIOLATION) {
+      return null;
+    }
+    throw err;
+  }
+}
+
 // Deletes a project - its board - only while it has no work in it (US-04c).
 // "Work" is any PBI or sprint: tasks, sub-tasks and PBI collaborators can only
 // exist under a PBI, so checking those two is enough. Nothing is cascaded

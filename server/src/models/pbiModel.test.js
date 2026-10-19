@@ -8,6 +8,7 @@ import { pool } from '../config/db.js';
 import {
   createPbi,
   deletePbi,
+  getCurrentFocusPbiId,
   getPbisByStage,
   getSubTasksByProject,
   getTasksByProject,
@@ -380,5 +381,34 @@ describe('getTasksAssignedToUser', () => {
         project_name: 'BIX Platform'
       }
     ]);
+  });
+});
+
+describe('getCurrentFocusPbiId (US-07)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("reads the project's current_focus_pbi_id by project id", async () => {
+    pool.query.mockResolvedValue({ rows: [{ current_focus_pbi_id: '2' }] });
+
+    const result = await getCurrentFocusPbiId(1);
+
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/SELECT current_focus_pbi_id FROM projects WHERE id = \$1/i);
+    expect(params).toEqual([1]);
+    expect(result).toBe('2');
+  });
+
+  it('returns null when the project has no focus', async () => {
+    pool.query.mockResolvedValue({ rows: [{ current_focus_pbi_id: null }] });
+
+    expect(await getCurrentFocusPbiId(1)).toBeNull();
+  });
+
+  it('returns null when the project does not exist', async () => {
+    pool.query.mockResolvedValue({ rows: [] });
+
+    expect(await getCurrentFocusPbiId(99)).toBeNull();
   });
 });

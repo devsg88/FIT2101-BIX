@@ -2,13 +2,15 @@ import { Router } from 'express';
 import {
   requireAuth,
   requireRole,
-  requireProjectResponsibility
+  requireProjectResponsibility,
+  requireProjectAccess
 } from '../middleware/authMiddleware.js';
 import {
   createProjectController,
   listResponsibleProjectsController,
   updateProjectController,
-  deleteProjectController
+  deleteProjectController,
+  setCurrentFocusController
 } from '../controllers/projectController.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
@@ -51,6 +53,17 @@ router.delete(
   requireRole('admin'),
   requireProjectResponsibility,
   asyncHandler(deleteProjectController)
+);
+
+// PATCH /api/projects/:projectId/focus   body: { pbi_id }  (null clears it)
+// US-07 / SCRUM-198. Sets or clears the project's Current Focus PBI. Open to
+// the project's responsible Admin and its Developer members:
+// requireProjectAccess answers 400 / 404 / 403 before the controller runs.
+router.patch(
+  '/:projectId/focus',
+  requireAuth,
+  requireProjectAccess,
+  setCurrentFocusController
 );
 
 export default router;

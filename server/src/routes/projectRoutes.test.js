@@ -7,11 +7,17 @@ import {
   listProjectsForResponsibleAdmin,
   getProjectResponsibility,
   updateProjectName,
-  deleteEmptyProject
+  deleteEmptyProject,
+  setCurrentFocus
 } from '../models/projectModel.js';
+import { getProjectById } from '../models/boardModel.js';
+import { isProjectMember } from '../models/projectMembershipModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
 vi.mock('../models/projectModel.js');
+// Used by requireProjectAccess for Developers (US-07 focus route).
+vi.mock('../models/boardModel.js');
+vi.mock('../models/projectMembershipModel.js');
 
 // Wiring: inspects the actual Express Router object, the same approach the
 // task routes use - requireAuth keeps its own name when passed by reference,
@@ -58,6 +64,14 @@ describe('projectRoutes wiring', () => {
       'roleGuard',
       'requireProjectResponsibility',
       'deleteProjectController'
+    ]);
+  });
+
+  it('guards PATCH /:projectId/focus with requireAuth then requireProjectAccess (US-07)', () => {
+    expect(middlewareNamesFor('patch', '/:projectId/focus')).toEqual([
+      'requireAuth',
+      'requireProjectAccess',
+      'setCurrentFocusController'
     ]);
   });
 });
@@ -444,5 +458,142 @@ describe('DELETE /api/projects/:projectId (US-04c)', () => {
 
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ message: 'Failed to delete the project' });
+  });
+});
+
+// US-07 / SCRUM-198: setting the Current Focus, end to end through the real
+// app. requireProjectAccess runs for real; only the models are faked.
+describe('PATCH /api/projects/:projectId/focus (US-07)', () => {
+  const TEST_SECRET = 'project-routes-test-secret';
+  const responsibleAdmin = { id: '3', role: 'admin' };
+  const developer = { id: '5', role: 'developer' };
+  let server;
+  let baseUrl;
+  let originalSecret;
+
+  function setFocus(projectId, user, body = { pbi_id: 7 }) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (user) {
+      headers.Authorization = `Bearer ${jwt.sign(user, TEST_SECRET, { expiresIn: '5m' })}`;
+    }
+    return fetch(`${baseUrl}/api/projects/${projectId}/focus`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(body)
+    });
+  }
+
+  beforeAll(async () => {
+    originalSecret = process.env.JWT_SECRET;
+    process.env.JWT_SECRET = TEST_SECRET;
+    await new Promise((resolve) => {
+      server = app.listen(0, resolve);
+    });
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  });
+
+  afterAll(async () => {
+    await new Promise((resolve) => server.close(resolve));
+    process.env.JWT_SECRET = originalSecret;
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setCurrentFocus.mockResolvedValue({ id: '1', current_focus_pbi_id: '7' });
+  });
+
+  it('lets the responsible Admin set the focus (200)', async () => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible: true });
+
+    const res = await setFocus(1, responsibleAdmin);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ project: { id: '1', current_focus_pbi_id: '7' } });
+    expect(setCurrentFocus).toHaveBeenCalledWith(1, 7);
+  });
+
+  it('lets a Developer member set the focus (200)', async () => {
+    getProjectById.mockResolvedValue({ id: '1', name: 'BIX Platform' });
+    isProjectMember.mockResolvedValue(true);
+
+    const res = await setFocus(1, developer);
+
+    expect(res.status).toBe(200);
+    expect(isProjectMember).toHaveBeenCalledWith(1, '5');
+    expect(setCurrentFocus).toHaveBeenCalledWith(1, 7);
+  });
+
+  it('lets a Developer member clear the focus with null (200)', async () => {
+    getProjectById.mockResolvedValue({ id: '1', name: 'BIX Platform' });
+    isProjectMember.mockResolvedValue(true);
+    setCurrentFocus.mockResolvedValue({ id: '1', current_focus_pbi_id: null });
+
+    const res = await setFocus(1, developer, { pbi_id: null });
+
+    expect(res.status).toBe(200);
+    expect(setCurrentFocus).toHaveBeenCalledWith(1, null);
+  });
+
+  it('refuses a Developer who is not a member (403), without updating', async () => {
+    getProjectById.mockResolvedValue({ id: '1', name: 'BIX Platform' });
+    isProjectMember.mockResolvedValue(false);
+
+    const res = await setFocus(1, developer);
+
+    expect(res.status).toBe(403);
+    expect(setCurrentFocus).not.toHaveBeenCalled();
+  });
+
+  it('refuses an Admin who is not responsible for the project (403)', async () => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible: false });
+
+    const res = await setFocus(1, { id: '7', role: 'admin' });
+
+    expect(res.status).toBe(403);
+    expect(setCurrentFocus).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 for a project that does not exist', async () => {
+    getProjectById.mockResolvedValue(null);
+
+    const res = await setFocus(999, developer);
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ message: 'Project not found' });
+    expect(setCurrentFocus).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 when the PBI is not in this project', async () => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible: true });
+    setCurrentFocus.mockResolvedValue(null);
+
+    const res = await setFocus(1, responsibleAdmin, { pbi_id: 99 });
+
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ message: 'PBI not found in this project' });
+  });
+
+  it('returns 400 for an invalid pbi_id, without updating', async () => {
+    getProjectResponsibility.mockResolvedValue({ isResponsible: true });
+
+    const res = await setFocus(1, responsibleAdmin, { pbi_id: 'seven' });
+
+    expect(res.status).toBe(400);
+    expect(setCurrentFocus).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 for an invalid projectId, without a lookup', async () => {
+    const res = await setFocus('abc', developer);
+
+    expect(res.status).toBe(400);
+    expect(getProjectById).not.toHaveBeenCalled();
+    expect(setCurrentFocus).not.toHaveBeenCalled();
+  });
+
+  it('returns 401 with no token, and updates nothing', async () => {
+    const res = await setFocus(1);
+
+    expect(res.status).toBe(401);
+    expect(setCurrentFocus).not.toHaveBeenCalled();
   });
 });

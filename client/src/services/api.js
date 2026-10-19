@@ -161,6 +161,20 @@ export function deleteProject(projectId, token) {
   });
 }
 
+// PATCH /api/projects/:projectId/focus  (US-07, responsible Admin or member)
+// Sets the project's Current Focus PBI, or clears it when pbiId is null.
+// null is sent as an explicit JSON null - the server treats a missing
+// pbi_id as a mistake (400), not as "clear". Resolves with
+// { project: { id, current_focus_pbi_id } }, or throws with the backend's
+// message (PBI not in this project, no access, ...).
+export function updateProjectFocus(projectId, pbiId, token) {
+  return request(`/projects/${projectId}/focus`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({ pbi_id: pbiId ?? null })
+  });
+}
+
 // --- Project board (Journey 3) ---------------------------------------------
 
 // GET /api/projects/:projectId/board
@@ -296,6 +310,23 @@ export function startSprint(projectId, sprintId, token) {
   return request(`/projects/${projectId}/sprints/${sprintId}/start`, {
     method: 'POST',
     headers: authHeader(token)
+  });
+}
+
+// PATCH /api/projects/:projectId/sprints/:sprintId/roles  (US-09)
+// Saves the Scrum Master and Product Owner of a sprint - the work item the
+// roles are attached to, so workItemId is the sprint id. null clears a role.
+// Resolves with { sprint }. On failure it throws an Error carrying the
+// server's message and err.status, so a caller can show the 400 for a
+// Scrum Master who is not a real user on this project (AC4) as-is.
+export function updateWorkItemRoles(projectId, workItemId, scrumMasterId, poIdentifier, token) {
+  return request(`/projects/${projectId}/sprints/${workItemId}/roles`, {
+    method: 'PATCH',
+    headers: authHeader(token),
+    body: JSON.stringify({
+      scrum_master_id: scrumMasterId ?? null,
+      product_owner_identifier: poIdentifier ?? null
+    })
   });
 }
 

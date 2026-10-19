@@ -2010,6 +2010,266 @@ input {
   font-size: 0.75rem;
 }
 
+/* US-07 / SCRUM-199: Current Focus banner above the columns, and the
+   matching highlight on the focused PBI's card. */
+.current-focus {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  padding: 0.875rem 1.125rem;
+  background: #fff4d6;
+  border: 2px solid #000;
+  border-left-width: 8px;
+  border-left-color: #f0a860;
+  border-radius: 6px;
+}
+
+.current-focus__body {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.current-focus__label {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.current-focus__title {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.125rem;
+  overflow-wrap: anywhere;
+}
+
+.current-focus__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem 1.5rem;
+  margin: 0;
+  font-size: 0.8125rem;
+}
+
+.current-focus__meta div {
+  display: flex;
+  gap: 0.375rem;
+}
+
+.current-focus__meta dt {
+  font-weight: 600;
+}
+
+.current-focus__meta dt::after {
+  content: ':';
+}
+
+.current-focus__meta dd {
+  margin: 0;
+}
+
+.project-board__card--focused {
+  outline: 3px solid #f0a860;
+  outline-offset: 1px;
+}
+
+.project-board__focus-badge {
+  display: inline-block;
+  margin-bottom: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  background: #f0a860;
+  border: 1px solid #000;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+/* US-09 / SCRUM-178: sprint Scrum Master & Product Owner - the panel at the
+   top of the Sprint Planning / Active Sprint column, the @ picker, and the
+   short line on each card. */
+.sprint-roles {
+  margin-bottom: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.sprint-roles__sprint-name {
+  margin: 0 0 0.375rem;
+  font-weight: 700;
+}
+
+.sprint-roles__edit,
+.sprint-roles__actions button {
+  margin-top: 0.5rem;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.sprint-roles__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.sprint-roles__actions button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.sprint-roles__form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.sprint-roles__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-weight: 600;
+}
+
+.sprint-roles__form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.3125rem 0.5rem;
+  border: 1px solid #000;
+  border-radius: 4px;
+  font: inherit;
+  font-weight: 400;
+}
+
+.work-item-roles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  margin: 0;
+}
+
+.work-item-roles__role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.work-item-roles__role dt {
+  font-weight: 600;
+}
+
+.work-item-roles__role dt::after {
+  content: ':';
+}
+
+.work-item-roles__role dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.work-item-roles__person {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.work-item-roles__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  background: #f0a860;
+  border: 1px solid #000;
+  border-radius: 50%;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.work-item-roles__unset {
+  color: #555;
+  font-style: italic;
+}
+
+.work-item-roles__compact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin: 0.375rem 0 0;
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+}
+
+.scrum-master-select {
+  position: relative;
+}
+
+.scrum-master-select__options {
+  position: absolute;
+  z-index: 10;
+  left: 0;
+  right: 0;
+  margin: 0.125rem 0 0;
+  padding: 0.25rem 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #000;
+  border-radius: 4px;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.scrum-master-select__option {
+  display: flex;
+  flex-direction: column;
+  padding: 0.3125rem 0.5rem;
+  cursor: pointer;
+}
+
+.scrum-master-select__option[aria-selected='true'],
+.scrum-master-select__option:hover {
+  background: #fff4d6;
+}
+
+.scrum-master-select__option-email {
+  color: #555;
+  font-size: 0.6875rem;
+}
+
+.scrum-master-select__hint {
+  margin: 0.25rem 0 0;
+  color: #555;
+  font-size: 0.75rem;
+  font-weight: 400;
+}
+
+.scrum-master-select__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.25rem 0.125rem 0.625rem;
+  background: #fff4d6;
+  border: 1px solid #000;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.scrum-master-select__clear {
+  background: none;
+  border: none;
+  padding: 0 0.25rem;
+  font: inherit;
+  cursor: pointer;
+}
+
 .project-board__card-error--forbidden {
   display: flex;
   align-items: center;
@@ -2966,6 +3226,29 @@ input {
 .pbi-backlog__status--completed {
   background: #6fbf73;
   color: #fff;
+}
+
+/* US-07: the Current Focus row - same orange as the board banner and card. */
+.pbi-backlog__row--focused {
+  background: #fff4d6;
+  box-shadow: inset 6px 0 0 #f0a860;
+}
+
+.pbi-backlog__title .project-board__focus-badge {
+  margin: 0 0.5rem 0 0;
+  vertical-align: middle;
+}
+
+.pbi-backlog__actions {
+  flex-wrap: wrap;
+}
+
+.pbi-backlog__row-error {
+  flex-basis: 100%;
+  margin: 0;
+  color: #a3341c;
+  font-size: 0.75rem;
+  text-align: right;
 }
 
 @media (max-width: 600px) {

@@ -1,6 +1,7 @@
 import {
   createPbi,
   deletePbi,
+  getCurrentFocusPbiId,
   getPbiById,
   getPbisByProject,
   updatePbiDetails,
@@ -29,7 +30,8 @@ import { checkStageTransition } from '../constants/stageTransitions.js';
 // requireRole('admin') + requireProjectResponsibility, so by the time this
 // runs the caller is the Admin responsible for an existing project. The
 // projectId is still validated here so the controller is safe on its own.
-// Returns the PBIs only, flat - their Tasks and Sub-tasks are US-04a.
+// Returns the PBIs only, flat - their Tasks and Sub-tasks are US-04a - plus
+// the project's current_focus_pbi_id (US-07) so the page can mark that row.
 export async function listPbisController(req, res) {
   const projectId = Number(req.params.projectId);
 
@@ -38,8 +40,11 @@ export async function listPbisController(req, res) {
   }
 
   try {
-    const pbis = await getPbisByProject(projectId);
-    return res.json({ pbis });
+    const [pbis, currentFocusPbiId] = await Promise.all([
+      getPbisByProject(projectId),
+      getCurrentFocusPbiId(projectId)
+    ]);
+    return res.json({ pbis, current_focus_pbi_id: currentFocusPbiId ?? null });
   } catch (err) {
     // Same convention as the other controllers: never leak the raw DB error.
     return res.status(500).json({ message: 'Failed to load the Product Backlog Items' });

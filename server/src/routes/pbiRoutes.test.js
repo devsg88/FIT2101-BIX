@@ -175,7 +175,8 @@ describe('GET /api/projects/:projectId/pbis (US-04b)', () => {
     const res = await getPbis(1, tokenFor(ADMIN));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ pbis });
+    // No focus mocked, so the US-07 focus id comes back as null.
+    expect(await res.json()).toEqual({ pbis, current_focus_pbi_id: null });
     expect(getPbisByProject).toHaveBeenCalledWith(1);
   });
 });

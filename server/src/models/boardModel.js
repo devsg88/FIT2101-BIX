@@ -8,9 +8,11 @@ import {
 import { getSprintsByProject } from './sprintModel.js';
 import { getTasksByPbi, getSubTasksByPbi } from './taskModel.js';
 
+// current_focus_pbi_id (US-07) lets the board show the Current Focus banner;
+// null when the project has no focus.
 export async function getProjectById(projectId) {
   const { rows } = await pool.query(
-    'SELECT id, name FROM projects WHERE id = $1',
+    'SELECT id, name, current_focus_pbi_id FROM projects WHERE id = $1',
     [projectId]
   );
   return rows[0] ?? null;

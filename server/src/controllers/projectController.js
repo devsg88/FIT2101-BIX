@@ -2,7 +2,8 @@ import {
   createProject,
   listProjectsForResponsibleAdmin,
   updateProjectName,
-  deleteEmptyProject
+  deleteEmptyProject,
+  setCurrentFocus
 } from '../models/projectModel.js';
 
 // Project creation (US-04d / SCRUM-19).
@@ -131,5 +132,56 @@ export async function deleteProjectController(req, res) {
   } catch (err) {
     // Do not send the raw database error to the client, just a plain message.
     return res.status(500).json({ message: 'Failed to delete the project' });
+  }
+}
+
+// Pulls the focus PBI id out of the request body for the Current Focus route.
+// `pbi_id` must be sent: a positive whole number sets the focus, null clears
+// it. A missing field is an error rather than "clear", so a typo in the field
+// name cannot wipe the focus by accident.
+function parseFocusPayload(body) {
+  if (body?.pbi_id === undefined) {
+    return { error: 'pbi_id is required (a PBI id, or null to clear the focus)' };
+  }
+
+  const pbiId = body.pbi_id;
+  if (pbiId === null) {
+    return { pbiId: null };
+  }
+
+  if (typeof pbiId !== 'number' || !Number.isSafeInteger(pbiId) || pbiId <= 0) {
+    return { error: 'pbi_id must be a positive whole number or null' };
+  }
+
+  return { pbiId };
+}
+
+// PATCH /api/projects/:projectId/focus   body: { pbi_id }
+// US-07 / SCRUM-198. Sets or clears the project's Current Focus PBI. The
+// route runs requireAuth and requireProjectAccess first, so the project
+// exists (404 otherwise) and the user is its responsible Admin or a
+// Developer member (403 otherwise). This only validates the body and checks
+// that the PBI is in this project.
+//
+// 200: focus set or cleared
+// 400: pbi_id missing or not a positive whole number / null
+// 404: the PBI is not in this project (or the project was removed after the
+//      access check)
+// 500: database error
+export async function setCurrentFocusController(req, res) {
+  const parsed = parseFocusPayload(req.body);
+  if (parsed.error) {
+    return res.status(400).json({ message: parsed.error });
+  }
+
+  try {
+    const project = await setCurrentFocus(Number(req.params.projectId), parsed.pbiId);
+    if (!project) {
+      return res.status(404).json({ message: 'PBI not found in this project' });
+    }
+    return res.json({ project });
+  } catch (err) {
+    // Do not send the raw database error to the client, just a plain message.
+    return res.status(500).json({ message: 'Failed to update the current focus' });
   }
 }

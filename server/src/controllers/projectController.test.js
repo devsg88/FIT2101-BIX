@@ -3,13 +3,15 @@ import {
   createProjectController,
   listResponsibleProjectsController,
   updateProjectController,
-  deleteProjectController
+  deleteProjectController,
+  setCurrentFocusController
 } from './projectController.js';
 import {
   createProject,
   listProjectsForResponsibleAdmin,
   updateProjectName,
-  deleteEmptyProject
+  deleteEmptyProject,
+  setCurrentFocus
 } from '../models/projectModel.js';
 
 // Replace the real database-backed model with a fake one we control per test.
@@ -326,5 +328,87 @@ describe('deleteProjectController (US-04c)', () => {
 
     expect(deleteEmptyProject).toHaveBeenCalledTimes(1);
     expect(deleteEmptyProject).toHaveBeenCalledWith(5);
+  });
+});
+
+// US-07 / SCRUM-198
+describe('setCurrentFocusController', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const developer = { id: '5', role: 'developer' };
+
+  it('sets the focus PBI and returns 200 with the project', async () => {
+    const updated = { id: '1', current_focus_pbi_id: '7' };
+    setCurrentFocus.mockResolvedValue(updated);
+    const req = { user: developer, params: { projectId: '1' }, body: { pbi_id: 7 } };
+    const res = mockRes();
+
+    await setCurrentFocusController(req, res);
+
+    expect(setCurrentFocus).toHaveBeenCalledWith(1, 7);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ project: updated });
+  });
+
+  it('clears the focus when pbi_id is null', async () => {
+    setCurrentFocus.mockResolvedValue({ id: '1', current_focus_pbi_id: null });
+    const req = { user: admin, params: { projectId: '1' }, body: { pbi_id: null } };
+    const res = mockRes();
+
+    await setCurrentFocusController(req, res);
+
+    expect(setCurrentFocus).toHaveBeenCalledWith(1, null);
+    expect(res.json).toHaveBeenCalledWith({ project: { id: '1', current_focus_pbi_id: null } });
+  });
+
+  it.each([
+    ['missing', {}],
+    ['a string', { pbi_id: '7' }],
+    ['zero', { pbi_id: 0 }],
+    ['negative', { pbi_id: -3 }],
+    ['a decimal', { pbi_id: 1.5 }],
+    ['a boolean', { pbi_id: true }],
+    ['an array', { pbi_id: [7] }]
+  ])('returns 400 when pbi_id is %s, without touching the database', async (_label, body) => {
+    const req = { user: developer, params: { projectId: '1' }, body };
+    const res = mockRes();
+
+    await setCurrentFocusController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(setCurrentFocus).not.toHaveBeenCalled();
+  });
+
+  it('returns 400 when there is no body at all', async () => {
+    const req = { user: developer, params: { projectId: '1' } };
+    const res = mockRes();
+
+    await setCurrentFocusController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it('returns 404 when the PBI is not in this project', async () => {
+    setCurrentFocus.mockResolvedValue(null);
+    const req = { user: developer, params: { projectId: '1' }, body: { pbi_id: 99 } };
+    const res = mockRes();
+
+    await setCurrentFocusController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: 'PBI not found in this project' });
+  });
+
+  it('returns 500 with a plain message when the database fails', async () => {
+    setCurrentFocus.mockRejectedValue(new Error('relation "projects" does not exist'));
+    const req = { user: developer, params: { projectId: '1' }, body: { pbi_id: 7 } };
+    const res = mockRes();
+
+    await setCurrentFocusController(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ message: 'Failed to update the current focus' });
   });
 });
