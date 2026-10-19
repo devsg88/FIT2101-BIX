@@ -12,6 +12,7 @@ import completedWorkRoutes from './routes/completedWorkRoutes.js';
 import subTaskRoutes from './routes/subTaskRoutes.js';
 import projectMembershipRoutes from './routes/projectMembershipRoutes.js';
 import burndownRoutes from './routes/burndownRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 
 const app = express();
@@ -48,6 +49,7 @@ app.use('/api/projects', completedWorkRoutes);
 app.use('/api/projects', subTaskRoutes);
 app.use('/api/projects', projectMembershipRoutes);
 app.use('/api/projects', burndownRoutes);
+app.use('/api/projects', analyticsRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 

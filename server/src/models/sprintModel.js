@@ -2,14 +2,22 @@ import { pool } from '../config/db.js';
 
 // All reads are scoped to a single project.
 
-const SPRINT_COLUMNS = `id, project_id, name, status, started_at, created_at`;
+// scrum_master_id and product_owner_identifier are the US-09 Scrum roles, so
+// every sprint the board and sprint list return already carries them.
+const SPRINT_COLUMNS = `id, project_id, name, status, started_at, created_at,
+  scrum_master_id, product_owner_identifier`;
 
+// Also returns scrum_master_name (US-09), so the board can show who the Scrum
+// Master is without a second request. NULL when no Scrum Master is tagged.
 export async function getSprintsByProject(projectId) {
   const { rows } = await pool.query(
-    `SELECT ${SPRINT_COLUMNS}
-       FROM sprints
-      WHERE project_id = $1
-      ORDER BY id`,
+    `SELECT s.id, s.project_id, s.name, s.status, s.started_at, s.created_at,
+            s.scrum_master_id, s.product_owner_identifier,
+            u.name AS scrum_master_name
+       FROM sprints s
+       LEFT JOIN users u ON u.id = s.scrum_master_id
+      WHERE s.project_id = $1
+      ORDER BY s.id`,
     [projectId]
   );
   return rows;
@@ -40,6 +48,41 @@ export async function createSprint(projectId, name) {
     [projectId, name]
   );
   return rows[0];
+}
+
+// Updates a sprint's Scrum Master and/or Product Owner (US-09 / SCRUM-176).
+//
+// changes may hold either or both of:
+//   scrumMasterId           a user id, or null to clear the tag
+//   productOwnerIdentifier  text (email or name), or null to clear it
+// A field left out of changes keeps its current value: each CASE only writes
+// the new value when its "was sent" flag is true. Callers validate the values
+// first - in particular, that the Scrum Master is a real user.
+//
+// Scoped to the project, so a sprint id from another project matches no row.
+// Returns the updated sprint, or null when no sprint matched.
+export async function updateSprintRoles(projectId, sprintId, changes) {
+  const hasScrumMaster = changes.scrumMasterId !== undefined;
+  const hasProductOwner = changes.productOwnerIdentifier !== undefined;
+
+  const { rows } = await pool.query(
+    `UPDATE sprints
+        SET scrum_master_id = CASE WHEN $3::boolean THEN $4::bigint
+                                   ELSE scrum_master_id END,
+            product_owner_identifier = CASE WHEN $5::boolean THEN $6::varchar
+                                            ELSE product_owner_identifier END
+      WHERE project_id = $1 AND id = $2
+      RETURNING ${SPRINT_COLUMNS}`,
+    [
+      projectId,
+      sprintId,
+      hasScrumMaster,
+      hasScrumMaster ? changes.scrumMasterId : null,
+      hasProductOwner,
+      hasProductOwner ? changes.productOwnerIdentifier : null
+    ]
+  );
+  return rows[0] ?? null;
 }
 
 const PBI_COLUMNS = `

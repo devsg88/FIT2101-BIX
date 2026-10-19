@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { getResponsibleProjects } from '../../services/api.js';
 import { allTeams } from '../../data/orgMockData.js';
@@ -92,6 +92,14 @@ export default function AdminSidebar() {
       <Link to="/dashboard" className="admin-sidebar__org-link">
         Organization Dashboard
       </Link>
+      <NavLink to="/analytics/sprints" className={({ isActive }) =>
+        isActive ? 'admin-sidebar__org-link' : 'admin-sidebar__analytics-link'}>
+        Sprint analytics
+      </NavLink>
+      <NavLink to="/analytics/projects" className={({ isActive }) =>
+        isActive ? 'admin-sidebar__org-link' : 'admin-sidebar__analytics-link'}>
+        Project analytics
+      </NavLink>
 
       <p className="admin-sidebar__label">Active teams ({allTeams.length})</p>
       <div className="admin-sidebar__team-list">

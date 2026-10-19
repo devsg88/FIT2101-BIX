@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import WorkItemEditor from '../components/board/WorkItemEditor.jsx';
+import CurrentFocusBanner from '../components/board/CurrentFocusBanner.jsx';
+import SprintRolesPanel from '../components/board/SprintRolesPanel.jsx';
+import WorkItemRoles from '../components/board/WorkItemRoles.jsx';
 import ManageMembersModal from '../components/board/ManageMembersModal.jsx';
 import {
   BoardProvider,
@@ -806,8 +809,37 @@ function StartSprintButton() {
   );
 }
 
+// US-09 / SCRUM-178. The sprint a column's work belongs to: the planning
+// sprint for Sprint Planning, the active sprint for Active Sprint, and none
+// for the other two columns. Matches how StartSprintButton finds the sprint.
+const SPRINT_STATUS_FOR_STAGE = {
+  sprint_planning: 'planning',
+  active_sprint: 'active'
+};
+
+function sprintForStage(sprints, stage) {
+  const status = SPRINT_STATUS_FOR_STAGE[stage];
+  return status ? sprints.find((sprint) => sprint.status === status) ?? null : null;
+}
+
+// The sprint a card's roles come from. An Active Sprint card records its own
+// sprint_id; a Sprint Planning card has none until the sprint starts, so it
+// uses the planning sprint.
+function sprintForPbi(sprints, pbi) {
+  if (pbi.sprint_id != null) {
+    const own = sprints.find((sprint) => String(sprint.id) === String(pbi.sprint_id));
+    if (own && pbi.stage === 'active_sprint') {
+      return own;
+    }
+  }
+  return sprintForStage(sprints, pbi.stage);
+}
+
 // One PBI card shown inside a column. canManage (true for an admin) gates
-// the task/sub-task Edit/Delete controls - see ChecklistRow.
+// the task/sub-task Edit/Delete controls - see ChecklistRow. isFocused marks
+// the project's Current Focus (US-07): highlighted with a badge. The focus
+// itself is set and cleared by the Admin on Manage Backlog. sprint is the sprint this card's
+// work belongs to (US-09), whose Scrum Master and Product Owner are shown.
 //
 // The task checklist defaults to expanded (unchanged from before) rather
 // than collapsed, so every existing test and workflow that expects a task's
@@ -815,21 +847,20 @@ function StartSprintButton() {
 // and a "N/M done" summary on top of that, it does not change what's shown
 // by default. Only top-level tasks are counted, not nested sub-tasks, to
 // keep the summary a single, unambiguous number.
-function PbiCard({ pbi, canManage }) {
+function PbiCard({ pbi, canManage, isFocused, sprint }) {
   const [isExpanded, setIsExpanded] = useState(true);
   const tasks = pbi.tasks || [];
   const totalCount = tasks.length;
   const doneCount = tasks.filter((task) => isDone(task.status)).length;
   const urgency = getPbiUrgency(pbi);
 
+  const classNames = ['project-board__card'];
+  if (urgency) classNames.push(`project-board__card--${urgency}`);
+  if (isFocused) classNames.push('project-board__card--focused');
+
   return (
-    <article
-      className={
-        urgency
-          ? `project-board__card project-board__card--${urgency}`
-          : 'project-board__card'
-      }
-    >
+    <article className={classNames.join(' ')}>
+      {isFocused && <span className="project-board__focus-badge">Current Focus</span>}
       <div className="project-board__card-title-row">
         <h3 className="project-board__card-title">{pbi.title}</h3>
         {urgency && (
@@ -844,6 +875,7 @@ function PbiCard({ pbi, canManage }) {
         <p className="project-board__card-description">{pbi.description}</p>
       )}
       <PbiMeta pbi={pbi} />
+      <WorkItemRoles sprint={sprint} compact />
       {totalCount > 0 && (
         <button
           type="button"
@@ -895,7 +927,8 @@ function isAssignedToPbi(pbi, userId) {
 // fetched differently and no access rule changes; it defaults off so the
 // board shows everything, same as before this existed.
 function BoardColumns() {
-  const { stages, pbisByStage } = useBoard();
+  const { stages, pbisByStage, project, sprints } = useBoard();
+  const focusId = project?.current_focus_pbi_id;
   // US-04a: only an admin can edit/delete Tasks/Sub-tasks (matches the
   // backend's requireRole('admin') on every one of those endpoints).
   const { user } = useAuth();
@@ -925,13 +958,24 @@ function BoardColumns() {
                 <h2 className="project-board__column-title">{STAGE_LABELS[stage]}</h2>
               </div>
               <div className="project-board__column-body">
+                {/* US-09: the column's sprint, with its Scrum Master and Product
+                    Owner, above that sprint's work. */}
+                {sprintForStage(sprints, stage) && (
+                  <SprintRolesPanel sprint={sprintForStage(sprints, stage)} />
+                )}
                 {stagePbis.length === 0 ? (
                   <p className="project-board__empty">
                     {showOnlyMine ? 'No cards assigned to you here' : 'No items'}
                   </p>
                 ) : (
                   stagePbis.map((pbi) => (
-                    <PbiCard key={pbi.id} pbi={pbi} canManage={canManage} />
+                    <PbiCard
+                      key={pbi.id}
+                      pbi={pbi}
+                      canManage={canManage}
+                      isFocused={focusId != null && String(pbi.id) === String(focusId)}
+                      sprint={sprintForPbi(sprints, pbi)}
+                    />
                   ))
                 )}
                 {stage === 'sprint_planning' && <StartSprintButton />}
@@ -1290,9 +1334,20 @@ function CompletedWorkSidebar({ projectId, token, isOpen, onClose }) {
   );
 }
 
+// US-07 / SCRUM-199. The PBI the project's current_focus_pbi_id points at, or
+// null when there is no focus. Compared as strings because pg returns bigint
+// ids as strings while other ids may be numbers.
+function findFocusedPbi(project, pbis) {
+  const focusId = project?.current_focus_pbi_id;
+  if (focusId === undefined || focusId === null) {
+    return null;
+  }
+  return pbis.find((pbi) => String(pbi.id) === String(focusId)) ?? null;
+}
+
 // Picks what to show based on the board's current status: loading, error, or ready.
 function BoardView() {
-  const { status, error, project, projectId, reloadBoard } = useBoard();
+  const { status, error, project, pbis, projectId, reloadBoard } = useBoard();
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1325,6 +1380,11 @@ function BoardView() {
           </div>
         )}
 
+        {/* US-07: Current Focus sits directly above the columns. It renders
+            nothing when the project has no focus. */}
+        {status === 'ready' && (
+          <CurrentFocusBanner focusedPbi={findFocusedPbi(project, pbis)} />
+        )}
         {status === 'ready' && <BoardColumns />}
       </main>
 

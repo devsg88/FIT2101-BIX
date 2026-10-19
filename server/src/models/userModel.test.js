@@ -27,26 +27,30 @@ describe('listDevelopers', () => {
 // Added for US-03/US-05: addProjectMemberController uses this to verify a
 // target user actually exists and is really a developer, server-side,
 // rather than trusting the client's own available-developers list.
+// US-09 / SCRUM-177 also uses it to refuse a Scrum Master who is not a
+// real user.
 describe('findUserById', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('returns the user row for an existing id', async () => {
-    const user = { id: 5, name: 'New Dev', email: 'new@bix.app', role: 'developer' };
-    pool.query.mockResolvedValue({ rows: [user] });
+  it('returns the user without the password hash', async () => {
+    pool.query.mockResolvedValue({
+      rows: [{ id: '2', name: 'Developer', email: 'developer@bix.app', role: 'developer' }]
+    });
 
-    const result = await findUserById(5);
+    const user = await findUserById(2);
 
-    expect(pool.query).toHaveBeenCalledWith(expect.any(String), [5]);
-    expect(result).toEqual(user);
+    const [sql, params] = pool.query.mock.calls[0];
+    expect(sql).toMatch(/SELECT id, name, email, role FROM users WHERE id = \$1/);
+    expect(sql).not.toMatch(/password_hash|\*/);
+    expect(params).toEqual([2]);
+    expect(user).toEqual({ id: '2', name: 'Developer', email: 'developer@bix.app', role: 'developer' });
   });
 
-  it('returns null when no user matches', async () => {
+  it('returns null when no user has that id', async () => {
     pool.query.mockResolvedValue({ rows: [] });
 
-    const result = await findUserById(999);
-
-    expect(result).toBeNull();
+    expect(await findUserById(999)).toBeNull();
   });
 });
