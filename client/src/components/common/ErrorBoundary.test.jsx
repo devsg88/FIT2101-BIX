@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
@@ -77,5 +78,38 @@ describe('ErrorBoundary', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
 
     expect(screen.getByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
+  });
+});
+
+// NFR-02 / SCRUM-195: reporting pages are lazy-loaded. If a page's chunk
+// cannot be downloaded (e.g. the connection drops), the boundary must still
+// show its recovery screen rather than a blank page.
+describe('ErrorBoundary with a lazy-loaded page', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('shows the recovery screen when a page chunk fails to load', async () => {
+    const BrokenLazyPage = lazy(() => Promise.reject(new Error('Failed to fetch dynamically imported module: /assets/Burndown-x.js')));
+
+    const { container } = render(
+      <MemoryRouter initialEntries={['/projects/1/burndown']}>
+        <ErrorBoundary>
+          <Suspense fallback={<p>Loading...</p>}>
+            <Routes>
+              <Route path="/projects/:projectId/burndown" element={<BrokenLazyPage />} />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByRole('heading', { name: 'Something went wrong' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return to dashboard' })).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/dynamically imported|assets\/Burndown/);
   });
 });

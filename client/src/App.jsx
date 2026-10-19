@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext.jsx';
 import Login from './pages/Login.jsx';
@@ -9,16 +10,24 @@ import MyProjects from './pages/MyProjects.jsx';
 import Board from './pages/Board.jsx';
 import TeamDetail from './pages/TeamDetail.jsx';
 import ProductBacklog from './pages/ProductBacklog.jsx';
-import Burndown from './pages/Burndown.jsx';
-import SprintAnalytics from './pages/SprintAnalytics.jsx';
-import ProjectAnalytics from './pages/ProjectAnalytics.jsx';
 import Settings from './pages/Settings.jsx';
 import ProtectedRoute from './routes/ProtectedRoute.jsx';
+
+// NFR-02 / SCRUM-195. The reporting pages (Burndown, Sprint and Project
+// Analytics) and their charts are only needed when someone opens them, so
+// each is downloaded on first visit instead of with the initial bundle.
+// ProtectedRoute still runs first, so a page is never downloaded for a user
+// who is not allowed on it; a failed download is caught by the app-level
+// ErrorBoundary (main.jsx) like any other page failure.
+const Burndown = lazy(() => import('./pages/Burndown.jsx'));
+const SprintAnalytics = lazy(() => import('./pages/SprintAnalytics.jsx'));
+const ProjectAnalytics = lazy(() => import('./pages/ProjectAnalytics.jsx'));
 
 export default function App() {
   const { user } = useAuth();
 
   return (
+    <Suspense fallback={<p className="dashboard-status">Loading...</p>}>
     <Routes>
       <Route path="/" element={<Navigate to={user ? '/dashboard' : '/login'} replace />} />
       <Route
@@ -135,5 +144,6 @@ export default function App() {
         }
       />
     </Routes>
+    </Suspense>
   );
 }
