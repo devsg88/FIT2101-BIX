@@ -63,7 +63,7 @@ router.patch(
   '/:projectId/focus',
   requireAuth,
   requireProjectAccess,
-  setCurrentFocusController
+  asyncHandler(setCurrentFocusController)
 );
 
 export default router;
