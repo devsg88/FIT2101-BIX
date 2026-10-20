@@ -200,6 +200,123 @@ UPDATE tasks SET assignee_id = 1 WHERE id IN (1, 3, 4) AND assignee_id IS NULL;
 UPDATE tasks SET assignee_id = 2 WHERE id IN (2, 5) AND assignee_id IS NULL;
 
 -- -------------------------------------------------------------------------
+-- Extra sprints/PBIs/tasks so every project has real backlog content, not
+-- just BIX Platform and Mobile App. Placed after project_members (above) so
+-- tasks can set assignee_id directly, scoped to each project's real members.
+-- -------------------------------------------------------------------------
+
+-- Analytics Dashboard (3): a full completed/active/planning trio, same
+-- shape as BIX Platform's, since it has two active members (Sarah, Marcus).
+INSERT INTO sprints (id, project_id, name, status, started_at, created_at) VALUES
+    (5, 3, 'Sprint 1', 'completed', TIMESTAMPTZ '2026-08-10 09:00+00', TIMESTAMPTZ '2026-08-05 09:00+00'),
+    (6, 3, 'Sprint 2', 'active',    TIMESTAMPTZ '2026-08-24 09:00+00', TIMESTAMPTZ '2026-08-18 09:00+00'),
+    (7, 3, 'Sprint 3', 'planning',  NULL,                              TIMESTAMPTZ '2026-09-10 09:00+00')
+ON CONFLICT (id) DO NOTHING;
+
+-- Customer Portal (4): one active sprint only - a newer project with
+-- nothing completed yet (Marcus, Priya).
+INSERT INTO sprints (id, project_id, name, status, started_at, created_at) VALUES
+    (8, 4, 'Sprint 1', 'active', TIMESTAMPTZ '2026-09-01 09:00+00', TIMESTAMPTZ '2026-08-28 09:00+00')
+ON CONFLICT (id) DO NOTHING;
+
+-- Internal Tools (5): one planning sprint - backlog grooming has not
+-- started a sprint yet (Pang, Priya).
+INSERT INTO sprints (id, project_id, name, status, started_at, created_at) VALUES
+    (9, 5, 'Sprint 1', 'planning', NULL, TIMESTAMPTZ '2026-09-08 09:00+00')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO product_backlog_items
+    (id, project_id, sprint_id, title, description, stage,
+     planned_start_date, planned_end_date, estimated_hours, actual_hours,
+     created_at, updated_at) VALUES
+
+    -- Analytics Dashboard (3)
+    (7, 3, NULL, 'Define key metrics for the dashboard',
+     'Agree the first set of metrics (signups, active users, revenue) before building any chart.',
+     'product_backlog', NULL, NULL, NULL, NULL,
+     TIMESTAMPTZ '2026-09-12 10:00+00', TIMESTAMPTZ '2026-09-12 10:00+00'),
+
+    (8, 3, 7, 'Add date-range filter to charts',
+     'Let a user narrow every chart on the dashboard to a custom date range.',
+     'sprint_planning', DATE '2026-09-18', DATE '2026-09-25', 10.00, NULL,
+     TIMESTAMPTZ '2026-09-10 10:00+00', TIMESTAMPTZ '2026-09-10 10:00+00'),
+
+    (9, 3, 6, 'Build revenue trend chart',
+     'Line chart of revenue over time on the main dashboard page.',
+     'active_sprint', DATE '2026-08-24', DATE '2026-09-04', 14.00, NULL,
+     TIMESTAMPTZ '2026-08-18 10:00+00', TIMESTAMPTZ '2026-08-24 09:00+00'),
+
+    (10, 3, 5, 'Set up analytics data pipeline',
+     'Scheduled job that aggregates raw event data into the metrics tables the dashboard reads.',
+     'completed', DATE '2026-08-10', DATE '2026-08-18', 12.00, 15.50,
+     TIMESTAMPTZ '2026-08-05 10:00+00', TIMESTAMPTZ '2026-08-18 15:00+00'),
+
+    -- Customer Portal (4)
+    (11, 4, NULL, 'Customer can view order history',
+     'A list of a customer''s past orders with status and date, on their account page.',
+     'product_backlog', NULL, NULL, NULL, NULL,
+     TIMESTAMPTZ '2026-09-03 10:00+00', TIMESTAMPTZ '2026-09-03 10:00+00'),
+
+    (12, 4, 8, 'Customer can update billing address',
+     'Editable billing address form on the account page, validated before saving.',
+     'active_sprint', DATE '2026-09-01', DATE '2026-09-10', 8.00, NULL,
+     TIMESTAMPTZ '2026-08-28 10:00+00', TIMESTAMPTZ '2026-09-01 09:00+00'),
+
+    (13, 4, NULL, 'Add live chat widget to support page',
+     'Embed a live chat widget so a customer can reach support without leaving the portal.',
+     'product_backlog', NULL, NULL, NULL, NULL,
+     TIMESTAMPTZ '2026-09-06 10:00+00', TIMESTAMPTZ '2026-09-06 10:00+00'),
+
+    -- Internal Tools (5)
+    (14, 5, NULL, 'Tool for tracking team leave requests',
+     'Internal form and approval queue so leave requests do not go through email.',
+     'product_backlog', NULL, NULL, NULL, NULL,
+     TIMESTAMPTZ '2026-09-10 10:00+00', TIMESTAMPTZ '2026-09-10 10:00+00'),
+
+    (15, 5, 9, 'Add CSV export for timesheet data',
+     'Export a team''s logged hours for a given period as a CSV for payroll.',
+     'sprint_planning', DATE '2026-09-20', DATE '2026-09-25', 6.00, NULL,
+     TIMESTAMPTZ '2026-09-08 10:00+00', TIMESTAMPTZ '2026-09-08 10:00+00'),
+
+    (16, 5, NULL, 'Dark mode toggle for internal dashboard',
+     'Simple light/dark theme switch, preference remembered per user.',
+     'product_backlog', NULL, NULL, NULL, NULL,
+     TIMESTAMPTZ '2026-09-12 10:00+00', TIMESTAMPTZ '2026-09-12 10:00+00'),
+
+    -- Mobile App (2) - stays member-less on purpose (see project_members
+    -- above), so this is backlog grooming with nobody assigned to it yet.
+    (17, 2, NULL, 'Offline mode for saved drafts',
+     'Let a user keep editing a draft PBI/task note while offline; sync once back online.',
+     'product_backlog', NULL, NULL, NULL, NULL,
+     TIMESTAMPTZ '2026-09-07 10:00+00', TIMESTAMPTZ '2026-09-07 10:00+00'),
+
+    -- BIX Platform (1) - one more completed item alongside the existing four.
+    (18, 1, 1, 'Add password strength meter',
+     'Live strength indicator on the sign-up and reset-password forms.',
+     'completed', DATE '2026-08-10', DATE '2026-08-14', 4.00, 3.50,
+     TIMESTAMPTZ '2026-08-08 10:00+00', TIMESTAMPTZ '2026-08-14 16:00+00')
+ON CONFLICT (id) DO NOTHING;
+
+-- Tasks for the PBIs above, assignee_id set directly (users already exist
+-- by this point in the script) and scoped to each project's real members.
+INSERT INTO tasks (id, pbi_id, title, status, assignee_id) VALUES
+    (6,  8,  'Add date picker component',             'todo',        5), -- Sarah, Analytics Dashboard
+    (7,  9,  'Design chart component',                'todo',        5), -- Sarah, Analytics Dashboard
+    (8,  9,  'Wire chart to analytics API',            'in_progress', 6), -- Marcus, Analytics Dashboard
+    (9,  10, 'Build ETL job for daily metrics',        'done',        6), -- Marcus, Analytics Dashboard
+    (10, 10, 'Write pipeline monitoring alert',        'done',        5), -- Sarah, Analytics Dashboard
+    (11, 12, 'Build billing address form',             'in_progress', 7), -- Priya, Customer Portal
+    (12, 12, 'Validate address against courier API',   'todo',        6), -- Marcus, Customer Portal
+    (13, 15, 'Design timesheet export format',         'todo',        1), -- Pang, Internal Tools
+    (14, 18, 'Add zxcvbn-based strength indicator',    'done',        1)  -- Pang, BIX Platform
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO sub_tasks (id, task_id, title, status) VALUES
+    (4, 8, 'Add caching for repeated queries', 'todo'),
+    (5, 9, 'Add retry logic for failed loads', 'done')
+ON CONFLICT (id) DO NOTHING;
+
+-- -------------------------------------------------------------------------
 -- Re-sync identity sequences so the next auto-generated id continues after
 -- the highest explicit id inserted above. GREATEST(..., 1) keeps this valid
 -- even if a table somehow ended up empty. team_members / project_members
