@@ -213,8 +213,8 @@ INSERT INTO sprints (id, project_id, name, status, started_at, created_at) VALUE
     (7, 3, 'Sprint 3', 'planning',  NULL,                              TIMESTAMPTZ '2026-09-10 09:00+00')
 ON CONFLICT (id) DO NOTHING;
 
--- Customer Portal (4): one active sprint only - a newer project with
--- nothing completed yet (Marcus, Priya).
+-- Customer Portal (4): one active sprint with completed effort from both
+-- project members, so Sprint and Project analytics have real bars to show.
 INSERT INTO sprints (id, project_id, name, status, started_at, created_at) VALUES
     (8, 4, 'Sprint 1', 'active', TIMESTAMPTZ '2026-09-01 09:00+00', TIMESTAMPTZ '2026-08-28 09:00+00')
 ON CONFLICT (id) DO NOTHING;
@@ -267,6 +267,11 @@ INSERT INTO product_backlog_items
      'product_backlog', NULL, NULL, NULL, NULL,
      TIMESTAMPTZ '2026-09-06 10:00+00', TIMESTAMPTZ '2026-09-06 10:00+00'),
 
+    (19, 4, 8, 'Customer can manage account security',
+     'Profile summary and account security controls for signed-in customers.',
+     'completed', DATE '2026-09-01', DATE '2026-09-05', 10.00, 8.75,
+     TIMESTAMPTZ '2026-08-29 10:00+00', TIMESTAMPTZ '2026-09-05 16:00+00'),
+
     -- Internal Tools (5)
     (14, 5, NULL, 'Tool for tracking team leave requests',
      'Internal form and approval queue so leave requests do not go through email.',
@@ -309,6 +314,15 @@ INSERT INTO tasks (id, pbi_id, title, status, assignee_id) VALUES
     (12, 12, 'Validate address against courier API',   'todo',        6), -- Marcus, Customer Portal
     (13, 15, 'Design timesheet export format',         'todo',        1), -- Pang, Internal Tools
     (14, 18, 'Add zxcvbn-based strength indicator',    'done',        1)  -- Pang, BIX Platform
+ON CONFLICT (id) DO NOTHING;
+
+-- Completed Customer Portal work with recorded Actual Hours. Analytics uses
+-- completed task hours (not the parent PBI estimate/total), grouped by the
+-- task assignee and the PBI's Sprint/project.
+INSERT INTO tasks
+    (id, pbi_id, title, status, assignee_id, actual_hours, completed_at) VALUES
+    (15, 19, 'Build customer profile summary',  'done', 6, 4.50, TIMESTAMPTZ '2026-09-04 15:00+00'), -- Marcus
+    (16, 19, 'Add account security settings',   'done', 7, 4.25, TIMESTAMPTZ '2026-09-05 15:30+00')  -- Priya
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO sub_tasks (id, task_id, title, status) VALUES
