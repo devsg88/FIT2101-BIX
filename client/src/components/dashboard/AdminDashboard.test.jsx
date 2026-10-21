@@ -93,4 +93,13 @@ describe('AdminDashboard - real team count (NFR-01 frontend audit finding)', () 
 
     expect(screen.getByText('N/A')).toBeInTheDocument();
   });
+
+  it('does not render fabricated organization metrics or Team Health rows', () => {
+    renderDashboard(1);
+
+    expect(screen.queryByText(/demo data/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tasks in progress/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Teams blocked \/ at risk/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Team Health/i })).not.toBeInTheDocument();
+  });
 });

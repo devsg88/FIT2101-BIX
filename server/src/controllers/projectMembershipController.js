@@ -14,9 +14,7 @@ import { findUserById } from '../models/userModel.js';
 // which already has listProjectMembers fully implemented) but because
 // SCRUM-122's assignee validation and SCRUM-124's assignee dropdown both
 // need a way to read a project's member list, and no HTTP endpoint for it
-// existed anywhere in the codebase yet (TeamDetail.jsx / US-03/US-05's
-// admin team UI is still client-side mock data only, see
-// client/src/data/orgMockData.js). This is a thin, read-only wrapper
+// existed anywhere in the codebase yet. This is a thin, read-only wrapper
 // around the existing model function - no new business logic.
 //
 // Any authenticated user may read a project's member list (same posture as
@@ -72,9 +70,8 @@ export async function getAvailableDevelopersController(req, res) {
 //
 // Closes the gap flagged in the NFR-01 frontend audit: project membership
 // (the thing US-05 actually gates Developer access on, see
-// projectMembershipModel.js) previously had no route to write it at all -
-// TeamDetail.jsx's "Assign Developer" only ever updated local React state
-// against client/src/data/orgMockData.js, never the database. Admin-only and
+// projectMembershipModel.js) previously had no route to write it at all.
+// Admin-only and
 // responsible-Admin-only, same as every other project mutation (see
 // projectMembershipRoutes.js). Only an existing user with role='developer'
 // may be added - the target id is never trusted blindly, it is looked up

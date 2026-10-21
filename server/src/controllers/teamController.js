@@ -12,8 +12,7 @@ import { findUserById } from '../models/userModel.js';
 //
 // Closes a gap flagged in an audit for teamModel.js already existing (fully
 // implemented, fully tested) with no controller or route ever built on top
-// of it - AdminSidebar.jsx's team list and TeamDetail.jsx were still reading
-// client/src/data/orgMockData.js instead. Admin-only, matching every admin
+// of it. Admin-only, matching every admin
 // team-management screen; there is no per-admin ownership of a team the way
 // requireProjectResponsibility scopes projects, so plain requireRole('admin')
 // is the whole guard.

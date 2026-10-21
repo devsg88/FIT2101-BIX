@@ -10,9 +10,7 @@ import ActionError from '../common/ActionError.jsx';
 
 // US-03/US-05: closes the gap found in the NFR-01 frontend audit - there was
 // previously no way to add or remove a developer from a project anywhere in
-// the running app; TeamDetail.jsx's "Assign Developer" modal only ever wrote
-// to local React state over client/src/data/orgMockData.js, never the
-// database. This reuses that modal's exact markup/classes (admin-modal__*,
+// the running app. This reuses the Team Detail modal's exact markup/classes (admin-modal__*,
 // admin-status-pill) since it's the same shape of UI - search, pick a
 // developer, confirm - just wired to the real project_members endpoints
 // instead of mock data.

@@ -12,8 +12,8 @@ import {
   removeTeamMember
 } from '../services/api.js';
 
-// Closes the gap an audit found: this page used to read
-// client/src/data/orgMockData.js entirely - "Assign Developer" and "Remove"
+// Closes the gap an audit found: this page used to read client-side mock data
+// entirely - "Assign Developer" and "Remove"
 // looked functional but only ever touched local React state. Now backed by
 // GET/POST/DELETE /api/teams/:teamId/members (teamController.js).
 vi.mock('../context/AuthContext.jsx', () => ({ useAuth: vi.fn() }));

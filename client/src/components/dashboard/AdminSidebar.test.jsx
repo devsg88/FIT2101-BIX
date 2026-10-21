@@ -198,7 +198,7 @@ describe('AdminSidebar - Your projects (US-04c)', () => {
   });
 });
 
-// The team list used to be client/src/data/orgMockData.js (fake, never
+// The team list used to be client-side mock data (fake, never
 // touched the database). Now real data from GET /api/teams, same pattern as
 // "Your projects" above.
 describe('AdminSidebar - team list (real data)', () => {

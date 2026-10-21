@@ -14,8 +14,7 @@ import { getResponsibleProjects, getTeams } from '../../services/api.js';
 // agree with what's actually on screen.
 //
 // The team list is real data from GET /api/teams, same as "Your projects"
-// (US-04c) below it - previously both this list and TeamDetail.jsx read
-// client/src/data/orgMockData.js instead of the database.
+// (US-04c) below it.
 export default function AdminSidebar() {
   const { teamId } = useParams();
   const [searchQuery, setSearchQuery] = useState('');

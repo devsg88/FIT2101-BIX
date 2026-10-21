@@ -482,9 +482,8 @@ export function completePbi(projectId, pbiId, payload, token) {
 }
 
 // GET /api/teams
-// Every team - the list AdminSidebar.jsx and TeamDetail.jsx read instead of
-// client/src/data/orgMockData.js. Admin-only on the backend. Resolves with
-// { teams }.
+// Every team - the database-backed list used by AdminSidebar.jsx and
+// TeamDetail.jsx. Admin-only on the backend. Resolves with { teams }.
 export function getTeams(token) {
   return request('/teams', {
     headers: authHeader(token)

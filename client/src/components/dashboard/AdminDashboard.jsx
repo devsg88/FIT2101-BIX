@@ -1,17 +1,12 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar.jsx';
 import CreateProjectModal from './CreateProjectModal.jsx';
-import { allTeams, orgStats, productOwnerHandle } from '../../data/orgMockData.js';
 
 export default function AdminDashboard({ data }) {
   const [showCreateProject, setShowCreateProject] = useState(false);
-  // Real, from the backend (dashboardController.js). Everything else on this
-  // page (tasksInProgress, teamsAtRisk, the Team Health table rows) has no
-  // backend source yet - see server/db/README.md "Open questions and flags"
-  // #8, the team<->project link this would need does not exist in the
-  // schema - so those stay on orgMockData.js and are labelled as demo data
-  // below rather than silently shown as if they were live.
+  // Real, from the backend (dashboardController.js). Metrics that require a
+  // team-to-project relationship are deliberately omitted until that
+  // relationship exists in the schema.
   const teamCount = data?.data?.teamCount ?? null;
 
   return (
@@ -46,68 +41,7 @@ export default function AdminDashboard({ data }) {
               {teamCount ?? 'N/A'}
             </p>
           </div>
-
-          <div className="stat-card">
-            <p className="stat-card__label">Tasks in progress (demo data)</p>
-            <p className="stat-card__value stat-card__value--orange">
-              {orgStats.tasksInProgress}
-              <span className="stat-card__value-suffix">across all boards</span>
-            </p>
-          </div>
-
-          <div className="stat-card">
-            <p className="stat-card__label">Teams blocked / at risk (demo data)</p>
-            <p className="stat-card__value stat-card__value--red">
-              {orgStats.teamsAtRisk}
-              <span className="stat-card__value-suffix">require admin attention</span>
-            </p>
-          </div>
         </div>
-
-        <section className="team-health-table">
-          <div className="team-health-table__header">
-            <h2>Team Health &amp; Active Sprints (demo data)</h2>
-            <button type="button" className="admin-btn admin-btn--filter">
-              Filter ▾
-            </button>
-          </div>
-
-          <div className="team-health-table__columns">
-            <span>Team name</span>
-            <span>Product owner</span>
-            <span>Current project</span>
-            <span>Sprint progress</span>
-            <span>Status</span>
-            <span />
-          </div>
-
-          <div className="team-health-table__body">
-            {allTeams.map((team) => (
-              <div className="team-health-table__row" key={team.id}>
-                <Link to={`/teams/${team.id}`} className="team-health-table__name">
-                  {team.name}
-                </Link>
-                <span className="team-health-table__owner">{productOwnerHandle(team)}</span>
-                <span className="team-health-table__project">{team.currentProject}</span>
-                <span className="team-health-table__progress">
-                  <span className="team-health-table__progress-track">
-                    <span
-                      className={`team-health-table__progress-fill team-health-table__progress-fill--${team.statusType}`}
-                      style={{ width: `${team.sprintProgress}%` }}
-                    />
-                  </span>
-                  <span className="team-health-table__progress-value">{team.sprintProgress}%</span>
-                </span>
-                <span className={`admin-status-pill admin-status-pill--${team.statusType}`}>
-                  {team.status}
-                </span>
-                <button type="button" className="team-health-table__menu" aria-label={`More actions for ${team.name}`}>
-                  •••
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
       </main>
 
       {showCreateProject && (
