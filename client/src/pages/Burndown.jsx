@@ -79,8 +79,13 @@ export default function Burndown() {
 
   // A ?sprint= id only counts if it is one of this project's Sprints;
   // anything else falls back to the default Sprint.
-  const requestedId = Number(searchParams.get('sprint'));
-  const requested = sprints.find((sprint) => sprint.id === requestedId);
+  const requestedId = searchParams.get('sprint');
+  // PostgreSQL bigint ids arrive as strings, while test fixtures and other
+  // client paths may use numbers. Normalise both sides so selecting a Sprint
+  // does not fall back to the active Sprint solely because "1" !== 1.
+  const requested = requestedId === null
+    ? null
+    : sprints.find((sprint) => String(sprint.id) === requestedId);
   const selectedSprintId = (requested ?? pickDefaultSprint(sprints))?.id ?? null;
 
   const selectSprint = (sprintId) => setSearchParams({ sprint: String(sprintId) });

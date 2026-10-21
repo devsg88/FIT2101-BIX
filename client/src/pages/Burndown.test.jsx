@@ -131,6 +131,30 @@ describe('Burndown page', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/projects/1/burndown?sprint=1');
   });
 
+  it('loads another Sprint when PostgreSQL returns bigint ids as strings', async () => {
+    const stringIdSprints = sprints.map((sprint) => ({
+      ...sprint,
+      id: String(sprint.id)
+    }));
+    getProjectSprints.mockResolvedValue({ sprints: stringIdSprints });
+    getSprintBurndown.mockImplementation((projectId, sprintId) =>
+      Promise.resolve(
+        burndownFor(
+          stringIdSprints.find((sprint) => String(sprint.id) === String(sprintId))
+        )
+      )
+    );
+
+    renderPage();
+    await screen.findByTestId('burndown-summary');
+
+    fireEvent.change(screen.getByLabelText('Sprint'), { target: { value: '1' } });
+
+    await waitFor(() => expect(getSprintBurndown).toHaveBeenCalledWith('1', '1', 'tok'));
+    expect(await screen.findByText('Sprint 1', { selector: 'strong' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Sprint')).toHaveValue('1');
+  });
+
   it('shows the server message and a Retry when the Sprints fail to load', async () => {
     getProjectSprints.mockRejectedValueOnce(new Error('You are not a member of this project'));
 
