@@ -638,6 +638,90 @@ input {
   color: #1c8f8b;
 }
 
+/* --- Team health table -------------------------------------------------------- */
+
+.team-health-table {
+  border: 1.5px solid #20201d;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.team-health-table__header {
+  padding: 18px 22px;
+}
+
+.team-health-table__header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.team-health-table__header p {
+  margin: 0;
+  color: #8a887f;
+  font-size: 13px;
+}
+
+.team-health-table__columns,
+.team-health-table__row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 22px;
+}
+
+.team-health-table__columns {
+  border-top: 1px solid #eeecdd;
+  border-bottom: 1px solid #eeecdd;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #8a887f;
+}
+
+.team-health-table__row {
+  border-bottom: 1px solid #f2f0e2;
+}
+
+.team-health-table__row:last-child {
+  border-bottom: none;
+}
+
+.team-health-table__name {
+  color: #1d1d1b;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.team-health-table__name:hover,
+.team-health-table__view-link:hover {
+  color: #1c6d6a;
+  text-decoration: underline;
+}
+
+.team-health-table__created {
+  color: #6c6a61;
+  font-size: 13.5px;
+}
+
+.team-health-table__view-link {
+  color: #1c8f8b;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.team-health-table__empty {
+  margin: 0;
+  padding: 22px;
+  color: #6c6a61;
+  font-size: 14px;
+}
+
 .admin-status-pill {
   display: inline-flex;
   align-items: center;
@@ -940,6 +1024,16 @@ input {
 
   .admin-dashboard__stats {
     grid-template-columns: 1fr;
+  }
+
+  .team-health-table__columns {
+    display: none;
+  }
+
+  .team-health-table__row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 16px;
   }
 
   .team-members-table__columns {

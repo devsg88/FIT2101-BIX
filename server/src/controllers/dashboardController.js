@@ -4,12 +4,10 @@ import { listTeams } from '../models/teamModel.js';
 
 // Real data only where the schema actually supports it right now. See
 // server/db/README.md ("Open questions and flags", #8) for what is
-// intentionally left out below and why: the admin Team Health table
-// (current project, sprint progress, status, product owner per team)
-// depends on a team<->project link that does not exist in the schema yet.
-// Faking it would produce numbers that look real but are not, so it is left
-// out entirely rather than guessed. Deferred to a later sprint, not
-// required by the current three journeys.
+// intentionally left out below and why: project, sprint progress, status and
+// product owner per team depend on a team<->project link that does not exist
+// in the schema yet. The admin dashboard can still show the real teams
+// returned by listTeams without inventing those unsupported health fields.
 //
 // A completed task counts as "recent" for Task History if it finished
 // within this window - matches the "last 7 days" framing the UI shows.
@@ -24,9 +22,8 @@ export async function getDashboardController(req, res) {
       return res.json({
         role,
         data: {
-          teamCount: teams.length
-          // Team Health table (per-team current project, sprint progress,
-          // status, product owner) intentionally omitted - see README #8.
+          teamCount: teams.length,
+          teams
         }
       });
     }

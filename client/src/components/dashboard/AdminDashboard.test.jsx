@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import AdminDashboard from './AdminDashboard.jsx';
 import { useAuth } from '../../context/AuthContext.jsx';
@@ -14,17 +14,17 @@ vi.mock('../../services/api.js', () => ({
 }));
 
 // Matches the real shape Dashboard.jsx passes down - the full response from
-// getDashboard() ({ role, data: { teamCount } }, see dashboardController.js),
+// getDashboard() ({ role, data: { teamCount, teams } }, see dashboardController.js),
 // not just the inner object. Same convention DeveloperDashboard.jsx reads
 // (data?.data?....).
-function renderDashboard(teamCount = 1) {
+function renderDashboard(teamCount = 1, teams = []) {
   useAuth.mockReturnValue({
     user: { id: 3, name: 'Admin', role: 'admin', token: 'tok-admin' },
     logout: vi.fn()
   });
   return render(
     <MemoryRouter>
-      <AdminDashboard data={{ role: 'admin', data: { teamCount } }} />
+      <AdminDashboard data={{ role: 'admin', data: { teamCount, teams } }} />
     </MemoryRouter>
   );
 }
@@ -94,12 +94,30 @@ describe('AdminDashboard - real team count (NFR-01 frontend audit finding)', () 
     expect(screen.getByText('N/A')).toBeInTheDocument();
   });
 
-  it('does not render fabricated organization metrics or Team Health rows', () => {
-    renderDashboard(1);
+  it('renders only the existing teams supplied by the backend', () => {
+    renderDashboard(1, [
+      { id: 7, name: 'Existing Team', created_at: '2026-10-20T00:00:00.000Z' }
+    ]);
+
+    const table = screen.getByRole('region', { name: 'Team Health' });
+    expect(within(table).getByRole('link', { name: 'Existing Team' })).toHaveAttribute(
+      'href',
+      '/teams/7'
+    );
+    expect(within(table).getByRole('link', { name: 'View team' })).toHaveAttribute(
+      'href',
+      '/teams/7'
+    );
 
     expect(screen.queryByText(/demo data/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Tasks in progress/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Teams blocked \/ at risk/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: /Team Health/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Team Alpha')).not.toBeInTheDocument();
+  });
+
+  it('shows an empty state when there are no existing teams', () => {
+    renderDashboard(0, []);
+
+    expect(screen.getByText('No teams yet.')).toBeInTheDocument();
   });
 });

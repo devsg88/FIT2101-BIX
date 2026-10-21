@@ -20,11 +20,12 @@ describe('getDashboardController', () => {
     vi.clearAllMocks();
   });
 
-  it('returns real team count for an admin, no fabricated team health fields', async () => {
-    listTeams.mockResolvedValue([
+  it('returns the real teams and team count for an admin', async () => {
+    const teams = [
       { id: 1, name: 'Team Alpha' },
       { id: 2, name: 'Team Bravo' }
-    ]);
+    ];
+    listTeams.mockResolvedValue(teams);
     const req = { user: { id: 3, role: 'admin' } };
     const res = mockRes();
 
@@ -32,7 +33,7 @@ describe('getDashboardController', () => {
 
     expect(res.json).toHaveBeenCalledWith({
       role: 'admin',
-      data: { teamCount: 2 }
+      data: { teamCount: 2, teams }
     });
   });
 
